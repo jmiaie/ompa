@@ -11,7 +11,7 @@ class TestPalace:
     """Test palace metadata layer."""
 
     def test_create_wing(self):
-        from agnostic_obsidian import Palace
+        from ompa import Palace
         with tempfile.TemporaryDirectory() as tmpdir:
             p = Palace(os.path.join(tmpdir, ".palace"))
             p.create_wing("Orion", type="project", keywords=["analytics"])
@@ -20,7 +20,7 @@ class TestPalace:
             assert wings[0]["name"] == "Orion"
 
     def test_rooms_and_drawers(self):
-        from agnostic_obsidian import Palace
+        from ompa import Palace
         with tempfile.TemporaryDirectory() as tmpdir:
             p = Palace(os.path.join(tmpdir, ".palace"))
             p.create_wing("Orion", type="project")
@@ -30,7 +30,7 @@ class TestPalace:
             assert "work/active/auth.md" in drawers
 
     def test_halls(self):
-        from agnostic_obsidian import Palace
+        from ompa import Palace
         with tempfile.TemporaryDirectory() as tmpdir:
             p = Palace(os.path.join(tmpdir, ".palace"))
             p.create_wing("Orion", type="project")
@@ -40,7 +40,7 @@ class TestPalace:
             assert "Clerk" in hall
 
     def test_tunnels(self):
-        from agnostic_obsidian import Palace
+        from ompa import Palace
         with tempfile.TemporaryDirectory() as tmpdir:
             p = Palace(os.path.join(tmpdir, ".palace"))
             p.create_wing("Orion", type="project")
@@ -51,7 +51,7 @@ class TestPalace:
             assert len(tunnels) == 1
 
     def test_stats(self):
-        from agnostic_obsidian import Palace
+        from ompa import Palace
         with tempfile.TemporaryDirectory() as tmpdir:
             p = Palace(os.path.join(tmpdir, ".palace"))
             p.create_wing("Orion", type="project")
@@ -66,7 +66,7 @@ class TestKnowledgeGraph:
     """Test temporal knowledge graph."""
 
     def test_add_triple(self):
-        from agnostic_obsidian import KnowledgeGraph
+        from ompa import KnowledgeGraph
         with tempfile.TemporaryDirectory() as tmpdir:
             kg = KnowledgeGraph(db_path=os.path.join(tmpdir, "kg.sqlite3"))
             kg.add_triple("Kai", "works_on", "Orion", valid_from="2025-06-01")
@@ -75,7 +75,7 @@ class TestKnowledgeGraph:
             assert triples[0].predicate == "works_on"
 
     def test_query_entity_filtered(self):
-        from agnostic_obsidian import KnowledgeGraph
+        from ompa import KnowledgeGraph
         with tempfile.TemporaryDirectory() as tmpdir:
             kg = KnowledgeGraph(db_path=os.path.join(tmpdir, "kg.sqlite3"))
             kg.add_triple("Kai", "works_on", "Orion", valid_from="2025-06-01", valid_to="2025-12-01")
@@ -88,7 +88,7 @@ class TestKnowledgeGraph:
             assert all(t.object == "AgnosticObsidian" for t in triples)
 
     def test_timeline(self):
-        from agnostic_obsidian import KnowledgeGraph
+        from ompa import KnowledgeGraph
         with tempfile.TemporaryDirectory() as tmpdir:
             kg = KnowledgeGraph(db_path=os.path.join(tmpdir, "kg.sqlite3"))
             kg.add_triple("Kai", "works_on", "Orion", valid_from="2025-06-01")
@@ -99,7 +99,7 @@ class TestKnowledgeGraph:
             assert dates == sorted(dates)
 
     def test_stats(self):
-        from agnostic_obsidian import KnowledgeGraph
+        from ompa import KnowledgeGraph
         with tempfile.TemporaryDirectory() as tmpdir:
             kg = KnowledgeGraph(db_path=os.path.join(tmpdir, "kg.sqlite3"))
             kg.add_triple("Kai", "works_on", "Orion", valid_from="2025-06-01")
@@ -112,53 +112,53 @@ class TestClassifier:
     """Test message classifier."""
 
     def test_decision(self):
-        from agnostic_obsidian import MessageClassifier
+        from ompa import MessageClassifier
         c = MessageClassifier()
         result = c.classify("We decided to go with Postgres")
         assert result.message_type.value == "decision"
         assert result.confidence >= 0.3
 
     def test_win(self):
-        from agnostic_obsidian import MessageClassifier
+        from ompa import MessageClassifier
         c = MessageClassifier()
         result = c.classify("We won the enterprise deal!")
         assert result.message_type.value == "win"
 
     def test_incident(self):
-        from agnostic_obsidian import MessageClassifier
+        from ompa import MessageClassifier
         c = MessageClassifier()
         result = c.classify("The auth bug is blocking deployment")
         assert result.message_type.value == "incident"
 
     def test_question(self):
-        from agnostic_obsidian import MessageClassifier
+        from ompa import MessageClassifier
         c = MessageClassifier()
         result = c.classify("Should we use Clerk or Auth0 for auth?")
         assert result.message_type.value == "question"
 
     def test_suggestion(self):
-        from agnostic_obsidian import MessageClassifier
+        from ompa import MessageClassifier
         c = MessageClassifier()
         # 'suggestion' type doesn't exist; "we should" patterns map to task/unknown
         result = c.classify("We should add tests before merging")
         assert result.message_type.value in ("task", "unknown")
 
     def test_blocker(self):
-        from agnostic_obsidian import MessageClassifier
+        from ompa import MessageClassifier
         c = MessageClassifier()
         # 'blocked' + architecture terms map to architecture type (no 'blocker' type exists)
         result = c.classify("I'm blocked on the API design")
         assert result.message_type.value == "architecture"
 
     def test_learning(self):
-        from agnostic_obsidian import MessageClassifier
+        from ompa import MessageClassifier
         c = MessageClassifier()
         # 'learning'/'TIL' patterns map to brain-dump when they share knowledge
         result = c.classify("TIL that Postgres has built-in full-text search")
         assert result.message_type.value in ("brain-dump", "code", "unknown")
 
     def test_retrospective(self):
-        from agnostic_obsidian import MessageClassifier
+        from ompa import MessageClassifier
         c = MessageClassifier()
         # 'retrospective' keyword maps to meeting type
         result = c.classify("In our retrospective we found three issues")
@@ -169,21 +169,21 @@ class TestAgnosticObsidian:
     """Test core AgnosticObsidian integration."""
 
     def test_session_start(self):
-        from agnostic_obsidian import AgnosticObsidian
+        from ompa import AgnosticObsidian
         with tempfile.TemporaryDirectory() as tmpdir:
             ao = AgnosticObsidian(tmpdir, enable_semantic=False)
             result = ao.session_start()
             assert result.success == True
 
     def test_classify(self):
-        from agnostic_obsidian import AgnosticObsidian
+        from ompa import AgnosticObsidian
         with tempfile.TemporaryDirectory() as tmpdir:
             ao = AgnosticObsidian(tmpdir, enable_semantic=False)
             c = ao.classify("We decided to go with Postgres")
             assert c.message_type.value == "decision"
 
     def test_kg_integration(self):
-        from agnostic_obsidian import AgnosticObsidian
+        from ompa import AgnosticObsidian
         with tempfile.TemporaryDirectory() as tmpdir:
             ao = AgnosticObsidian(tmpdir, enable_semantic=False)
             ao.kg.add_triple("Jarv", "works_on", "AgnosticObsidian", valid_from="2026-04-10")
@@ -192,7 +192,7 @@ class TestAgnosticObsidian:
             assert triples[0].object == "AgnosticObsidian"
 
     def test_stop(self):
-        from agnostic_obsidian import AgnosticObsidian
+        from ompa import AgnosticObsidian
         with tempfile.TemporaryDirectory() as tmpdir:
             ao = AgnosticObsidian(tmpdir, enable_semantic=False)
             result = ao.stop()
