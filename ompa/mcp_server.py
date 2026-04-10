@@ -5,7 +5,7 @@ Works with Claude Desktop, Cursor, Windsurf, and any MCP-compatible client.
 
 Usage:
     # Claude Desktop
-    claude mcp add agnostic-obsidian -- python -m agnostic_obsidian.mcp_server
+    claude mcp add agnostic-obsidian -- python -m ompa.mcp_server
 
     # Then in any Claude session, use the tools:
     # - ao_session_start: Start a session, load context
@@ -29,7 +29,7 @@ __version__ = "0.1.0"
 
 def _load_core():
     """Lazy-load the core module."""
-    from agnostic_obsidian import AgnosticObsidian
+    from ompa import AgnosticObsidian
     return AgnosticObsidian
 
 
@@ -240,7 +240,7 @@ def ao_init(vault_path: str = ".") -> dict:
     Initialize a new vault + palace structure.
     Creates all folders and essential brain notes.
     """
-    from agnostic_obsidian import Vault
+    from ompa import Vault
     vault = Vault(vault_path)
     stats = vault.get_stats()
     return {

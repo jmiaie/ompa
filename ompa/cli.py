@@ -12,10 +12,10 @@ from rich.table import Table
 sys.path.insert(0, str(Path(__file__).parent))
 
 try:
-    from agnostic_obsidian import AgnosticObsidian, Palace, KnowledgeGraph
+    from ompa import AgnosticObsidian, Palace, KnowledgeGraph
 except ImportError:
     # Development mode
-    from agnostic_obsidian import AgnosticObsidian, Palace, KnowledgeGraph
+    from ompa import AgnosticObsidian, Palace, KnowledgeGraph
 
 app = typer.Typer(help="AgnosticObsidian — Universal AI agent memory layer")
 console = Console()
@@ -26,7 +26,7 @@ def init(
     vault_path: Path = Path("."),
 ):
     """Initialize vault + palace structure."""
-    from agnostic_obsidian import Vault
+    from ompa import Vault
     vault = Vault(vault_path)
     stats = vault.get_stats()
     ao = AgnosticObsidian(vault_path, enable_semantic=False)
@@ -255,7 +255,7 @@ def validate(
 ):
     """Validate all notes in the vault."""
     ao = AgnosticObsidian(vault_path, enable_semantic=False)
-    from agnostic_obsidian import Vault
+    from ompa import Vault
     vault = Vault(vault_path)
     notes = vault.list_notes()
 

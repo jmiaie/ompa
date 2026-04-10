@@ -3,7 +3,7 @@ Knowledge Graph — Temporal Entity-Relationship Graph for AgnosticObsidian.
 Inspired by MemPalace's knowledge_graph.py. SQLite-based triples with validity windows.
 
 Usage:
-    from agnostic_obsidian import KnowledgeGraph
+    from ompa import KnowledgeGraph
     kg = KnowledgeGraph(db_path="./workspace/.palace/knowledge_graph.sqlite3")
     kg.add_triple("Kai", "works_on", "Orion", valid_from="2025-06-01")
     kg.query_entity("Kai")
