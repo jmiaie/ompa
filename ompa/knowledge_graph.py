@@ -9,13 +9,13 @@ Usage:
     kg.query_entity("Kai")
     kg.timeline("Orion")
 """
+
 import hashlib
 import sqlite3
 from dataclasses import dataclass
-from datetime import datetime, date
+from datetime import datetime
 from pathlib import Path
 from typing import Optional
-
 
 DEFAULT_KG_PATH = "~/.agnostic-obsidian/knowledge_graph.sqlite3"
 
@@ -95,7 +95,7 @@ class KnowledgeGraph:
         entity_id = self._entity_id(name)
         conn.execute(
             "INSERT OR IGNORE INTO entities (id, name, type) VALUES (?, ?, ?)",
-            (entity_id, name, type)
+            (entity_id, name, type),
         )
         conn.commit()
         conn.close()
@@ -132,15 +132,17 @@ class KnowledgeGraph:
             if valid_to and valid_to < as_of:
                 continue
 
-            triples.append(Triple(
-                subject=row["subject"],
-                predicate=row["predicate"],
-                object=row["object"],
-                valid_from=valid_from,
-                valid_to=valid_to,
-                confidence=row["confidence"],
-                source_file=row["source_file"],
-            ))
+            triples.append(
+                Triple(
+                    subject=row["subject"],
+                    predicate=row["predicate"],
+                    object=row["object"],
+                    valid_from=valid_from,
+                    valid_to=valid_to,
+                    confidence=row["confidence"],
+                    source_file=row["source_file"],
+                )
+            )
         return triples
 
     def query_relation(self, subject: str, predicate: str) -> list[Triple]:
@@ -150,7 +152,7 @@ class KnowledgeGraph:
             """SELECT subject, predicate, object, valid_from, valid_to, confidence, source_file
                FROM triples
                WHERE subject = ? AND predicate = ?""",
-            (subject, predicate)
+            (subject, predicate),
         ).fetchall()
         conn.close()
         return [
@@ -205,13 +207,23 @@ class KnowledgeGraph:
             """INSERT OR REPLACE INTO triples
                (id, subject, predicate, object, valid_from, valid_to, confidence, source_file)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-            (triple_id, subject, predicate, object, valid_from, valid_to, confidence, source)
+            (
+                triple_id,
+                subject,
+                predicate,
+                object,
+                valid_from,
+                valid_to,
+                confidence,
+                source,
+            ),
         )
         conn.commit()
         conn.close()
 
-    def invalidate(self, subject: str, predicate: str, object: str,
-                   ended: str = None) -> None:
+    def invalidate(
+        self, subject: str, predicate: str, object: str, ended: str = None
+    ) -> None:
         """
         Invalidate a triple by setting its valid_to date.
         The fact is no longer current but remains queryable historically.
@@ -221,7 +233,7 @@ class KnowledgeGraph:
         conn.execute(
             """UPDATE triples SET valid_to = ?
                WHERE subject = ? AND predicate = ? AND object = ? AND valid_to IS NULL""",
-            (ended, subject, predicate, object)
+            (ended, subject, predicate, object),
         )
         conn.commit()
         conn.close()
@@ -241,7 +253,7 @@ class KnowledgeGraph:
                FROM triples
                WHERE subject = ? OR object = ?
                ORDER BY valid_from ASC NULLS FIRST""",
-            (entity, entity)
+            (entity, entity),
         ).fetchall()
         conn.close()
 
@@ -255,16 +267,18 @@ class KnowledgeGraph:
                 direction = "inbound"
                 label = f"{row['subject']} --{row['predicate']}--> {entity}"
 
-            timeline.append({
-                "date": row["valid_from"],
-                "end_date": row["valid_to"],
-                "direction": direction,
-                "subject": row["subject"],
-                "predicate": row["predicate"],
-                "object": row["object"],
-                "label": label,
-                "source": row["source_file"],
-            })
+            timeline.append(
+                {
+                    "date": row["valid_from"],
+                    "end_date": row["valid_to"],
+                    "direction": direction,
+                    "subject": row["subject"],
+                    "predicate": row["predicate"],
+                    "object": row["object"],
+                    "label": label,
+                    "source": row["source_file"],
+                }
+            )
         return timeline
 
     # -------------------------------------------------------------------------
@@ -289,7 +303,7 @@ class KnowledgeGraph:
         now = self._now()
         current = conn.execute(
             "SELECT COUNT(*) FROM triples WHERE (valid_to IS NULL OR valid_to >= ?)",
-            (now,)
+            (now,),
         ).fetchone()[0]
 
         conn.close()

@@ -2,6 +2,7 @@
 AgnosticObsidian — Universal AI Agent Memory Layer
 Core module integrating vault, palace, KG, hooks, classifier, and semantic search.
 """
+
 from pathlib import Path
 from typing import Optional
 
@@ -9,7 +10,7 @@ from .vault import Vault
 from .palace import Palace
 from .knowledge_graph import KnowledgeGraph
 from .hooks import HookManager, HookResult
-from .classifier import MessageClassifier, Classification, MessageType
+from .classifier import MessageClassifier, Classification
 from .semantic import SemanticIndex, SearchResult
 
 
@@ -45,7 +46,9 @@ class AgnosticObsidian:
         # Core systems
         self.vault = Vault(self.vault_path)
         self.palace = Palace(self.vault_path / ".palace")
-        self.kg = KnowledgeGraph(db_path=str(self.vault_path / ".palace" / "knowledge_graph.sqlite3"))
+        self.kg = KnowledgeGraph(
+            db_path=str(self.vault_path / ".palace" / "knowledge_graph.sqlite3")
+        )
         self.classifier = MessageClassifier()
         self.hooks = HookManager(self.vault_path, agent_name=self.agent_name)
 
@@ -286,7 +289,9 @@ class AgnosticObsidian:
         source: str = None,
     ) -> None:
         """Add a fact to the knowledge graph."""
-        self.kg.add_triple(subject, predicate, object, valid_from=valid_from, source=source)
+        self.kg.add_triple(
+            subject, predicate, object, valid_from=valid_from, source=source
+        )
 
     def kg_query(self, entity: str, as_of: str = None) -> list:
         """Query the knowledge graph."""

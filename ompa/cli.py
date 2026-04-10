@@ -2,6 +2,7 @@
 CLI for AgnosticObsidian.
 Run with: ao <command> or ao-mcp <command>
 """
+
 import sys
 from pathlib import Path
 
@@ -11,11 +12,7 @@ from rich.table import Table
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-try:
-    from ompa import AgnosticObsidian, Palace, KnowledgeGraph
-except ImportError:
-    # Development mode
-    from ompa import AgnosticObsidian, Palace, KnowledgeGraph
+from ompa import AgnosticObsidian
 
 app = typer.Typer(help="AgnosticObsidian — Universal AI agent memory layer")
 console = Console()
@@ -27,6 +24,7 @@ def init(
 ):
     """Initialize vault + palace structure."""
     from ompa import Vault
+
     vault = Vault(vault_path)
     stats = vault.get_stats()
     ao = AgnosticObsidian(vault_path, enable_semantic=False)
@@ -109,7 +107,11 @@ def search(
     table.add_column("Excerpt")
 
     for r in results:
-        excerpt = r.content_excerpt[:80] + "..." if len(r.content_excerpt) > 80 else r.content_excerpt
+        excerpt = (
+            r.content_excerpt[:80] + "..."
+            if len(r.content_excerpt) > 80
+            else r.content_excerpt
+        )
         table.add_row(f"{r.score:.2f}", r.match_type, r.path, excerpt)
 
     console.print(table)
@@ -127,7 +129,11 @@ def orphans(
     else:
         console.print(f"[yellow]Found {len(orphan_notes)} orphan notes:[/yellow]")
         for note in orphan_notes:
-            rel = note.path.relative_to(vault_path) if note.path.is_relative_to(vault_path) else note.path
+            rel = (
+                note.path.relative_to(vault_path)
+                if note.path.is_relative_to(vault_path)
+                else note.path
+            )
             console.print(f"  - {rel}")
 
 
@@ -191,7 +197,9 @@ def tunnel(
     else:
         console.print(f"[bold]Tunnels between {wing_a} and {wing_b}:[/bold]")
         for t in tunnels:
-            console.print(f"  - {t['wing_a']}/{t['room']} <-> {t['wing_b']}/{t['room']}")
+            console.print(
+                f"  - {t['wing_a']}/{t['room']} <-> {t['wing_b']}/{t['room']}"
+            )
 
 
 @app.command()
@@ -256,6 +264,7 @@ def validate(
     """Validate all notes in the vault."""
     ao = AgnosticObsidian(vault_path, enable_semantic=False)
     from ompa import Vault
+
     vault = Vault(vault_path)
     notes = vault.list_notes()
 
@@ -266,7 +275,11 @@ def validate(
         if result["warnings"]:
             total += 1
             for w in result["warnings"]:
-                rel = note.path.relative_to(vault_path) if note.path.is_relative_to(vault_path) else note.path
+                rel = (
+                    note.path.relative_to(vault_path)
+                    if note.path.is_relative_to(vault_path)
+                    else note.path
+                )
                 warnings_list.append(f"  {rel}: {w}")
 
     if warnings_list:

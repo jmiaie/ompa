@@ -2,6 +2,7 @@
 Message classification for routing and context injection.
 Classifies user messages into categories and injects routing hints.
 """
+
 import re
 from enum import Enum
 from dataclasses import dataclass
@@ -39,7 +40,7 @@ class MessageClassifier:
     Classifies user messages and provides routing guidance.
     Inspired by obsidian-minds classify-message.py but framework-agnostic.
     """
-    
+
     # Regex patterns for classification
     PATTERNS = {
         MessageType.DECISION: [
@@ -109,7 +110,7 @@ class MessageClassifier:
             r"\b(start session|start work|starting)\b",
         ],
     }
-    
+
     # Routing hints per message type
     ROUTING_HINTS = {
         MessageType.DECISION: [
@@ -173,7 +174,7 @@ class MessageClassifier:
             "Read brain/North Star.md first",
         ],
     }
-    
+
     # Suggested folder locations
     FOLDER_MAP = {
         MessageType.DECISION: "work/active/",
@@ -191,20 +192,20 @@ class MessageClassifier:
         MessageType.WRAP_UP: "brain/",
         MessageType.STANDUP: "brain/",
     }
-    
+
     def classify(self, message: str) -> Classification:
         """
         Classify a user message and return routing guidance.
-        
+
         Args:
             message: The user message text
-            
+
         Returns:
             Classification with type, confidence, hints, and suggested actions
         """
         message_lower = message.lower()
         scores = {}
-        
+
         for msg_type, patterns in self.PATTERNS.items():
             score = 0
             for pattern in patterns:
@@ -212,32 +213,32 @@ class MessageClassifier:
                     score += 1
             if score > 0:
                 scores[msg_type] = score
-        
+
         if not scores:
             return Classification(
                 message_type=MessageType.UNKNOWN,
                 confidence=0.0,
                 routing_hints=["Process as normal conversation"],
                 suggested_folder="thinking/",
-                suggested_action="Continue conversation normally"
+                suggested_action="Continue conversation normally",
             )
-        
+
         # Get highest scoring type
         best_type = max(scores, key=scores.get)
         confidence = min(scores[best_type] / 3.0, 1.0)  # Normalize to 0-1
-        
+
         # For short messages, reduce confidence
         if len(message.split()) < 5:
             confidence *= 0.7
-        
+
         return Classification(
             message_type=best_type,
             confidence=confidence,
             routing_hints=self.ROUTING_HINTS.get(best_type, []),
             suggested_folder=self.FOLDER_MAP.get(best_type, "thinking/"),
-            suggested_action=self._get_action(best_type)
+            suggested_action=self._get_action(best_type),
         )
-    
+
     def _get_action(self, msg_type: MessageType) -> str:
         """Get the primary action for a message type."""
         actions = {
@@ -258,7 +259,7 @@ class MessageClassifier:
             MessageType.UNKNOWN: "Continue conversation",
         }
         return actions.get(msg_type, "Continue conversation")
-    
+
     def get_routing_hint(self, message: str) -> str:
         """
         Get a single-line routing hint for a message.

@@ -15,10 +15,10 @@ Usage:
     # - ao_palace_wings: List palace wings
     # - etc.
 """
+
 import json
 import sys
 from pathlib import Path
-from typing import Any
 
 __version__ = "0.1.0"
 
@@ -27,9 +27,11 @@ __version__ = "0.1.0"
 # Tool Implementations
 # ---------------------------------------------------------------------------
 
+
 def _load_core():
     """Lazy-load the core module."""
     from ompa import AgnosticObsidian
+
     return AgnosticObsidian
 
 
@@ -126,7 +128,9 @@ def ao_kg_add(
     AO = _load_core()
     ao = AO(vault_path=vault_path, enable_semantic=False)
     ao.kg.add_triple(
-        subject, predicate, object_,
+        subject,
+        predicate,
+        object_,
         valid_from=valid_from,
         source=source,
     )
@@ -241,6 +245,7 @@ def ao_init(vault_path: str = ".") -> dict:
     Creates all folders and essential brain notes.
     """
     from ompa import Vault
+
     vault = Vault(vault_path)
     stats = vault.get_stats()
     return {
@@ -340,8 +345,14 @@ TOOLS = {
                 "subject": {"type": "string", "description": "Subject entity."},
                 "predicate": {"type": "string", "description": "Relationship verb."},
                 "object": {"type": "string", "description": "Object entity."},
-                "valid_from": {"type": "string", "description": "Start date (YYYY-MM-DD)."},
-                "source": {"type": "string", "description": "Source file or drawer reference."},
+                "valid_from": {
+                    "type": "string",
+                    "description": "Start date (YYYY-MM-DD).",
+                },
+                "source": {
+                    "type": "string",
+                    "description": "Source file or drawer reference.",
+                },
                 "vault_path": {"type": "string", "default": "."},
             },
             "required": ["subject", "predicate", "object"],
@@ -393,7 +404,10 @@ TOOLS = {
         "input_schema": {
             "type": "object",
             "properties": {
-                "file_path": {"type": "string", "description": "Path to the file to validate."},
+                "file_path": {
+                    "type": "string",
+                    "description": "Path to the file to validate.",
+                },
                 "vault_path": {"type": "string", "default": "."},
             },
             "required": ["file_path"],
@@ -442,11 +456,13 @@ def handle_list_tools():
     """Handle tool list request."""
     tools = []
     for name, spec in TOOLS.items():
-        tools.append({
-            "name": name,
-            "description": spec["description"],
-            "inputSchema": spec["input_schema"],
-        })
+        tools.append(
+            {
+                "name": name,
+                "description": spec["description"],
+                "inputSchema": spec["input_schema"],
+            }
+        )
     return {"tools": tools}
 
 
@@ -526,6 +542,7 @@ def handle_call_tool(name: str, arguments: dict) -> dict:
 # ---------------------------------------------------------------------------
 # MCP Protocol — JSON-RPC over stdin/stdout
 # ---------------------------------------------------------------------------
+
 
 def main():
     """

@@ -2,20 +2,25 @@
 Lifecycle hooks for agent memory.
 Handles session_start, user_message, post_tool, pre_compact, and stop events.
 """
-import os
+
 import json
 from datetime import datetime
-from dataclasses import dataclass, field
-from typing import Callable, Optional
+from dataclasses import dataclass
+from typing import Optional
 from pathlib import Path
 
 from .vault import Vault
-from .classifier import MessageClassifier, Classification
+from .classifier import MessageClassifier
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .core import AgnosticObsidian
 
 
 @dataclass
 class HookContext:
     """Context available during hook execution."""
+
     vault_path: Path
     session_id: str
     timestamp: datetime
@@ -26,6 +31,7 @@ class HookContext:
 @dataclass
 class HookResult:
     """Result of a hook execution."""
+
     hook_name: str
     success: bool
     output: str = ""
@@ -35,11 +41,11 @@ class HookResult:
 
 class Hook:
     """Base class for lifecycle hooks."""
-    
+
     def __init__(self, name: str, token_budget: int = 0):
         self.name = name
         self.token_budget = token_budget
-    
+
     def execute(self, context: HookContext) -> HookResult:
         raise NotImplementedError
 
@@ -53,11 +59,11 @@ class SessionStartHook(Hook):
     - Recent git changes
     - Open tasks
     """
-    
+
     def __init__(self, token_budget: int = 2000):
         super().__init__("session_start", token_budget)
         self.classifier = MessageClassifier()
-    
+
     def execute(self, context: HookContext) -> HookResult:
         try:
             vault = Vault(context.vault_path)
@@ -65,26 +71,29 @@ class SessionStartHook(Hook):
             lines.append("## Session Context")
             lines.append(f"**Date:** {context.timestamp.strftime('%Y-%m-%d (%A)')}")
             lines.append("")
-            
+
             # North Star
             north_star = vault.get_brain_note("North Star")
             if north_star:
                 # Extract just the Current Focus section
                 content = north_star.content
                 lines.append("### North Star (Current Goals)")
-                lines.append(self._extract_section(content, "Current Focus") or content[:500])
+                lines.append(
+                    self._extract_section(content, "Current Focus") or content[:500]
+                )
                 lines.append("")
-            
+
             # Recent git changes
             lines.append("### Recent Changes (last 48h)")
             try:
                 import subprocess
+
                 result = subprocess.run(
                     ["git", "log", "--oneline", "--since=48 hours ago", "--no-merges"],
                     cwd=context.vault_path,
                     capture_output=True,
                     text=True,
-                    timeout=5
+                    timeout=5,
                 )
                 if result.returncode == 0 and result.stdout.strip():
                     for line in result.stdout.strip().split("\n")[:10]:
@@ -94,7 +103,7 @@ class SessionStartHook(Hook):
             except Exception:
                 lines.append("(git not available)")
             lines.append("")
-            
+
             # Active work
             lines.append("### Active Work")
             active_notes = list(vault.config.work_folder.glob("active/*.md"))
@@ -104,7 +113,7 @@ class SessionStartHook(Hook):
             else:
                 lines.append("(no active work notes)")
             lines.append("")
-            
+
             # Vault stats
             stats = vault.get_stats()
             lines.append("### Vault Stats")
@@ -112,7 +121,7 @@ class SessionStartHook(Hook):
             lines.append(f"- Brain notes: {stats['brain_notes']}")
             lines.append(f"- Orphans (no links): {stats['orphans']}")
             lines.append("")
-            
+
             # File listing (truncated)
             lines.append("### Vault Files")
             all_notes = vault.list_notes()
@@ -120,24 +129,21 @@ class SessionStartHook(Hook):
                 lines.append(f"- {note.path.relative_to(context.vault_path)}")
             if len(all_notes) > 30:
                 lines.append(f"... and {len(all_notes) - 30} more")
-            
+
             output = "\n".join(lines)
             return HookResult(
                 hook_name=self.name,
                 success=True,
                 output=output,
-                tokens_hint=len(output.split())  # Rough token estimate
+                tokens_hint=len(output.split()),  # Rough token estimate
             )
         except Exception as e:
-            return HookResult(
-                hook_name=self.name,
-                success=False,
-                error=str(e)
-            )
-    
+            return HookResult(hook_name=self.name, success=False, error=str(e))
+
     def _extract_section(self, content: str, section: str) -> str:
         """Extract a section from markdown content."""
         import re
+
         pattern = rf"## {section}(.*?)(?=## |$)"
         match = re.search(pattern, content, re.DOTALL | re.IGNORECASE)
         return match.group(1).strip() if match else ""
@@ -148,37 +154,32 @@ class UserMessageHook(Hook):
     Runs on every user message.
     Classifies the message and injects routing hints.
     """
-    
+
     def __init__(self, token_budget: int = 100):
         super().__init__("user_message", token_budget)
         self.classifier = MessageClassifier()
-    
+
     def execute(self, context: HookContext, message: str) -> HookResult:
         try:
             classification = self.classifier.classify(message)
-            
+
             lines = []
-            lines.append(f"[Classification: {classification.message_type.value.upper()} | Confidence: {classification.confidence:.0%}]")
+            lines.append(
+                f"[Classification: {classification.message_type.value.upper()} | Confidence: {classification.confidence:.0%}]"
+            )
             lines.append(f"Action: {classification.suggested_action}")
-            
+
             if classification.routing_hints:
                 lines.append("Hints:")
                 for hint in classification.routing_hints[:2]:
                     lines.append(f"  - {hint}")
-            
+
             output = "\n".join(lines)
             return HookResult(
-                hook_name=self.name,
-                success=True,
-                output=output,
-                tokens_hint=100
+                hook_name=self.name, success=True, output=output, tokens_hint=100
             )
         except Exception as e:
-            return HookResult(
-                hook_name=self.name,
-                success=False,
-                error=str(e)
-            )
+            return HookResult(hook_name=self.name, success=False, error=str(e))
 
 
 class PostToolHook(Hook):
@@ -186,60 +187,69 @@ class PostToolHook(Hook):
     Runs after tool use (specifically .md file writes).
     Validates frontmatter, checks wikilinks.
     """
-    
+
     def __init__(self, token_budget: int = 200):
         super().__init__("post_tool", token_budget)
-    
-    def execute(self, context: HookContext, tool_name: str, tool_input: dict) -> HookResult:
+
+    def execute(
+        self, context: HookContext, tool_name: str, tool_input: dict
+    ) -> HookResult:
         if tool_name not in ["write", "edit", "create_file"]:
-            return HookResult(hook_name=self.name, success=True, output="(skipped - not a write operation)")
-        
+            return HookResult(
+                hook_name=self.name,
+                success=True,
+                output="(skipped - not a write operation)",
+            )
+
         # Extract file path from tool input
         file_path = tool_input.get("file_path") or tool_input.get("path")
         if not file_path:
-            return HookResult(hook_name=self.name, success=True, output="(skipped - no file path)")
-        
+            return HookResult(
+                hook_name=self.name, success=True, output="(skipped - no file path)"
+            )
+
         path = Path(file_path)
         if path.suffix != ".md":
-            return HookResult(hook_name=self.name, success=True, output="(skipped - not a markdown file)")
-        
+            return HookResult(
+                hook_name=self.name,
+                success=True,
+                output="(skipped - not a markdown file)",
+            )
+
         try:
             vault = Vault(context.vault_path)
             note = vault.list_notes([n for n in vault.list_notes() if n.path == path])
-            
+
             warnings = []
             if not path.exists():
                 warnings.append("File was not created")
             else:
                 from .vault import Note
+
                 note = Note.from_file(path)
-                
+
                 # Check frontmatter
                 if not note.frontmatter.get("date"):
                     warnings.append("Missing frontmatter 'date' field")
                 if not note.frontmatter.get("description"):
                     warnings.append("Missing frontmatter 'description' field")
-                
+
                 # Check wikilinks
                 if not note.has_links():
                     warnings.append("Note has no wikilinks (orphan)")
-            
+
             output = "(PostTool validation complete)"
             if warnings:
                 output += "\nWarnings:\n" + "\n".join(f"  - {w}" for w in warnings)
-            
+
             return HookResult(
                 hook_name=self.name,
                 success=len(warnings) == 0,
                 output=output,
-                tokens_hint=50
+                tokens_hint=50,
             )
         except Exception as e:
-            return HookResult(
-                hook_name=self.name,
-                success=False,
-                error=str(e)
-            )
+            return HookResult(hook_name=self.name, success=False, error=str(e))
 
 
 class PreCompactHook(Hook):
@@ -247,40 +257,41 @@ class PreCompactHook(Hook):
     Runs before context compaction.
     Archives session transcript to thinking/session-logs/.
     """
-    
+
     def __init__(self, token_budget: int = 100):
         super().__init__("pre_compact", token_budget)
-    
+
     def execute(self, context: HookContext, transcript: str) -> HookResult:
         try:
             session_log_path = context.vault_path / "thinking" / "session-logs"
             session_log_path.mkdir(parents=True, exist_ok=True)
-            
-            log_file = session_log_path / f"{context.timestamp.strftime('%Y-%m-%d_%H%M%S')}_{context.session_id[:8]}.json"
-            
+
+            log_file = (
+                session_log_path
+                / f"{context.timestamp.strftime('%Y-%m-%d_%H%M%S')}_{context.session_id[:8]}.json"
+            )
+
             log_data = {
                 "session_id": context.session_id,
                 "timestamp": context.timestamp.isoformat(),
                 "agent": context.agent_name,
                 "transcript_length": len(transcript),
-                "transcript_excerpt": transcript[-2000:] if len(transcript) > 2000 else transcript,
+                "transcript_excerpt": (
+                    transcript[-2000:] if len(transcript) > 2000 else transcript
+                ),
             }
-            
-            with open(log_file, 'w') as f:
+
+            with open(log_file, "w") as f:
                 json.dump(log_data, f, indent=2)
-            
+
             return HookResult(
                 hook_name=self.name,
                 success=True,
                 output=f"(Archived session log to {log_file.relative_to(context.vault_path)})",
-                tokens_hint=50
+                tokens_hint=50,
             )
         except Exception as e:
-            return HookResult(
-                hook_name=self.name,
-                success=False,
-                error=str(e)
-            )
+            return HookResult(hook_name=self.name, success=False, error=str(e))
 
 
 class StopHook(Hook):
@@ -288,17 +299,17 @@ class StopHook(Hook):
     Runs at end of session (wrap up).
     Verifies notes, updates indexes, spots uncaptured wins.
     """
-    
+
     def __init__(self, token_budget: int = 500):
         super().__init__("stop", token_budget)
-    
+
     def execute(self, context: HookContext) -> HookResult:
         try:
             vault = Vault(context.vault_path)
             lines = []
             lines.append("## Wrap-Up Checklist")
             lines.append("")
-            
+
             # Check for orphans
             orphans = vault.find_orphans()
             lines.append(f"**Orphan notes:** {len(orphans)}")
@@ -306,43 +317,40 @@ class StopHook(Hook):
                 for orphan in orphans[:5]:
                     lines.append(f"  - {orphan.path.name}")
             lines.append("")
-            
+
             # Update brain/Memories.md index
             all_notes = vault.list_notes()
-            brain_index = [n.path.relative_to(context.vault_path) for n in all_notes if "brain" in str(n.path)]
+            brain_index = [
+                n.path.relative_to(context.vault_path)
+                for n in all_notes
+                if "brain" in str(n.path)
+            ]
             lines.append(f"**Brain notes:** {len(brain_index)}")
-            
+
             # Check North Star
             north_star = vault.get_brain_note("North Star")
             if north_star:
                 lines.append(f"**North Star:** {north_star.path.name}")
             else:
                 lines.append("**WARNING:** No North Star found")
-            
+
             output = "\n".join(lines)
             return HookResult(
-                hook_name=self.name,
-                success=True,
-                output=output,
-                tokens_hint=200
+                hook_name=self.name, success=True, output=output, tokens_hint=200
             )
         except Exception as e:
-            return HookResult(
-                hook_name=self.name,
-                success=False,
-                error=str(e)
-            )
+            return HookResult(hook_name=self.name, success=False, error=str(e))
 
 
 class HookManager:
     """Manages and executes lifecycle hooks."""
-    
+
     def __init__(self, vault_path: str | Path, agent_name: str = "agent"):
         self.vault_path = Path(vault_path)
         self.agent_name = agent_name
         self.session_id = datetime.now().strftime("%Y%m%d_%H%M%S")
         self.timestamp = datetime.now()
-        
+
         # Register default hooks
         self.hooks = {
             "session_start": SessionStartHook(),
@@ -351,41 +359,43 @@ class HookManager:
             "pre_compact": PreCompactHook(),
             "stop": StopHook(),
         }
-    
+
     def _create_context(self, memory=None) -> HookContext:
         return HookContext(
             vault_path=self.vault_path,
             session_id=self.session_id,
             timestamp=self.timestamp,
             agent_name=self.agent_name,
-            memory=memory
+            memory=memory,
         )
-    
+
     def run_session_start(self, memory=None) -> HookResult:
         """Run session start hook."""
         context = self._create_context(memory)
         return self.hooks["session_start"].execute(context)
-    
+
     def run_user_message(self, message: str, memory=None) -> HookResult:
         """Run user message hook."""
         context = self._create_context(memory)
         return self.hooks["user_message"].execute(context, message)
-    
-    def run_post_tool(self, tool_name: str, tool_input: dict, memory=None) -> HookResult:
+
+    def run_post_tool(
+        self, tool_name: str, tool_input: dict, memory=None
+    ) -> HookResult:
         """Run post tool hook."""
         context = self._create_context(memory)
         return self.hooks["post_tool"].execute(context, tool_name, tool_input)
-    
+
     def run_pre_compact(self, transcript: str, memory=None) -> HookResult:
         """Run pre-compact hook."""
         context = self._create_context(memory)
         return self.hooks["pre_compact"].execute(context, transcript)
-    
+
     def run_stop(self, memory=None) -> HookResult:
         """Run stop hook."""
         context = self._create_context(memory)
         return self.hooks["stop"].execute(context)
-    
+
     def register_hook(self, name: str, hook: Hook) -> None:
         """Register a custom hook."""
         self.hooks[name] = hook
