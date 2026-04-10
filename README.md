@@ -1,6 +1,19 @@
-# AgnosticObsidian
+# AgnosticObsidian (OMPA)
 
-> **Universal AI agent memory layer** — gives any AI agent persistent memory with vault conventions, palace navigation, and a temporal knowledge graph.
+> **Obsidian-MemPalace-Agnostic** — Universal AI agent memory layer
+
+AgnosticObsidian gives any AI agent persistent memory with vault conventions, palace navigation, and a temporal knowledge graph.
+
+## Credits & Attribution
+
+This project is a synthesis of ideas and code from the AI agent memory community:
+
+- **[MemPalace](https://github.com/corbt/mem_palace)** by Kyle Corbitt — The palace metaphor (wings/rooms/drawers), temporal knowledge graph design, and verbatim storage approach. MemPalace proved 96.6% R@5 on LongMemEval with raw verbatim storage.
+- **[obsidian-mind](https://github.com/obsidian-ai/obsidian-mind)** — Vault structure (brain/work/org/perf), wikilink conventions, frontmatter validation, and session lifecycle patterns.
+- **Claude Code / Anthropic** — Hook patterns and agent-tool interaction models.
+- **OpenClaw** — Framework-agnostic agent runtime that inspired the "universal" design goal.
+
+AgnosticObsidian combines these into a framework-agnostic package that works with any AI agent runtime.
 
 [![PyPI version](https://img.shields.io/pypi/v/agnostic-obsidian)](https://pypi.org/project/agnostic-obsidian/)
 [![Python versions](https://img.shields.io/pypi/pyversions/agnostic-obsidian)](https://pypi.org/project/agnostic-obsidian/)
