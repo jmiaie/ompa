@@ -185,6 +185,9 @@ class Vault:
 
     def get_brain_note(self, name: str) -> Optional[Note]:
         """Get a brain note by name. Name is sanitized to prevent path traversal."""
+        # Reject names with path separators or parent-dir references
+        if "/" in name or "\\" in name or ".." in name:
+            raise ValueError(f"Invalid brain note name: {name!r}")
         safe_name = Path(name).name  # Strip any directory components
         path = self.config.brain_folder / f"{safe_name}.md"
         path = path.resolve()
@@ -197,6 +200,9 @@ class Vault:
 
     def update_brain_note(self, name: str, content: str, append: bool = False) -> None:
         """Update a brain note. Name is sanitized to prevent path traversal."""
+        # Reject names with path separators or parent-dir references
+        if "/" in name or "\\" in name or ".." in name:
+            raise ValueError(f"Invalid brain note name: {name!r}")
         safe_name = Path(name).name  # Strip any directory components
         path = self.config.brain_folder / f"{safe_name}.md"
         path = path.resolve()
