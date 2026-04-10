@@ -1,5 +1,5 @@
 [project]
-name = "agnostic-obsidian"
+name = "ompa"
 version = "0.1.0"
 description = "Universal AI agent memory layer — vault + palace + temporal knowledge graph"
 readme = "README.md"
@@ -50,14 +50,14 @@ all = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/micap-ai/agnostic-obsidian"
-Repository = "https://github.com/micap-ai/agnostic-obsidian"
-Documentation = "https://github.com/micap-ai/agnostic-obsidian#readme"
-"Bug Tracker" = "https://github.com/micap-ai/agnostic-obsidian/issues"
+Homepage = "https://github.com/micap-ai/ompa"
+Repository = "https://github.com/micap-ai/ompa"
+Documentation = "https://github.com/micap-ai/ompa#readme"
+"Bug Tracker" = "https://github.com/micap-ai/ompa/issues"
 
 [project.scripts]
-ao = "agnostic_obsidian.cli:main"
-ao-mcp = "agnostic_obsidian.mcp_server:main"
+ao = "ompa.cli:main"
+ao-mcp = "ompa.mcp_server:main"
 
 [build-system]
 requires = ["setuptools>=61.0"]

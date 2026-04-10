@@ -1,8 +1,8 @@
-# AgnosticObsidian (OMPA)
+# OMPA (OMPA)
 
 > **Obsidian-MemPalace-Agnostic** — Universal AI agent memory layer
 
-AgnosticObsidian gives any AI agent persistent memory with vault conventions, palace navigation, and a temporal knowledge graph.
+OMPA gives any AI agent persistent memory with vault conventions, palace navigation, and a temporal knowledge graph.
 
 ## Credits & Attribution
 
@@ -13,10 +13,10 @@ This project is a synthesis of ideas and code from the AI agent memory community
 - **Claude Code / Anthropic** — Hook patterns and agent-tool interaction models.
 - **OpenClaw** — Framework-agnostic agent runtime that inspired the "universal" design goal.
 
-AgnosticObsidian combines these into a framework-agnostic package that works with any AI agent runtime.
+OMPA combines these into a framework-agnostic package that works with any AI agent runtime.
 
-[![PyPI version](https://img.shields.io/pypi/v/agnostic-obsidian)](https://pypi.org/project/agnostic-obsidian/)
-[![Python versions](https://img.shields.io/pypi/pyversions/agnostic-obsidian)](https://pypi.org/project/agnostic-obsidian/)
+[![PyPI version](https://img.shields.io/pypi/v/ompa)](https://pypi.org/project/ompa/)
+[![Python versions](https://img.shields.io/pypi/pyversions/ompa)](https://pypi.org/project/ompa/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
 ## The Problem
@@ -25,7 +25,7 @@ Every AI agent starts empty every session. Important decisions get lost. Context
 
 ## The Solution
 
-AgnosticObsidian gives any AI agent — **Claude Code, OpenClaw, Codex, Gemini CLI, or any custom agent** — persistent, structured memory that:
+OMPA gives any AI agent — **Claude Code, OpenClaw, Codex, Gemini CLI, or any custom agent** — persistent, structured memory that:
 
 - **Never forgets a decision** (vault + knowledge graph)
 - **Knows where things belong** (15 message types with routing hints)
@@ -35,7 +35,7 @@ AgnosticObsidian gives any AI agent — **Claude Code, OpenClaw, Codex, Gemini C
 ## Quick Start
 
 ```bash
-pip install agnostic-obsidian
+pip install ompa
 
 # Initialize a vault
 ao init ./workspace
@@ -90,7 +90,7 @@ Uses `sentence-transformers` (all-MiniLM-L6-v2) locally. No OpenAI/Anthropic API
 
 ```
 agnostic_obsidian/
-├── core.py              # AgnosticObsidian main class
+├── core.py              # OMPA main class
 ├── vault.py             # Vault management (brain/work/org/perf)
 ├── palace.py            # Palace metadata (wings/rooms/drawers)
 ├── knowledge_graph.py   # Temporal KG (SQLite triples)
@@ -107,7 +107,7 @@ Works with **Claude Desktop, Cursor, Windsurf** natively:
 
 ```bash
 # Claude Desktop
-claude mcp add agnostic-obsidian -- python -m agnostic_obsidian.mcp_server
+claude mcp add ompa -- python -m agnostic_obsidian.mcp_server
 ```
 
 Tools: `ao_session_start`, `ao_classify`, `ao_search`, `ao_kg_query`, `ao_kg_add`, `ao_palace_wings`, `ao_palace_rooms`, `ao_palace_tunnel`, `ao_validate`, `ao_wrap_up`, `ao_status`, `ao_orphans`, `ao_init`, `ao_search`, `ao_stop`
@@ -115,9 +115,9 @@ Tools: `ao_session_start`, `ao_classify`, `ao_search`, `ao_kg_query`, `ao_kg_add
 ## Python API
 
 ```python
-from agnostic_obsidian import AgnosticObsidian
+from agnostic_obsidian import OMPA
 
-ao = AgnosticObsidian(vault_path="./workspace")
+ao = OMPA(vault_path="./workspace")
 
 # Lifecycle
 result = ao.session_start()       # Returns ~2K token context injection
@@ -150,7 +150,7 @@ ao kg-stats      ao validate    ao rebuild-index
 
 ## Framework Agnostic
 
-Unlike MemPalace (Claude Code + MCP only) or obsidian-mind (Claude Code hooks only), AgnosticObsidian works with **any AI agent**:
+Unlike MemPalace (Claude Code + MCP only) or obsidian-mind (Claude Code hooks only), OMPA works with **any AI agent**:
 
 | Agent | Integration |
 |-------|-------------|
@@ -163,8 +163,8 @@ Unlike MemPalace (Claude Code + MCP only) or obsidian-mind (Claude Code hooks on
 ## Installation
 
 ```bash
-pip install agnostic-obsidian        # Core only
-pip install agnostic-obsidian[all]   # All dependencies including sentence-transformers
+pip install ompa        # Core only
+pip install ompa[all]   # All dependencies including sentence-transformers
 ```
 
 Requires Python 3.10+.
@@ -175,7 +175,7 @@ Because memory should not be coupled to your agent framework. Build once, use an
 
 ## Comparison
 
-| Feature | AgnosticObsidian | MemPalace | obsidian-mind |
+| Feature | OMPA | MemPalace | obsidian-mind |
 |---------|-----------------|------------|---------------|
 | Framework | Any | Claude Code | Claude Code |
 | Memory type | Vault + Palace + KG | Palace + KG | Vault only |
