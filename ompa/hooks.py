@@ -88,21 +88,27 @@ class SessionStartHook(Hook):
             # Recent git changes
             lines.append("### Recent Changes (last 48h)")
             try:
-                import subprocess
+                import shutil
+                import subprocess  # noqa: S404 — subprocess needed for git log
 
-                result = subprocess.run(
-                    ["git", "log", "--oneline", "--since=48 hours ago", "--no-merges"],
-                    cwd=context.vault_path,
-                    capture_output=True,
-                    text=True,
-                    timeout=5,
-                )
-                if result.returncode == 0 and result.stdout.strip():
-                    for line in result.stdout.strip().split("\n")[:10]:
-                        lines.append(f"- {line}")
+                git_path = shutil.which("git")
+                if git_path:
+                    result = subprocess.run(  # noqa: S603
+                        [git_path, "log", "--oneline", "--since=48 hours ago", "--no-merges"],
+                        cwd=context.vault_path,
+                        capture_output=True,
+                        text=True,
+                        timeout=5,
+                    )
+                    if result.returncode == 0 and result.stdout.strip():
+                        for line in result.stdout.strip().split("\n")[:10]:
+                            lines.append(f"- {line}")
+                    else:
+                        lines.append("(no recent git history)")
                 else:
-                    lines.append("(no recent git history)")
-            except Exception:
+                    lines.append("(git not available)")
+            except Exception as e:
+                logger.debug("Git log failed: %s", e)
                 lines.append("(git not available)")
             lines.append("")
 

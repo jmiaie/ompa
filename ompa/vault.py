@@ -75,12 +75,14 @@ class Note:
                 content=content,
                 links=cls._extract_wikilinks(content),
             )
-        except Exception:
+        except Exception as e:
             # Fallback: read raw content if frontmatter parsing fails
+            logger.debug("Frontmatter parse failed for %s: %s", path, e)
             try:
                 text = path.read_text(encoding="utf-8")
                 return cls(path=path, content=text, links=cls._extract_wikilinks(text))
-            except Exception:
+            except Exception as e:
+                logger.debug("Could not read %s: %s", path, e)
                 return cls(path=path)
 
     @staticmethod

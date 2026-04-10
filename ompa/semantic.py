@@ -267,8 +267,8 @@ class SemanticIndex:
                                 )
                             )
                             break
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug("Skipping %s: %s", md_file, e)
                 if len(results) >= limit:
                     break
 
