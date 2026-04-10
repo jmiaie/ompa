@@ -15,7 +15,7 @@ Usage:
     ao.stop()
 """
 
-__version__ = "0.1.0"
+__version__ = "0.1.2"
 
 from .core import AgnosticObsidian
 from .vault import Vault, Note, VaultConfig
