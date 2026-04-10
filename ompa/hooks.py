@@ -69,7 +69,9 @@ class SessionStartHook(Hook):
 
     def execute(self, context: HookContext, **kwargs) -> HookResult:
         try:
-            vault = context.memory.vault if context.memory else Vault(context.vault_path)
+            vault = (
+                context.memory.vault if context.memory else Vault(context.vault_path)
+            )
             lines = []
             lines.append("## Session Context")
             lines.append(f"**Date:** {context.timestamp.strftime('%Y-%m-%d (%A)')}")
@@ -94,7 +96,13 @@ class SessionStartHook(Hook):
                 git_path = shutil.which("git")
                 if git_path:
                     result = subprocess.run(  # noqa: S603
-                        [git_path, "log", "--oneline", "--since=48 hours ago", "--no-merges"],
+                        [
+                            git_path,
+                            "log",
+                            "--oneline",
+                            "--since=48 hours ago",
+                            "--no-merges",
+                        ],
                         cwd=context.vault_path,
                         capture_output=True,
                         text=True,
@@ -318,7 +326,9 @@ class StopHook(Hook):
 
     def execute(self, context: HookContext, **kwargs) -> HookResult:
         try:
-            vault = context.memory.vault if context.memory else Vault(context.vault_path)
+            vault = (
+                context.memory.vault if context.memory else Vault(context.vault_path)
+            )
             lines = []
             lines.append("## Wrap-Up Checklist")
             lines.append("")

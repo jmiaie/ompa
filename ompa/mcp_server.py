@@ -43,7 +43,11 @@ def ao_session_start(vault_path: str = ".") -> dict:
     AO = _load_core()
     ao = AO(vault_path=vault_path, enable_semantic=False)
     result = ao.session_start()
-    return {"success": result.success, "output": result.output, "tokens": result.tokens_hint}
+    return {
+        "success": result.success,
+        "output": result.output,
+        "tokens": result.tokens_hint,
+    }
 
 
 def ao_classify(message: str, vault_path: str = ".") -> dict:
@@ -142,7 +146,9 @@ def ao_palace_rooms(wing: str, vault_path: str = ".") -> dict:
     return {"wing": wing, "rooms": rooms}
 
 
-def ao_palace_tunnel(wing_a: str, wing_b: str, room: str, vault_path: str = ".") -> dict:
+def ao_palace_tunnel(
+    wing_a: str, wing_b: str, room: str, vault_path: str = "."
+) -> dict:
     """Create a tunnel between two wings."""
     AO = _load_core()
     ao = AO(vault_path=vault_path, enable_semantic=False)
@@ -223,7 +229,10 @@ TOOLS = {
         "input_schema": {
             "type": "object",
             "properties": {
-                "message": {"type": "string", "description": "The message to classify."},
+                "message": {
+                    "type": "string",
+                    "description": "The message to classify.",
+                },
                 "vault_path": {"type": "string", "default": "."},
             },
             "required": ["message"],
@@ -247,7 +256,10 @@ TOOLS = {
             "type": "object",
             "properties": {
                 "entity": {"type": "string", "description": "Entity name to query."},
-                "as_of": {"type": "string", "description": "Historical date (YYYY-MM-DD)."},
+                "as_of": {
+                    "type": "string",
+                    "description": "Historical date (YYYY-MM-DD).",
+                },
                 "vault_path": {"type": "string", "default": "."},
             },
             "required": ["entity"],

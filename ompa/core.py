@@ -157,7 +157,10 @@ class Ompa:
             self.palace.link_drawer(wing, room, str(path))
         except Exception as e:
             import logging
-            logging.getLogger(__name__).debug("Palace auto-add failed for %s: %s", file_path, e)
+
+            logging.getLogger(__name__).debug(
+                "Palace auto-add failed for %s: %s", file_path, e
+            )
 
     # -------------------------------------------------------------------------
     # Classification
