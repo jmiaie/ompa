@@ -1,5 +1,9 @@
 # OMPA (OMPA)
 
+[![PyPI](https://img.shields.io/pypi/v/ompa)](https://pypi.org/project/ompa/)
+[![Python](https://img.shields.io/pypi/pyversions/ompa)](https://pypi.org/project/ompa/)
+[![License](https://img.shields.io/pypi/l/ompa)](https://github.com/jmiaie/ompa/blob/main/LICENSE)
+
 > **Obsidian-MemPalace-Agnostic** — Universal AI agent memory layer
 
 OMPA gives any AI agent persistent memory with vault conventions, palace navigation, and a temporal knowledge graph.
@@ -14,10 +18,6 @@ This project is a synthesis of ideas and code from the AI agent memory community
 - **OpenClaw** — Framework-agnostic agent runtime that inspired the "universal" design goal.
 
 OMPA combines these into a framework-agnostic package that works with any AI agent runtime.
-
-[![PyPI version](https://img.shields.io/pypi/v/ompa)](https://pypi.org/project/ompa/)
-[![Python versions](https://img.shields.io/pypi/pyversions/ompa)](https://pypi.org/project/ompa/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
 ## The Problem
 
@@ -36,11 +36,13 @@ OMPA gives any AI agent — **Claude Code, OpenClaw, Codex, Gemini CLI, or any c
 
 ```bash
 pip install ompa
+ao init
+ao status
+```
 
-# Initialize a vault
-ao init ./workspace
+That's it -- you have a vault with persistent memory. Now use it in a session:
 
-# Run your agent session, then:
+```bash
 ao session-start     # ~2K token context injection
 ao classify "We decided to go with Postgres"   # Route to right folder
 ao search "authentication decisions"           # Semantic search
