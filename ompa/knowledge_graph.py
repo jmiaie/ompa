@@ -31,6 +31,19 @@ class Triple:
     source_file: Optional[str] = None
 
 
+def _row_to_triple(row: sqlite3.Row) -> Triple:
+    """Convert a SQLite Row to a Triple dataclass."""
+    return Triple(
+        subject=row["subject"],
+        predicate=row["predicate"],
+        object=row["object"],
+        valid_from=row["valid_from"],
+        valid_to=row["valid_to"],
+        confidence=row["confidence"],
+        source_file=row["source_file"],
+    )
+
+
 class KnowledgeGraph:
     def __init__(self, db_path: str = None):
         self.db_path = Path(db_path or DEFAULT_KG_PATH).expanduser()
@@ -45,41 +58,39 @@ class KnowledgeGraph:
 
     def _init_db(self) -> None:
         """Initialize the database schema."""
-        conn = self._conn()
-        conn.executescript("""
-            CREATE TABLE IF NOT EXISTS entities (
-                id TEXT PRIMARY KEY,
-                name TEXT NOT NULL,
-                type TEXT DEFAULT 'unknown',
-                created_at TEXT DEFAULT CURRENT_TIMESTAMP
-            );
+        with self._conn() as conn:
+            conn.executescript("""
+                CREATE TABLE IF NOT EXISTS entities (
+                    id TEXT PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    type TEXT DEFAULT 'unknown',
+                    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+                );
 
-            CREATE TABLE IF NOT EXISTS triples (
-                id TEXT PRIMARY KEY,
-                subject TEXT NOT NULL,
-                predicate TEXT NOT NULL,
-                object TEXT NOT NULL,
-                valid_from TEXT,
-                valid_to TEXT,
-                confidence REAL DEFAULT 1.0,
-                source_file TEXT,
-                extracted_at TEXT DEFAULT CURRENT_TIMESTAMP
-            );
+                CREATE TABLE IF NOT EXISTS triples (
+                    id TEXT PRIMARY KEY,
+                    subject TEXT NOT NULL,
+                    predicate TEXT NOT NULL,
+                    object TEXT NOT NULL,
+                    valid_from TEXT,
+                    valid_to TEXT,
+                    confidence REAL DEFAULT 1.0,
+                    source_file TEXT,
+                    extracted_at TEXT DEFAULT CURRENT_TIMESTAMP
+                );
 
-            CREATE INDEX IF NOT EXISTS idx_triples_subject ON triples(subject);
-            CREATE INDEX IF NOT EXISTS idx_triples_predicate ON triples(predicate);
-            CREATE INDEX IF NOT EXISTS idx_triples_object ON triples(object);
-        """)
-        conn.commit()
-        conn.close()
+                CREATE INDEX IF NOT EXISTS idx_triples_subject ON triples(subject);
+                CREATE INDEX IF NOT EXISTS idx_triples_predicate ON triples(predicate);
+                CREATE INDEX IF NOT EXISTS idx_triples_object ON triples(object);
+            """)
 
     def _entity_id(self, name: str) -> str:
         """Generate a stable ID for an entity."""
         return hashlib.sha256(name.encode()).hexdigest()[:16]
 
-    def _triple_id(self, subject: str, predicate: str, object: str) -> str:
+    def _triple_id(self, subject: str, predicate: str, obj: str) -> str:
         """Generate a stable ID for a triple."""
-        key = f"{subject}|{predicate}|{object}"
+        key = f"{subject}|{predicate}|{obj}"
         return hashlib.sha256(key.encode()).hexdigest()[:16]
 
     def _now(self) -> str:
@@ -89,84 +100,49 @@ class KnowledgeGraph:
     # Entity operations
     # -------------------------------------------------------------------------
 
-    def add_entity(self, name: str, type: str = "unknown") -> None:
+    def add_entity(self, name: str, entity_type: str = "unknown") -> None:
         """Add an entity."""
-        conn = self._conn()
         entity_id = self._entity_id(name)
-        conn.execute(
-            "INSERT OR IGNORE INTO entities (id, name, type) VALUES (?, ?, ?)",
-            (entity_id, name, type),
-        )
-        conn.commit()
-        conn.close()
+        with self._conn() as conn:
+            conn.execute(
+                "INSERT OR IGNORE INTO entities (id, name, type) VALUES (?, ?, ?)",
+                (entity_id, name, entity_type),
+            )
 
     def query_entity(self, name: str, as_of: str = None) -> list[Triple]:
         """
-        Query all triples for an entity.
+        Query all current triples for an entity.
 
         Args:
             name: Entity name
-            as_of: YYYY-MM-DD date for historical query. If None, returns current facts only.
+            as_of: YYYY-MM-DD date for historical query. Defaults to today.
         """
-        conn = self._conn()
         as_of = as_of or self._now()
 
-        # Current facts: valid_from <= as_of AND (valid_to IS NULL OR valid_to >= as_of)
+        # Filter in SQL for performance
         query = """
             SELECT subject, predicate, object, valid_from, valid_to, confidence, source_file
             FROM triples
-            WHERE subject = ? OR object = ?
+            WHERE (subject = ? OR object = ?)
+              AND (valid_from IS NULL OR valid_from <= ?)
+              AND (valid_to IS NULL OR valid_to >= ?)
             ORDER BY valid_from DESC
         """
-        rows = conn.execute(query, (name, name)).fetchall()
-        conn.close()
+        with self._conn() as conn:
+            rows = conn.execute(query, (name, name, as_of, as_of)).fetchall()
 
-        triples = []
-        for row in rows:
-            valid_from = row["valid_from"]
-            valid_to = row["valid_to"]
-
-            # Historical filter
-            if valid_from and valid_from > as_of:
-                continue
-            if valid_to and valid_to < as_of:
-                continue
-
-            triples.append(
-                Triple(
-                    subject=row["subject"],
-                    predicate=row["predicate"],
-                    object=row["object"],
-                    valid_from=valid_from,
-                    valid_to=valid_to,
-                    confidence=row["confidence"],
-                    source_file=row["source_file"],
-                )
-            )
-        return triples
+        return [_row_to_triple(row) for row in rows]
 
     def query_relation(self, subject: str, predicate: str) -> list[Triple]:
         """Query all triples matching a specific subject+predicate."""
-        conn = self._conn()
-        rows = conn.execute(
-            """SELECT subject, predicate, object, valid_from, valid_to, confidence, source_file
-               FROM triples
-               WHERE subject = ? AND predicate = ?""",
-            (subject, predicate),
-        ).fetchall()
-        conn.close()
-        return [
-            Triple(
-                subject=r["subject"],
-                predicate=r["predicate"],
-                object=r["object"],
-                valid_from=r["valid_from"],
-                valid_to=r["valid_to"],
-                confidence=r["confidence"],
-                source_file=r["source_file"],
-            )
-            for r in rows
-        ]
+        with self._conn() as conn:
+            rows = conn.execute(
+                """SELECT subject, predicate, object, valid_from, valid_to, confidence, source_file
+                   FROM triples
+                   WHERE subject = ? AND predicate = ?""",
+                (subject, predicate),
+            ).fetchall()
+        return [_row_to_triple(r) for r in rows]
 
     # -------------------------------------------------------------------------
     # Triple operations
@@ -194,49 +170,51 @@ class KnowledgeGraph:
             confidence: Confidence 0-1. Default 1.0.
             source: Source file or drawer reference.
         """
-        conn = self._conn()
-
-        # Ensure entities exist
-        self.add_entity(subject)
-        self.add_entity(object)
-
         triple_id = self._triple_id(subject, predicate, object)
         valid_from = valid_from or self._now()
+        subject_id = self._entity_id(subject)
+        object_id = self._entity_id(object)
 
-        conn.execute(
-            """INSERT OR REPLACE INTO triples
-               (id, subject, predicate, object, valid_from, valid_to, confidence, source_file)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-            (
-                triple_id,
-                subject,
-                predicate,
-                object,
-                valid_from,
-                valid_to,
-                confidence,
-                source,
-            ),
-        )
-        conn.commit()
-        conn.close()
+        with self._conn() as conn:
+            # Ensure entities exist (single transaction)
+            conn.execute(
+                "INSERT OR IGNORE INTO entities (id, name, type) VALUES (?, ?, ?)",
+                (subject_id, subject, "unknown"),
+            )
+            conn.execute(
+                "INSERT OR IGNORE INTO entities (id, name, type) VALUES (?, ?, ?)",
+                (object_id, object, "unknown"),
+            )
+            conn.execute(
+                """INSERT OR REPLACE INTO triples
+                   (id, subject, predicate, object, valid_from, valid_to, confidence, source_file)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    triple_id,
+                    subject,
+                    predicate,
+                    object,
+                    valid_from,
+                    valid_to,
+                    confidence,
+                    source,
+                ),
+            )
 
     def invalidate(
-        self, subject: str, predicate: str, object: str, ended: str = None
+        self, subject: str, predicate: str, obj: str, ended: str = None
     ) -> None:
         """
         Invalidate a triple by setting its valid_to date.
         The fact is no longer current but remains queryable historically.
         """
         ended = ended or self._now()
-        conn = self._conn()
-        conn.execute(
-            """UPDATE triples SET valid_to = ?
-               WHERE subject = ? AND predicate = ? AND object = ? AND valid_to IS NULL""",
-            (ended, subject, predicate, object),
-        )
-        conn.commit()
-        conn.close()
+        with self._conn() as conn:
+            conn.execute(
+                """UPDATE triples SET valid_to = ?
+                   WHERE subject = ? AND predicate = ? AND object = ? AND valid_to IS NULL""",
+                (ended, subject, predicate, obj),
+            )
 
     # -------------------------------------------------------------------------
     # Timeline
@@ -247,15 +225,14 @@ class KnowledgeGraph:
         Get the chronological story of an entity.
         Returns all triples ordered by valid_from with direction indicators.
         """
-        conn = self._conn()
-        rows = conn.execute(
-            """SELECT subject, predicate, object, valid_from, valid_to, source_file
-               FROM triples
-               WHERE subject = ? OR object = ?
-               ORDER BY valid_from ASC NULLS FIRST""",
-            (entity, entity),
-        ).fetchall()
-        conn.close()
+        with self._conn() as conn:
+            rows = conn.execute(
+                """SELECT subject, predicate, object, valid_from, valid_to, source_file
+                   FROM triples
+                   WHERE subject = ? OR object = ?
+                   ORDER BY valid_from ASC NULLS FIRST""",
+                (entity, entity),
+            ).fetchall()
 
         timeline = []
         for row in rows:
@@ -287,26 +264,23 @@ class KnowledgeGraph:
 
     def stats(self) -> dict:
         """Get knowledge graph statistics."""
-        conn = self._conn()
-        entity_count = conn.execute("SELECT COUNT(*) FROM entities").fetchone()[0]
-        triple_count = conn.execute("SELECT COUNT(*) FROM triples").fetchone()[0]
+        with self._conn() as conn:
+            entity_count = conn.execute("SELECT COUNT(*) FROM entities").fetchone()[0]
+            triple_count = conn.execute("SELECT COUNT(*) FROM triples").fetchone()[0]
 
-        # Oldest and newest facts
-        oldest = conn.execute(
-            "SELECT MIN(valid_from) FROM triples WHERE valid_from IS NOT NULL"
-        ).fetchone()[0]
-        newest = conn.execute(
-            "SELECT MAX(valid_from) FROM triples WHERE valid_from IS NOT NULL"
-        ).fetchone()[0]
+            oldest = conn.execute(
+                "SELECT MIN(valid_from) FROM triples WHERE valid_from IS NOT NULL"
+            ).fetchone()[0]
+            newest = conn.execute(
+                "SELECT MAX(valid_from) FROM triples WHERE valid_from IS NOT NULL"
+            ).fetchone()[0]
 
-        # Count of current vs expired
-        now = self._now()
-        current = conn.execute(
-            "SELECT COUNT(*) FROM triples WHERE (valid_to IS NULL OR valid_to >= ?)",
-            (now,),
-        ).fetchone()[0]
+            now = self._now()
+            current = conn.execute(
+                "SELECT COUNT(*) FROM triples WHERE (valid_to IS NULL OR valid_to >= ?)",
+                (now,),
+            ).fetchone()[0]
 
-        conn.close()
         return {
             "entity_count": entity_count,
             "triple_count": triple_count,
