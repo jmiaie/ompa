@@ -1,6 +1,6 @@
-# CLAUDE.md — AgnosticObsidian
+# CLAUDE.md — OMPA
 
-You are building **AgnosticObsidian** — a universal AI agent memory layer.
+You are building **OMPA** (Obsidian-MemPalace-Agnostic) — a universal AI agent memory layer.
 
 ## What It Does
 
@@ -11,30 +11,31 @@ Gives any AI agent persistent memory with:
 - **5 Lifecycle hooks**: session_start, user_message, post_tool, pre_compact, stop
 - **15 Message types**: with routing hints (DECISION, INCIDENT, WIN, etc.)
 - **Semantic search**: local sentence-transformers (zero API cost)
-- **MCP server**: 15+ tools via Model Context Protocol
+- **MCP server**: 14 tools via Model Context Protocol
 
 ## Package Structure
 
 ```
-agnostic_obsidian/
+ompa/
 ├── __init__.py          # Public API exports
-├── core.py               # AgnosticObsidian main class
-├── vault.py              # Vault management
-├── palace.py             # Palace metadata (wings/rooms/closets/drawers)
-├── knowledge_graph.py     # Temporal KG (SQLite triples)
-├── hooks.py              # 5 lifecycle hooks + HookManager
-├── classifier.py         # 15 message types + multilingual
-├── semantic.py           # Local semantic search
-├── mcp_server.py         # MCP protocol server (15+ tools)
-└── cli.py                # typer CLI (14 commands)
+├── __main__.py          # python -m ompa support
+├── core.py              # Ompa main class
+├── vault.py             # Vault management
+├── palace.py            # Palace metadata (wings/rooms/closets/drawers)
+├── knowledge_graph.py   # Temporal KG (SQLite triples)
+├── hooks.py             # 5 lifecycle hooks + HookManager
+├── classifier.py        # 15 message types + multilingual
+├── semantic.py          # Local semantic search
+├── mcp_server.py        # MCP protocol server (14 tools)
+└── cli.py               # typer CLI
 ```
 
 ## Key APIs
 
 ```python
-from agnostic_obsidian import AgnosticObsidian
+from ompa import Ompa
 
-ao = AgnosticObsidian(vault_path="./workspace")
+ao = Ompa(vault_path="./workspace")
 
 # Lifecycle
 result = ao.session_start()    # ~2K tokens
@@ -58,7 +59,7 @@ ao.search("authentication", wing="Orion", room="auth-migration")
 
 ```bash
 # Claude Desktop
-claude mcp add agnostic-obsidian -- python -m agnostic_obsidian.mcp_server
+claude mcp add ompa -- python -m ompa.mcp_server
 
 # Tools available:
 # ao_session_start, ao_classify, ao_search, ao_kg_query,
@@ -73,6 +74,8 @@ claude mcp add agnostic-obsidian -- python -m agnostic_obsidian.mcp_server
 3. **Vault + Palace dual-layer**: Vault=source of truth, Palace=retrieval acceleration
 4. **Verbatim storage**: No summarization (proven 96.6% R@5 by MemPalace)
 5. **Temporal KG**: SQLite triples with validity windows
+6. **Path traversal guards**: All vault file ops resolve + boundary-check paths
+7. **Context managers**: All SQLite connections use `with` for leak-free operation
 
 ## Development
 
@@ -81,7 +84,7 @@ pip install -e ".[all]"   # Install with all deps
 pip install -e ".[dev]"   # Dev deps
 
 # Run tests
-PYTHONPATH=. python3 /tmp/test_ao.py
+pytest tests/ -v
 
 # CLI
 ao init
@@ -101,14 +104,14 @@ ao kg-query "Entity"
 ## Adding Custom Hooks
 
 ```python
-from agnostic_obsidian.hooks import Hook, HookContext, HookResult
+from ompa.hooks import Hook, HookContext, HookResult
 
 class MyHook(Hook):
     def __init__(self):
         super().__init__("my_hook", token_budget=50)
-    def execute(self, context: HookContext) -> HookResult:
+    def execute(self, context: HookContext, **kwargs) -> HookResult:
         return HookResult(hook_name=self.name, success=True, output="...", tokens_hint=50)
 
-ao = AgnosticObsidian("./workspace")
+ao = Ompa("./workspace")
 ao.hooks.register_hook("my_hook", MyHook())
 ```

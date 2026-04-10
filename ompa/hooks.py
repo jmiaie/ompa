@@ -1,20 +1,23 @@
 """
-Lifecycle hooks for agent memory.
+Lifecycle hooks for OMPA.
 Handles session_start, user_message, post_tool, pre_compact, and stop events.
 """
 
 import json
+import logging
 from datetime import datetime
 from dataclasses import dataclass
 from typing import Optional
 from pathlib import Path
 
-from .vault import Vault
+from .vault import Vault, Note
 from .classifier import MessageClassifier
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from .core import Ompa
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -25,7 +28,7 @@ class HookContext:
     session_id: str
     timestamp: datetime
     agent_name: str = "agent"
-    memory: "Ompa" = None  # Set by Ompa
+    memory: Optional["Ompa"] = None
 
 
 @dataclass
@@ -46,7 +49,7 @@ class Hook:
         self.name = name
         self.token_budget = token_budget
 
-    def execute(self, context: HookContext) -> HookResult:
+    def execute(self, context: HookContext, **kwargs) -> HookResult:
         raise NotImplementedError
 
 
@@ -64,9 +67,9 @@ class SessionStartHook(Hook):
         super().__init__("session_start", token_budget)
         self.classifier = MessageClassifier()
 
-    def execute(self, context: HookContext) -> HookResult:
+    def execute(self, context: HookContext, **kwargs) -> HookResult:
         try:
-            vault = Vault(context.vault_path)
+            vault = context.memory.vault if context.memory else Vault(context.vault_path)
             lines = []
             lines.append("## Session Context")
             lines.append(f"**Date:** {context.timestamp.strftime('%Y-%m-%d (%A)')}")
@@ -75,7 +78,6 @@ class SessionStartHook(Hook):
             # North Star
             north_star = vault.get_brain_note("North Star")
             if north_star:
-                # Extract just the Current Focus section
                 content = north_star.content
                 lines.append("### North Star (Current Goals)")
                 lines.append(
@@ -126,7 +128,10 @@ class SessionStartHook(Hook):
             lines.append("### Vault Files")
             all_notes = vault.list_notes()
             for note in sorted(all_notes, key=lambda n: n.path)[:30]:
-                lines.append(f"- {note.path.relative_to(context.vault_path)}")
+                try:
+                    lines.append(f"- {note.path.relative_to(context.vault_path)}")
+                except ValueError:
+                    lines.append(f"- {note.path.name}")
             if len(all_notes) > 30:
                 lines.append(f"... and {len(all_notes) - 30} more")
 
@@ -138,6 +143,7 @@ class SessionStartHook(Hook):
                 tokens_hint=len(output.split()),  # Rough token estimate
             )
         except Exception as e:
+            logger.error("SessionStartHook failed: %s", e, exc_info=True)
             return HookResult(hook_name=self.name, success=False, error=str(e))
 
     def _extract_section(self, content: str, section: str) -> str:
@@ -159,7 +165,8 @@ class UserMessageHook(Hook):
         super().__init__("user_message", token_budget)
         self.classifier = MessageClassifier()
 
-    def execute(self, context: HookContext, message: str) -> HookResult:
+    def execute(self, context: HookContext, **kwargs) -> HookResult:
+        message = kwargs.get("message", "")
         try:
             classification = self.classifier.classify(message)
 
@@ -179,6 +186,7 @@ class UserMessageHook(Hook):
                 hook_name=self.name, success=True, output=output, tokens_hint=100
             )
         except Exception as e:
+            logger.error("UserMessageHook failed: %s", e, exc_info=True)
             return HookResult(hook_name=self.name, success=False, error=str(e))
 
 
@@ -191,9 +199,10 @@ class PostToolHook(Hook):
     def __init__(self, token_budget: int = 200):
         super().__init__("post_tool", token_budget)
 
-    def execute(
-        self, context: HookContext, tool_name: str, tool_input: dict
-    ) -> HookResult:
+    def execute(self, context: HookContext, **kwargs) -> HookResult:
+        tool_name = kwargs.get("tool_name", "")
+        tool_input = kwargs.get("tool_input", {})
+
         if tool_name not in ["write", "edit", "create_file"]:
             return HookResult(
                 hook_name=self.name,
@@ -217,15 +226,10 @@ class PostToolHook(Hook):
             )
 
         try:
-            vault = Vault(context.vault_path)
-            note = vault.list_notes([n for n in vault.list_notes() if n.path == path])
-
             warnings = []
             if not path.exists():
                 warnings.append("File was not created")
             else:
-                from .vault import Note
-
                 note = Note.from_file(path)
 
                 # Check frontmatter
@@ -249,6 +253,7 @@ class PostToolHook(Hook):
                 tokens_hint=50,
             )
         except Exception as e:
+            logger.error("PostToolHook failed: %s", e, exc_info=True)
             return HookResult(hook_name=self.name, success=False, error=str(e))
 
 
@@ -261,7 +266,8 @@ class PreCompactHook(Hook):
     def __init__(self, token_budget: int = 100):
         super().__init__("pre_compact", token_budget)
 
-    def execute(self, context: HookContext, transcript: str) -> HookResult:
+    def execute(self, context: HookContext, **kwargs) -> HookResult:
+        transcript = kwargs.get("transcript", "")
         try:
             session_log_path = context.vault_path / "thinking" / "session-logs"
             session_log_path.mkdir(parents=True, exist_ok=True)
@@ -281,7 +287,7 @@ class PreCompactHook(Hook):
                 ),
             }
 
-            with open(log_file, "w") as f:
+            with open(log_file, "w", encoding="utf-8") as f:
                 json.dump(log_data, f, indent=2)
 
             return HookResult(
@@ -291,6 +297,7 @@ class PreCompactHook(Hook):
                 tokens_hint=50,
             )
         except Exception as e:
+            logger.error("PreCompactHook failed: %s", e, exc_info=True)
             return HookResult(hook_name=self.name, success=False, error=str(e))
 
 
@@ -303,9 +310,9 @@ class StopHook(Hook):
     def __init__(self, token_budget: int = 500):
         super().__init__("stop", token_budget)
 
-    def execute(self, context: HookContext) -> HookResult:
+    def execute(self, context: HookContext, **kwargs) -> HookResult:
         try:
-            vault = Vault(context.vault_path)
+            vault = context.memory.vault if context.memory else Vault(context.vault_path)
             lines = []
             lines.append("## Wrap-Up Checklist")
             lines.append("")
@@ -318,7 +325,7 @@ class StopHook(Hook):
                     lines.append(f"  - {orphan.path.name}")
             lines.append("")
 
-            # Update brain/Memories.md index
+            # Brain notes count
             all_notes = vault.list_notes()
             brain_index = [
                 n.path.relative_to(context.vault_path)
@@ -339,6 +346,7 @@ class StopHook(Hook):
                 hook_name=self.name, success=True, output=output, tokens_hint=200
             )
         except Exception as e:
+            logger.error("StopHook failed: %s", e, exc_info=True)
             return HookResult(hook_name=self.name, success=False, error=str(e))
 
 
@@ -377,19 +385,21 @@ class HookManager:
     def run_user_message(self, message: str, memory=None) -> HookResult:
         """Run user message hook."""
         context = self._create_context(memory)
-        return self.hooks["user_message"].execute(context, message)
+        return self.hooks["user_message"].execute(context, message=message)
 
     def run_post_tool(
         self, tool_name: str, tool_input: dict, memory=None
     ) -> HookResult:
         """Run post tool hook."""
         context = self._create_context(memory)
-        return self.hooks["post_tool"].execute(context, tool_name, tool_input)
+        return self.hooks["post_tool"].execute(
+            context, tool_name=tool_name, tool_input=tool_input
+        )
 
     def run_pre_compact(self, transcript: str, memory=None) -> HookResult:
         """Run pre-compact hook."""
         context = self._create_context(memory)
-        return self.hooks["pre_compact"].execute(context, transcript)
+        return self.hooks["pre_compact"].execute(context, transcript=transcript)
 
     def run_stop(self, memory=None) -> HookResult:
         """Run stop hook."""

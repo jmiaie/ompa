@@ -155,8 +155,9 @@ class Ompa:
 
             self.palace.create_room(wing, room)
             self.palace.link_drawer(wing, room, str(path))
-        except Exception:
-            pass  # Silently skip palace errors
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).debug("Palace auto-add failed for %s: %s", file_path, e)
 
     # -------------------------------------------------------------------------
     # Classification
@@ -264,7 +265,7 @@ class Ompa:
         """Update a brain note."""
         self.vault.update_brain_note(note_name, content, append)
 
-    def get_brain_note(self, name: str) -> Optional[object]:
+    def get_brain_note(self, name: str) -> Optional["Note"]:
         """Get a brain note by name."""
         return self.vault.get_brain_note(name)
 

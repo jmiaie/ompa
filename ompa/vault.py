@@ -1,13 +1,31 @@
 """
-Vault management for agent memory.
+Vault management for OMPA.
 Handles note organization, templates, wikilinks, and frontmatter validation.
 """
 
+import logging
 import re
 from pathlib import Path
 from dataclasses import dataclass, field
 from typing import Optional
 import frontmatter
+
+logger = logging.getLogger(__name__)
+
+# Shared exclude patterns for vault traversal
+DEFAULT_EXCLUDE_PATTERNS = [".git", ".claude", "thinking"]
+
+
+def _safe_resolve(base: Path, untrusted: str) -> Path:
+    """
+    Resolve an untrusted path relative to a base directory.
+    Raises ValueError if the resolved path escapes the base.
+    """
+    resolved = (base / untrusted).resolve()
+    base_resolved = base.resolve()
+    if not str(resolved).startswith(str(base_resolved)):
+        raise ValueError(f"Path traversal blocked: {untrusted!r} escapes {base}")
+    return resolved
 
 
 @dataclass
@@ -38,9 +56,9 @@ class VaultConfig:
 @dataclass
 class Note:
     path: Path
-    frontmatter: dict = field(default_factory=dict)
+    frontmatter: dict[str, object] = field(default_factory=dict)
     content: str = ""
-    links: list = field(default_factory=list)
+    links: list[str] = field(default_factory=list)
 
     @classmethod
     def from_file(cls, path: Path) -> "Note":
@@ -78,12 +96,12 @@ class Note:
         """Save note to file with frontmatter."""
         self.path.parent.mkdir(parents=True, exist_ok=True)
         post = frontmatter.Post(self.content, **self.frontmatter)
-        with open(self.path, "w") as f:
+        with open(self.path, "w", encoding="utf-8") as f:
             f.write(frontmatter.dumps(post))
 
 
 class Vault:
-    """Manages the agent memory vault structure."""
+    """Manages the OMPA vault structure."""
 
     # Folder structure
     STRUCTURE = {
@@ -114,7 +132,7 @@ class Vault:
     }
 
     def __init__(self, vault_path: str | Path):
-        self.vault_path = Path(vault_path)
+        self.vault_path = Path(vault_path).resolve()
         self.config = VaultConfig(vault_path=self.vault_path)
         self._ensure_structure()
 
@@ -124,9 +142,9 @@ class Vault:
             folder_path = self.vault_path / folder
             folder_path.mkdir(parents=True, exist_ok=True)
 
-    def list_notes(self, exclude_patterns: list = None) -> list[Note]:
+    def list_notes(self, exclude_patterns: list[str] = None) -> list[Note]:
         """List all markdown notes in the vault."""
-        exclude_patterns = exclude_patterns or [".git", ".claude", "thinking"]
+        exclude_patterns = exclude_patterns or DEFAULT_EXCLUDE_PATTERNS
         notes = []
 
         for path in self.vault_path.rglob("*.md"):
@@ -164,15 +182,24 @@ class Vault:
         return [n for n in self.list_notes() if query_lower in n.path.stem.lower()]
 
     def get_brain_note(self, name: str) -> Optional[Note]:
-        """Get a brain note by name."""
-        path = self.config.brain_folder / f"{name}.md"
+        """Get a brain note by name. Name is sanitized to prevent path traversal."""
+        safe_name = Path(name).name  # Strip any directory components
+        path = self.config.brain_folder / f"{safe_name}.md"
+        path = path.resolve()
+        # Ensure we stay within brain folder
+        if not str(path).startswith(str(self.config.brain_folder.resolve())):
+            raise ValueError(f"Invalid brain note name: {name!r}")
         if path.exists():
             return Note.from_file(path)
         return None
 
     def update_brain_note(self, name: str, content: str, append: bool = False) -> None:
-        """Update a brain note."""
-        path = self.config.brain_folder / f"{name}.md"
+        """Update a brain note. Name is sanitized to prevent path traversal."""
+        safe_name = Path(name).name  # Strip any directory components
+        path = self.config.brain_folder / f"{safe_name}.md"
+        path = path.resolve()
+        if not str(path).startswith(str(self.config.brain_folder.resolve())):
+            raise ValueError(f"Invalid brain note name: {name!r}")
         path.parent.mkdir(parents=True, exist_ok=True)
 
         if append and path.exists():
@@ -186,8 +213,10 @@ class Vault:
     def create_from_template(
         self, template_name: str, target_name: str, **kwargs
     ) -> Note:
-        """Create a new note from a template."""
-        template_path = self.config.templates_folder / f"{template_name}.md"
+        """Create a new note from a template. Both names are sanitized."""
+        # Sanitize template name
+        safe_template = Path(template_name).name
+        template_path = self.config.templates_folder / f"{safe_template}.md"
         if not template_path.exists():
             raise FileNotFoundError(f"Template not found: {template_name}")
 
@@ -198,15 +227,32 @@ class Vault:
         for key, value in kwargs.items():
             content = content.replace(f"{{{{{key}}}}}", str(value))
 
-        path = self.vault_path / target_name
-        note = Note(path=path, frontmatter=template.frontmatter, content=content)
+        # Sanitize and validate target path
+        target_path = _safe_resolve(self.vault_path, target_name)
+        note = Note(path=target_path, frontmatter=template.frontmatter, content=content)
         note.save()
         return note
 
     def get_stats(self) -> dict:
         """Get vault statistics."""
         notes = self.list_notes()
-        orphans = self.find_orphans()
+
+        # Build linked set in one pass (instead of calling find_orphans which re-reads)
+        linked_files = set()
+        for note in notes:
+            for link in note.links:
+                linked_path = self.vault_path / link
+                if not linked_path.exists():
+                    linked_path = self.vault_path / f"{link}.md"
+                if linked_path.exists():
+                    linked_files.add(linked_path)
+
+        orphan_count = sum(
+            1
+            for n in notes
+            if n.path not in linked_files
+            and n.path.name not in ["Home.md", "README.md"]
+        )
 
         folder_counts = {}
         for note in notes:
@@ -215,7 +261,7 @@ class Vault:
 
         return {
             "total_notes": len(notes),
-            "orphans": len(orphans),
+            "orphans": orphan_count,
             "folder_counts": folder_counts,
             "brain_notes": (
                 len(list(self.config.brain_folder.glob("*.md")))
@@ -227,9 +273,17 @@ class Vault:
     def validate_write(self, file_path: str) -> dict:
         """
         Validate a markdown file for frontmatter and wikilinks.
+        File must be within the vault directory.
         Returns {valid: bool, warnings: list[str]}.
         """
-        path = Path(file_path)
+        try:
+            path = _safe_resolve(self.vault_path, file_path)
+        except ValueError:
+            # Also handle absolute paths that are within the vault
+            path = Path(file_path).resolve()
+            if not str(path).startswith(str(self.vault_path)):
+                return {"valid": False, "warnings": ["Path is outside the vault"]}
+
         warnings = []
         valid = True
 
@@ -244,9 +298,9 @@ class Vault:
             return {"valid": True, "warnings": []}
 
         if (
-            "templates/" in str(path)
-            or "thinking/" in str(path)
-            or ".claude/" in str(path)
+            "templates" in path.parts
+            or "thinking" in path.parts
+            or ".claude" in path.parts
         ):
             return {"valid": True, "warnings": []}
 
@@ -278,7 +332,7 @@ class Vault:
                 valid = False
 
         except Exception as e:
-            warnings.append(f"Error reading file: {e}")
+            warnings.append(f"Error reading file: {type(e).__name__}")
             valid = False
 
         return {"valid": valid, "warnings": warnings}

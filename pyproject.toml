@@ -1,6 +1,6 @@
 [project]
 name = "ompa"
-version = "0.2.0"
+version = "0.2.1"
 description = "Universal AI agent memory layer — vault + palace + temporal knowledge graph"
 readme = "README.md"
 license = {text = "MIT"}
@@ -19,6 +19,7 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
@@ -27,7 +28,6 @@ dependencies = [
     "typer>=0.9.0",
     "rich>=13.0.0",
     "python-frontmatter>=1.1.0",
-    "watchdog>=3.0.0",
 ]
 
 [project.optional-dependencies]
@@ -37,9 +37,7 @@ semantic = [
     "sentence-transformers>=2.2.0",
 ]
 all = [
-    "numpy>=1.24.0",
-    "sentence-transformers>=2.2.0",
-    "chromadb>=0.4.0",
+    "ompa[semantic]",
 ]
 
 [project.urls]

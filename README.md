@@ -1,4 +1,4 @@
-# OMPA (OMPA)
+# OMPA
 
 [![PyPI](https://img.shields.io/pypi/v/ompa)](https://pypi.org/project/ompa/)
 [![Python](https://img.shields.io/pypi/pyversions/ompa)](https://pypi.org/project/ompa/)
@@ -91,16 +91,16 @@ Uses `sentence-transformers` (all-MiniLM-L6-v2) locally. No OpenAI/Anthropic API
 ## Architecture
 
 ```
-agnostic_obsidian/
-├── core.py              # OMPA main class
+ompa/
+├── core.py              # Ompa main class
 ├── vault.py             # Vault management (brain/work/org/perf)
 ├── palace.py            # Palace metadata (wings/rooms/drawers)
 ├── knowledge_graph.py   # Temporal KG (SQLite triples)
 ├── hooks.py             # 5 lifecycle hooks
 ├── classifier.py       # 15 message types
 ├── semantic.py          # Local semantic search
-├── mcp_server.py        # MCP protocol server (15 tools)
-└── cli.py              # 14 CLI commands
+├── mcp_server.py        # MCP protocol server (14 tools)
+└── cli.py              # CLI commands
 ```
 
 ## MCP Server (15 Tools)
@@ -109,7 +109,7 @@ Works with **Claude Desktop, Cursor, Windsurf** natively:
 
 ```bash
 # Claude Desktop
-claude mcp add ompa -- python -m agnostic_obsidian.mcp_server
+claude mcp add ompa -- python -m ompa.mcp_server
 ```
 
 Tools: `ao_session_start`, `ao_classify`, `ao_search`, `ao_kg_query`, `ao_kg_add`, `ao_palace_wings`, `ao_palace_rooms`, `ao_palace_tunnel`, `ao_validate`, `ao_wrap_up`, `ao_status`, `ao_orphans`, `ao_init`, `ao_search`, `ao_stop`
@@ -117,9 +117,9 @@ Tools: `ao_session_start`, `ao_classify`, `ao_search`, `ao_kg_query`, `ao_kg_add
 ## Python API
 
 ```python
-from agnostic_obsidian import OMPA
+from ompa import Ompa
 
-ao = OMPA(vault_path="./workspace")
+ao = Ompa(vault_path="./workspace")
 
 # Lifecycle
 result = ao.session_start()       # Returns ~2K token context injection

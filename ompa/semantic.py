@@ -1,12 +1,17 @@
 """
-Semantic search for agent memory.
+Semantic search for OMPA.
 Provides hybrid keyword + semantic search across the vault.
 """
 
 import json
+import logging
 import hashlib
 from pathlib import Path
 from dataclasses import dataclass
+
+from .vault import DEFAULT_EXCLUDE_PATTERNS
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -57,13 +62,13 @@ class SemanticIndex:
             self._model = SentenceTransformer(self.model_name)
             self._initialized = True
         except ImportError:
-            print(
-                "Warning: sentence-transformers not installed. Semantic search unavailable."
+            logger.warning(
+                "sentence-transformers not installed. Semantic search unavailable. "
+                "Install with: pip install ompa[semantic]"
             )
-            print("Install with: pip install ompa[semantic]")
             self._model = None
         except Exception as e:
-            print(f"Warning: Could not load embedding model: {e}")
+            logger.warning("Could not load embedding model: %s", e)
             self._model = None
         self._initialized = True
 
@@ -73,7 +78,7 @@ class SemanticIndex:
             return
 
         try:
-            content = path.read_text()
+            content = path.read_text(encoding="utf-8")
             # Split into chunks (512 tokens each)
             chunk_size = 512
             words = content.split()
@@ -84,7 +89,7 @@ class SemanticIndex:
                     continue
 
                 embedding = self.model.encode(chunk_text)
-                chunk_hash = hashlib.md5(f"{path}:{i}".encode()).hexdigest()
+                chunk_hash = hashlib.sha256(f"{path}:{i}".encode()).hexdigest()[:16]
 
                 self.chunks.append(
                     {
@@ -96,11 +101,11 @@ class SemanticIndex:
                     }
                 )
         except Exception as e:
-            print(f"Error indexing {path}: {e}")
+            logger.warning("Error indexing %s: %s", path, e)
 
     def index_vault(self, vault_path: Path, exclude_patterns: list = None) -> int:
         """Index all markdown files in a vault."""
-        exclude_patterns = exclude_patterns or [".git", ".claude", "thinking"]
+        exclude_patterns = exclude_patterns or DEFAULT_EXCLUDE_PATTERNS
         count = 0
 
         if not self._initialized:
@@ -118,13 +123,12 @@ class SemanticIndex:
         """Save the index to disk."""
         index_file = self.index_path / "semantic_index.json"
 
-        # Save without numpy arrays (convert to lists)
         serializable = {
             "model": self.model_name,
             "chunks": [{**c, "embedding": c["embedding"]} for c in self.chunks],
         }
 
-        with open(index_file, "w") as f:
+        with open(index_file, "w", encoding="utf-8") as f:
             json.dump(serializable, f)
 
     def load_index(self) -> bool:
@@ -134,13 +138,13 @@ class SemanticIndex:
             return False
 
         try:
-            with open(index_file, "r") as f:
+            with open(index_file, "r", encoding="utf-8") as f:
                 data = json.load(f)
 
             self.chunks = data["chunks"]
             return True
         except Exception as e:
-            print(f"Error loading index: {e}")
+            logger.warning("Error loading index: %s", e)
             return False
 
     def search(
@@ -154,12 +158,14 @@ class SemanticIndex:
 
         Args:
             query: Search query
-            limit: Max results
+            limit: Max results (capped at 100)
             hybrid: Use both semantic + keyword if True, semantic only if False
 
         Returns:
             List of SearchResult
         """
+        limit = min(limit, 100)  # Cap to prevent DoS
+
         if not self._initialized or not self.chunks:
             return self._keyword_search(query, limit)
 
@@ -218,47 +224,55 @@ class SemanticIndex:
             return unique_results
 
         except Exception as e:
-            print(f"Search error: {e}")
+            logger.warning("Search error: %s", e)
             return self._keyword_search(query, limit)
 
     def _keyword_search(self, query: str, limit: int) -> list[SearchResult]:
-        """Fallback keyword search using grep."""
-        import subprocess
-
+        """Fallback keyword search using pure Python (no subprocess)."""
         query_lower = query.lower()
         results = []
 
-        try:
-            result = subprocess.run(
-                ["grep", "-r", "-l", query_lower, str(self.index_path.parent)],
-                capture_output=True,
-                text=True,
-                timeout=10,
-            )
+        # Search through indexed chunks first
+        if self.chunks:
+            for chunk in self.chunks:
+                if query_lower in chunk["text"].lower():
+                    results.append(
+                        SearchResult(
+                            path=chunk["path"],
+                            content_excerpt=chunk["text"][:200],
+                            score=1.0,
+                            match_type="keyword",
+                        )
+                    )
+                    if len(results) >= limit:
+                        break
+            return results
 
-            for line in result.stdout.strip().split("\n"):
-                if line.endswith(".md"):
-                    path = Path(line)
-                    try:
-                        content = path.read_text()
-                        # Find the matching line
-                        for line_content in content.split("\n"):
-                            if query_lower in line_content.lower():
-                                results.append(
-                                    SearchResult(
-                                        path=str(path),
-                                        content_excerpt=line_content[:200],
-                                        score=1.0,
-                                        match_type="keyword",
-                                    )
+        # Fallback: scan the vault directory
+        vault_path = self.index_path.parent.parent  # .palace/semantic_index -> vault
+        if vault_path.exists():
+            for md_file in vault_path.rglob("*.md"):
+                if any(excl in str(md_file) for excl in DEFAULT_EXCLUDE_PATTERNS):
+                    continue
+                try:
+                    content = md_file.read_text(encoding="utf-8")
+                    for line_content in content.split("\n"):
+                        if query_lower in line_content.lower():
+                            results.append(
+                                SearchResult(
+                                    path=str(md_file),
+                                    content_excerpt=line_content[:200],
+                                    score=1.0,
+                                    match_type="keyword",
                                 )
-                                break
-                    except Exception:
-                        pass
-        except Exception:
-            pass
+                            )
+                            break
+                except Exception:
+                    pass
+                if len(results) >= limit:
+                    break
 
-        return results[:limit]
+        return results
 
     def clear(self) -> None:
         """Clear the index."""

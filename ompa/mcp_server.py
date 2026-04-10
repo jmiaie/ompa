@@ -20,7 +20,7 @@ import json
 import sys
 from pathlib import Path
 
-__version__ = "0.2.0"
+__version__ = "0.2.1"
 
 
 # ---------------------------------------------------------------------------
@@ -389,8 +389,14 @@ def handle_call_tool(name: str, arguments: dict) -> dict:
         return {"error": f"Unknown tool: {name}"}
 
     try:
-        # Extract vault_path without mutating the original dict
-        vault_path = arguments.get("vault_path", ".")
+        # Extract and validate vault_path
+        vault_path = str(arguments.get("vault_path", "."))
+        # Block obvious traversal attempts
+        if ".." in vault_path or vault_path in ("/", "C:\\", "C:/"):
+            return {"error": "Invalid vault_path"}
+        # Cap limit parameters
+        if "limit" in arguments:
+            arguments = {**arguments, "limit": min(int(arguments["limit"]), 100)}
 
         if name == "ao_session_start":
             result = ao_session_start(vault_path)
@@ -453,8 +459,10 @@ def handle_call_tool(name: str, arguments: dict) -> dict:
             result = {"error": f"Unhandled tool: {name}"}
 
         return result
+    except KeyError as e:
+        return {"error": f"Missing required argument: {e}"}
     except Exception as e:
-        return {"error": str(e)}
+        return {"error": type(e).__name__}
 
 
 # ---------------------------------------------------------------------------
@@ -467,6 +475,7 @@ def main():
     MCP server main loop.
     Reads JSON-RPC requests from stdin, writes responses to stdout.
     """
+    request = None  # Initialize to prevent NameError on malformed JSON
     while True:
         try:
             line = sys.stdin.readline()
@@ -490,7 +499,8 @@ def main():
                         },
                     },
                 }
-                print(json.dumps(response), flush=True)
+                sys.stdout.write(json.dumps(response) + "\n")
+                sys.stdout.flush()
 
             elif method == "tools/list":
                 response = {
@@ -498,7 +508,8 @@ def main():
                     "id": request_id,
                     "result": handle_list_tools(),
                 }
-                print(json.dumps(response), flush=True)
+                sys.stdout.write(json.dumps(response) + "\n")
+                sys.stdout.flush()
 
             elif method == "tools/call":
                 name = request["params"]["name"]
@@ -516,20 +527,28 @@ def main():
                         ]
                     },
                 }
-                print(json.dumps(response), flush=True)
+                sys.stdout.write(json.dumps(response) + "\n")
+                sys.stdout.flush()
+
+            elif method in ("notifications/initialized",):
+                pass  # MCP lifecycle notification, no response needed
 
             else:
-                # Notified of shutdown
                 if method in ("shutdown", "exit"):
                     break
 
         except Exception as e:
+            req_id = None
+            if request is not None:
+                req_id = request.get("id") if isinstance(request, dict) else None
             error_response = {
                 "jsonrpc": "2.0",
-                "id": request.get("id") if request else None,
-                "error": {"code": -32603, "message": str(e)},
+                "id": req_id,
+                "error": {"code": -32603, "message": type(e).__name__},
             }
-            print(json.dumps(error_response), flush=True)
+            sys.stdout.write(json.dumps(error_response) + "\n")
+            sys.stdout.flush()
+            request = None  # Reset for next iteration
 
 
 if __name__ == "__main__":
