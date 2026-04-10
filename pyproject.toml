@@ -1,0 +1,45 @@
+[project]
+name = "agent-memory"
+version = "0.1.0"
+description = "Universal agent memory layer with persistent memory, lifecycle hooks, and semantic search"
+authors = [{name = "Micap AI", email = "info@micap.ai"}]
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.10"
+keywords = ["ai", "agents", "memory", "persistent-memory", "agent-framework"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Intended Audience :: Developers",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+dependencies = [
+    "numpy>=1.24.0",
+    "sentence-transformers>=2.2.0",
+    "torch>=2.0.0",
+    "qdrant-client>=1.15.0",
+    "chromadb>=0.4.0",
+    "redis>=5.0.0",
+    "python-frontmatter>=1.1.0",
+    "watchdog>=3.0.0",
+    "typer>=0.9.0",
+    "rich>=13.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.21.0",
+    "black>=23.0.0",
+    "ruff>=0.1.0",
+]
+
+[project.scripts]
+agent-memory = "agent_memory.cli:main"
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
