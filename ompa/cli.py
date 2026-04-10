@@ -9,7 +9,7 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from ompa import Ompa, Palace, KnowledgeGraph
+from ompa import Ompa
 
 app = typer.Typer(help="OMPA — Universal AI agent memory layer")
 console = Console()

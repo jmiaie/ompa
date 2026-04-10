@@ -265,7 +265,7 @@ class Ompa:
         """Update a brain note."""
         self.vault.update_brain_note(note_name, content, append)
 
-    def get_brain_note(self, name: str) -> Optional["Note"]:
+    def get_brain_note(self, name: str) -> Optional[object]:
         """Get a brain note by name."""
         return self.vault.get_brain_note(name)
 
