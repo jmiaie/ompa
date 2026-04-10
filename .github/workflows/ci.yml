@@ -23,8 +23,9 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install -e ".[all]"
+          pip install numpy typer rich python-frontmatter watchdog
           pip install pytest
+          pip install -e . --no-deps
 
       - name: Run tests
         run: |
