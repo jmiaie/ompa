@@ -290,6 +290,33 @@ def rebuild_index(
     console.print(f"[green]Rebuilt index: {count} files indexed[/green]")
 
 
+@app.command()
+def kg_populate(
+    vault_path: Path = Path("."),
+):
+    """Populate KG from vault notes (wikilinks, tags, folders)."""
+    ao = Ompa(vault_path, enable_semantic=False)
+    count = ao.kg_populate()
+    stats = ao.kg.stats()
+    console.print(f"[green]KG populated: {count} triples added[/green]")
+    console.print(f"  Entities: {stats['entity_count']}")
+    console.print(f"  Total facts: {stats['triple_count']}")
+    console.print(f"  Current facts: {stats['current_facts']}")
+
+
+@app.command()
+def sync(
+    vault_path: Path = Path("."),
+):
+    """Full sync: rebuild KG, palace, and search index from vault."""
+    ao = Ompa(vault_path, enable_semantic=True)
+    result = ao.sync()
+    console.print("[green]Full sync complete![/green]")
+    console.print(f"  KG triples: {result['kg_triples']}")
+    console.print(f"  Palace wings: {result['palace_wings']}")
+    console.print(f"  Indexed files: {result['indexed_files']}")
+
+
 def main():
     app()
 

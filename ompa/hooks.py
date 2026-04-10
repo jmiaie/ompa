@@ -138,6 +138,21 @@ class SessionStartHook(Hook):
             lines.append(f"- Orphans (no links): {stats['orphans']}")
             lines.append("")
 
+            # KG stats
+            if context.memory and context.memory.kg:
+                try:
+                    kg_stats = context.memory.kg.stats()
+                    if kg_stats["triple_count"] > 0:
+                        lines.append("### Knowledge Graph")
+                        lines.append(f"- Entities: {kg_stats['entity_count']}")
+                        lines.append(f"- Current facts: {kg_stats['current_facts']}")
+                        lines.append(
+                            f"- Date range: {kg_stats['oldest_fact'] or 'N/A'} → {kg_stats['newest_fact'] or 'N/A'}"
+                        )
+                        lines.append("")
+                except Exception as e:
+                    logger.debug("KG stats unavailable: %s", e)
+
             # File listing (truncated)
             lines.append("### Vault Files")
             all_notes = vault.list_notes()
@@ -356,6 +371,22 @@ class StopHook(Hook):
                 lines.append(f"**North Star:** {north_star.path.name}")
             else:
                 lines.append("**WARNING:** No North Star found")
+            lines.append("")
+
+            # KG health
+            if context.memory and context.memory.kg:
+                try:
+                    kg_stats = context.memory.kg.stats()
+                    lines.append(
+                        f"**KG:** {kg_stats['entity_count']} entities, "
+                        f"{kg_stats['current_facts']} current facts"
+                    )
+                    if kg_stats["triple_count"] == 0:
+                        lines.append(
+                            "**WARNING:** KG is empty — run `ao kg-populate` or `ao sync`"
+                        )
+                except Exception as e:
+                    logger.debug("KG stats unavailable in wrap-up: %s", e)
 
             output = "\n".join(lines)
             return HookResult(

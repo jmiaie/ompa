@@ -11,11 +11,16 @@ Usage:
 """
 
 import hashlib
+import logging
+import re
 import sqlite3
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_KG_PATH = "~/.ompa/knowledge_graph.sqlite3"
 
@@ -50,11 +55,19 @@ class KnowledgeGraph:
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._init_db()
 
-    def _conn(self) -> sqlite3.Connection:
-        """Get a database connection."""
+    @contextmanager
+    def _conn(self):
+        """Get a database connection that auto-closes on exit."""
         conn = sqlite3.connect(self.db_path)
         conn.row_factory = sqlite3.Row
-        return conn
+        try:
+            yield conn
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
 
     def _init_db(self) -> None:
         """Initialize the database schema."""
@@ -257,6 +270,130 @@ class KnowledgeGraph:
                 }
             )
         return timeline
+
+    # -------------------------------------------------------------------------
+    # Auto-population from vault
+    # -------------------------------------------------------------------------
+
+    def populate_from_note(self, note_path: Path, vault_path: Path = None) -> int:
+        """
+        Extract and store triples from a single vault note.
+
+        Extracts:
+        - Wikilinks: note --links_to--> target
+        - Frontmatter tags: note --has_tag--> tag
+        - Folder membership: note --in_folder--> folder_name
+        - Frontmatter date: note --created_on--> date
+
+        Returns the number of triples added.
+        """
+        if not note_path.exists() or note_path.suffix != ".md":
+            return 0
+
+        count = 0
+        note_name = note_path.stem
+        source = str(note_path)
+
+        try:
+            import frontmatter as fm
+
+            post = fm.load(note_path)
+            content = post.content
+            metadata = dict(post.metadata)
+        except Exception:
+            try:
+                content = note_path.read_text(encoding="utf-8")
+                metadata = {}
+            except Exception as e:
+                logger.debug("Could not read %s: %s", note_path, e)
+                return 0
+
+        # 1. Wikilinks → links_to triples
+        wikilinks = re.findall(r"\[\[([^\]]+)\]\]", content)
+        for link in wikilinks:
+            # Strip display text from piped links: [[target|display]]
+            target = link.split("|")[0].strip()
+            if target:
+                self.add_triple(note_name, "links_to", target, source=source)
+                count += 1
+
+        # 2. Frontmatter tags → has_tag triples
+        tags = metadata.get("tags", [])
+        if isinstance(tags, str):
+            tags = [t.strip() for t in tags.split(",") if t.strip()]
+        if isinstance(tags, list):
+            for tag in tags:
+                if isinstance(tag, str) and tag.strip():
+                    self.add_triple(note_name, "has_tag", tag.strip(), source=source)
+                    count += 1
+
+        # 3. Folder membership
+        if vault_path:
+            try:
+                rel = note_path.relative_to(vault_path)
+                parts = rel.parts
+                if len(parts) > 1:
+                    folder = parts[0]  # top-level: brain, work, org, perf
+                    self.add_triple(note_name, "in_folder", folder, source=source)
+                    count += 1
+                    # Sub-folder (e.g., work/active, org/people)
+                    if len(parts) > 2:
+                        subfolder = f"{parts[0]}/{parts[1]}"
+                        self.add_triple(
+                            note_name, "in_subfolder", subfolder, source=source
+                        )
+                        count += 1
+            except ValueError:
+                pass
+
+        # 4. Frontmatter date → created_on
+        date_val = metadata.get("date")
+        if date_val:
+            date_str = str(date_val)[:10]  # YYYY-MM-DD
+            self.add_triple(
+                note_name,
+                "created_on",
+                date_str,
+                valid_from=date_str,
+                source=source,
+            )
+            count += 1
+
+        # 5. Frontmatter description → has_description (for search context)
+        desc = metadata.get("description")
+        if desc and isinstance(desc, str) and len(desc) > 10:
+            self.add_entity(note_name, entity_type="note")
+            count += 1
+
+        return count
+
+    def populate_from_vault(
+        self, vault_path: Path, exclude_patterns: list = None
+    ) -> int:
+        """
+        Scan all vault notes and populate the knowledge graph.
+
+        Args:
+            vault_path: Root path of the vault
+            exclude_patterns: Folder/path patterns to skip
+
+        Returns:
+            Total number of triples added.
+        """
+        from .vault import DEFAULT_EXCLUDE_PATTERNS
+
+        exclude_patterns = exclude_patterns or DEFAULT_EXCLUDE_PATTERNS
+        total = 0
+        vault_path = Path(vault_path)
+
+        for md_file in vault_path.rglob("*.md"):
+            if any(excl in str(md_file) for excl in exclude_patterns):
+                continue
+            added = self.populate_from_note(md_file, vault_path)
+            total += added
+
+        logger.info("KG populated: %d triples from vault %s", total, vault_path)
+        return total
 
     # -------------------------------------------------------------------------
     # Statistics

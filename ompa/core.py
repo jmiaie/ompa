@@ -3,6 +3,7 @@ OMPA — Universal AI Agent Memory Layer
 Core module integrating vault, palace, KG, hooks, classifier, and semantic search.
 """
 
+import logging
 from pathlib import Path
 from typing import Optional
 
@@ -12,6 +13,8 @@ from .knowledge_graph import KnowledgeGraph
 from .hooks import HookManager, HookResult
 from .classifier import MessageClassifier, Classification
 from .semantic import SemanticIndex, SearchResult
+
+logger = logging.getLogger(__name__)
 
 
 class Ompa:
@@ -80,7 +83,24 @@ class Ompa:
         """
         Run session start hook.
         Loads ~2K tokens: vault listing, North Star, active work, palace wings, KG stats.
+        Auto-populates KG from vault if empty. Builds semantic index if missing.
         """
+        # Auto-populate KG if empty
+        try:
+            kg_stats = self.kg.stats()
+            if kg_stats["triple_count"] == 0:
+                count = self.kg.populate_from_vault(self.vault_path)
+                logger.info("Auto-populated KG with %d triples on session start", count)
+        except Exception as e:
+            logger.debug("KG auto-population skipped: %s", e)
+
+        # Trigger semantic index build if needed (lazy property handles this)
+        if self._enable_semantic:
+            try:
+                _ = self.semantic  # triggers lazy build
+            except Exception as e:
+                logger.debug("Semantic index build skipped: %s", e)
+
         result = self.hooks.run_session_start(self)
         self._session_started = True
         return result
@@ -98,15 +118,18 @@ class Ompa:
     def post_tool(self, tool_name: str, tool_input: dict) -> HookResult:
         """
         Run post-tool hook after tool use.
-        Validates writes, checks wikilinks, auto-adds to palace.
+        Validates writes, auto-adds to palace, updates KG + search index.
         """
         result = self.hooks.run_post_tool(tool_name, tool_input, self)
 
-        # Auto-add to palace on file writes
-        if result.success and tool_name in ("write", "edit", "create_file"):
+        # Auto-update on file writes
+        if tool_name in ("write", "edit", "create_file"):
             file_path = tool_input.get("file_path") or tool_input.get("path")
             if file_path:
+                path = Path(file_path)
                 self._auto_add_to_palace(file_path)
+                self._auto_update_kg(path)
+                self._auto_update_index(path)
 
         return result
 
@@ -156,11 +179,29 @@ class Ompa:
             self.palace.create_room(wing, room)
             self.palace.link_drawer(wing, room, str(path))
         except Exception as e:
-            import logging
+            logger.debug("Palace auto-add failed for %s: %s", file_path, e)
 
-            logging.getLogger(__name__).debug(
-                "Palace auto-add failed for %s: %s", file_path, e
-            )
+    def _auto_update_kg(self, path: Path) -> None:
+        """Auto-update knowledge graph when a note is written/edited."""
+        if path.suffix != ".md":
+            return
+        try:
+            added = self.kg.populate_from_note(path, self.vault_path)
+            if added > 0:
+                logger.debug("KG updated: %d triples from %s", added, path.name)
+        except Exception as e:
+            logger.debug("KG auto-update failed for %s: %s", path, e)
+
+    def _auto_update_index(self, path: Path) -> None:
+        """Incrementally update semantic index when a note is written/edited."""
+        if path.suffix != ".md" or not self._enable_semantic:
+            return
+        try:
+            if self._semantic is not None:
+                self._semantic.update_file(path)
+                logger.debug("Search index updated for %s", path.name)
+        except Exception as e:
+            logger.debug("Index auto-update failed for %s: %s", path, e)
 
     # -------------------------------------------------------------------------
     # Classification
@@ -265,8 +306,15 @@ class Ompa:
         return self.vault.find_orphans()
 
     def update_brain(self, note_name: str, content: str, append: bool = False) -> None:
-        """Update a brain note."""
+        """Update a brain note and sync to KG + search index."""
         self.vault.update_brain_note(note_name, content, append)
+
+        # Sync brain note to KG and search index
+        brain_path = self.vault.config.brain_folder / f"{note_name}.md"
+        if brain_path.exists():
+            self._auto_update_kg(brain_path)
+            self._auto_update_index(brain_path)
+            self._auto_add_to_palace(str(brain_path))
 
     def get_brain_note(self, name: str) -> Optional[object]:
         """Get a brain note by name."""
@@ -304,3 +352,25 @@ class Ompa:
     def kg_timeline(self, entity: str) -> list:
         """Get entity timeline."""
         return self.kg.timeline(entity)
+
+    def kg_populate(self) -> int:
+        """Populate KG from all vault notes (wikilinks, tags, folders)."""
+        return self.kg.populate_from_vault(self.vault_path)
+
+    def sync(self) -> dict:
+        """
+        Full sync: rebuild KG from vault, rebuild search index, rebuild palace.
+
+        Returns dict with counts for each system.
+        """
+        kg_count = self.kg.populate_from_vault(self.vault_path)
+        palace_count = self.palace.auto_build_from_vault(self.vault_path)
+        index_count = self.rebuild_index() if self._enable_semantic else 0
+
+        result = {
+            "kg_triples": kg_count,
+            "palace_wings": palace_count,
+            "indexed_files": index_count,
+        }
+        logger.info("Full sync complete: %s", result)
+        return result

@@ -20,7 +20,7 @@ import json
 import sys
 from pathlib import Path
 
-__version__ = "0.2.2"
+__version__ = "0.3.0"
 
 
 # ---------------------------------------------------------------------------
@@ -191,6 +191,33 @@ def ao_orphans(vault_path: str = ".") -> dict:
         "orphan_count": len(orphans),
         "orphans": [str(o.path) for o in orphans[:20]],
     }
+
+
+def ao_kg_populate(vault_path: str = ".") -> dict:
+    """
+    Populate the knowledge graph from all vault notes.
+    Extracts wikilinks, tags, folder structure, and dates into triples.
+    """
+    AO = _load_core()
+    ao = AO(vault_path=vault_path, enable_semantic=False)
+    count = ao.kg_populate()
+    stats = ao.kg.stats()
+    return {
+        "success": True,
+        "triples_added": count,
+        "total_entities": stats["entity_count"],
+        "total_facts": stats["triple_count"],
+    }
+
+
+def ao_sync(vault_path: str = ".") -> dict:
+    """
+    Full sync: rebuild KG, palace, and search index from vault.
+    """
+    AO = _load_core()
+    ao = AO(vault_path=vault_path, enable_semantic=True)
+    result = ao.sync()
+    return {"success": True, **result}
 
 
 def ao_init(vault_path: str = ".") -> dict:
@@ -369,6 +396,24 @@ TOOLS = {
             },
         },
     },
+    "ao_kg_populate": {
+        "description": "Populate the knowledge graph from all vault notes. Extracts wikilinks, tags, folder structure, and dates into triples.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "vault_path": {"type": "string", "default": "."},
+            },
+        },
+    },
+    "ao_sync": {
+        "description": "Full sync: rebuild knowledge graph, palace metadata, and search index from vault notes.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "vault_path": {"type": "string", "default": "."},
+            },
+        },
+    },
     "ao_init": {
         "description": "Initialize a new vault + palace structure with folders and brain notes.",
         "input_schema": {
@@ -465,6 +510,10 @@ def handle_call_tool(name: str, arguments: dict) -> dict:
             result = ao_status(vault_path)
         elif name == "ao_orphans":
             result = ao_orphans(vault_path)
+        elif name == "ao_kg_populate":
+            result = ao_kg_populate(vault_path)
+        elif name == "ao_sync":
+            result = ao_sync(vault_path)
         elif name == "ao_init":
             result = ao_init(vault_path)
         else:

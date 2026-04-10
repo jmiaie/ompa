@@ -2,6 +2,7 @@
 OMPA test suite.
 Run: pytest tests/ -v
 """
+
 import os
 import tempfile
 import pytest
@@ -12,6 +13,7 @@ class TestPalace:
 
     def test_create_wing(self):
         from ompa import Palace
+
         with tempfile.TemporaryDirectory() as tmpdir:
             p = Palace(os.path.join(tmpdir, ".palace"))
             p.create_wing("Orion", type="project", keywords=["analytics"])
@@ -21,6 +23,7 @@ class TestPalace:
 
     def test_rooms_and_drawers(self):
         from ompa import Palace
+
         with tempfile.TemporaryDirectory() as tmpdir:
             p = Palace(os.path.join(tmpdir, ".palace"))
             p.create_wing("Orion", type="project")
@@ -31,16 +34,20 @@ class TestPalace:
 
     def test_halls(self):
         from ompa import Palace
+
         with tempfile.TemporaryDirectory() as tmpdir:
             p = Palace(os.path.join(tmpdir, ".palace"))
             p.create_wing("Orion", type="project")
             p.create_room("Orion", "auth-migration")
-            p.add_hall("Orion", "auth-migration", "hall_facts", content="Team chose Clerk")
+            p.add_hall(
+                "Orion", "auth-migration", "hall_facts", content="Team chose Clerk"
+            )
             hall = p.get_hall("Orion", "auth-migration", "hall_facts")
             assert "Clerk" in hall
 
     def test_tunnels(self):
         from ompa import Palace
+
         with tempfile.TemporaryDirectory() as tmpdir:
             p = Palace(os.path.join(tmpdir, ".palace"))
             p.create_wing("Orion", type="project")
@@ -52,6 +59,7 @@ class TestPalace:
 
     def test_stats(self):
         from ompa import Palace
+
         with tempfile.TemporaryDirectory() as tmpdir:
             p = Palace(os.path.join(tmpdir, ".palace"))
             p.create_wing("Orion", type="project")
@@ -67,6 +75,7 @@ class TestKnowledgeGraph:
 
     def test_add_triple(self):
         from ompa import KnowledgeGraph
+
         with tempfile.TemporaryDirectory() as tmpdir:
             kg = KnowledgeGraph(db_path=os.path.join(tmpdir, "kg.sqlite3"))
             kg.add_triple("Kai", "works_on", "Orion", valid_from="2025-06-01")
@@ -76,9 +85,16 @@ class TestKnowledgeGraph:
 
     def test_query_entity_filtered(self):
         from ompa import KnowledgeGraph
+
         with tempfile.TemporaryDirectory() as tmpdir:
             kg = KnowledgeGraph(db_path=os.path.join(tmpdir, "kg.sqlite3"))
-            kg.add_triple("Kai", "works_on", "Orion", valid_from="2025-06-01", valid_to="2025-12-01")
+            kg.add_triple(
+                "Kai",
+                "works_on",
+                "Orion",
+                valid_from="2025-06-01",
+                valid_to="2025-12-01",
+            )
             kg.add_triple("Kai", "works_on", "OMPA", valid_from="2026-01-01")
             triples = kg.query_entity("Kai", as_of="2025-09-01")
             assert any(t.object == "Orion" for t in triples)
@@ -87,6 +103,7 @@ class TestKnowledgeGraph:
 
     def test_invalidate(self):
         from ompa import KnowledgeGraph
+
         with tempfile.TemporaryDirectory() as tmpdir:
             kg = KnowledgeGraph(db_path=os.path.join(tmpdir, "kg.sqlite3"))
             kg.add_triple("Kai", "works_on", "Orion", valid_from="2025-06-01")
@@ -97,6 +114,7 @@ class TestKnowledgeGraph:
 
     def test_query_relation(self):
         from ompa import KnowledgeGraph
+
         with tempfile.TemporaryDirectory() as tmpdir:
             kg = KnowledgeGraph(db_path=os.path.join(tmpdir, "kg.sqlite3"))
             kg.add_triple("Kai", "works_on", "Orion", valid_from="2025-06-01")
@@ -107,6 +125,7 @@ class TestKnowledgeGraph:
 
     def test_timeline(self):
         from ompa import KnowledgeGraph
+
         with tempfile.TemporaryDirectory() as tmpdir:
             kg = KnowledgeGraph(db_path=os.path.join(tmpdir, "kg.sqlite3"))
             kg.add_triple("Kai", "works_on", "Orion", valid_from="2025-06-01")
@@ -118,6 +137,7 @@ class TestKnowledgeGraph:
 
     def test_stats(self):
         from ompa import KnowledgeGraph
+
         with tempfile.TemporaryDirectory() as tmpdir:
             kg = KnowledgeGraph(db_path=os.path.join(tmpdir, "kg.sqlite3"))
             kg.add_triple("Kai", "works_on", "Orion", valid_from="2025-06-01")
@@ -128,6 +148,7 @@ class TestKnowledgeGraph:
     def test_atomic_add_triple(self):
         """add_triple should use a single connection (atomic)."""
         from ompa import KnowledgeGraph
+
         with tempfile.TemporaryDirectory() as tmpdir:
             kg = KnowledgeGraph(db_path=os.path.join(tmpdir, "kg.sqlite3"))
             kg.add_triple("A", "rel", "B", valid_from="2026-01-01")
@@ -142,6 +163,7 @@ class TestClassifier:
 
     def test_decision(self):
         from ompa import MessageClassifier
+
         c = MessageClassifier()
         result = c.classify("We decided to go with Postgres")
         assert result.message_type.value == "decision"
@@ -149,42 +171,49 @@ class TestClassifier:
 
     def test_win(self):
         from ompa import MessageClassifier
+
         c = MessageClassifier()
         result = c.classify("We won the enterprise deal!")
         assert result.message_type.value == "win"
 
     def test_incident(self):
         from ompa import MessageClassifier
+
         c = MessageClassifier()
         result = c.classify("The auth bug is blocking deployment")
         assert result.message_type.value == "incident"
 
     def test_question(self):
         from ompa import MessageClassifier
+
         c = MessageClassifier()
         result = c.classify("Should we use Clerk or Auth0 for auth?")
         assert result.message_type.value == "question"
 
     def test_suggestion(self):
         from ompa import MessageClassifier
+
         c = MessageClassifier()
         result = c.classify("We should add tests before merging")
         assert result.message_type.value in ("task", "unknown")
 
     def test_blocker(self):
         from ompa import MessageClassifier
+
         c = MessageClassifier()
         result = c.classify("I'm blocked on the API design")
         assert result.message_type.value == "architecture"
 
     def test_learning(self):
         from ompa import MessageClassifier
+
         c = MessageClassifier()
         result = c.classify("TIL that Postgres has built-in full-text search")
         assert result.message_type.value in ("brain-dump", "code", "unknown")
 
     def test_retrospective(self):
         from ompa import MessageClassifier
+
         c = MessageClassifier()
         result = c.classify("In our retrospective we found three issues")
         assert result.message_type.value == "meeting"
@@ -195,6 +224,7 @@ class TestVault:
 
     def test_init_creates_structure(self):
         from ompa import Vault
+
         with tempfile.TemporaryDirectory() as tmpdir:
             vault = Vault(tmpdir)
             assert (vault.vault_path / "brain").is_dir()
@@ -203,6 +233,7 @@ class TestVault:
 
     def test_get_stats_empty_vault(self):
         from ompa import Vault
+
         with tempfile.TemporaryDirectory() as tmpdir:
             vault = Vault(tmpdir)
             stats = vault.get_stats()
@@ -211,6 +242,7 @@ class TestVault:
 
     def test_update_and_get_brain_note(self):
         from ompa import Vault
+
         with tempfile.TemporaryDirectory() as tmpdir:
             vault = Vault(tmpdir)
             vault.update_brain_note("Test Note", "Hello world")
@@ -220,6 +252,7 @@ class TestVault:
 
     def test_brain_note_path_traversal_blocked(self):
         from ompa import Vault
+
         with tempfile.TemporaryDirectory() as tmpdir:
             vault = Vault(tmpdir)
             with pytest.raises(ValueError, match="Invalid brain note name"):
@@ -227,6 +260,7 @@ class TestVault:
 
     def test_update_brain_note_path_traversal_blocked(self):
         from ompa import Vault
+
         with tempfile.TemporaryDirectory() as tmpdir:
             vault = Vault(tmpdir)
             with pytest.raises(ValueError, match="Invalid brain note name"):
@@ -234,6 +268,7 @@ class TestVault:
 
     def test_validate_write_blocks_outside_vault(self):
         from ompa import Vault
+
         with tempfile.TemporaryDirectory() as tmpdir:
             vault = Vault(tmpdir)
             result = vault.validate_write("../../etc/passwd")
@@ -242,6 +277,7 @@ class TestVault:
 
     def test_create_from_template_path_traversal_blocked(self):
         from ompa import Vault
+
         with tempfile.TemporaryDirectory() as tmpdir:
             vault = Vault(tmpdir)
             with pytest.raises((ValueError, FileNotFoundError)):
@@ -250,6 +286,7 @@ class TestVault:
     def test_note_save_utf8(self):
         from ompa.vault import Note
         from pathlib import Path
+
         with tempfile.TemporaryDirectory() as tmpdir:
             path = Path(tmpdir) / "unicode.md"
             note = Note(path=path, content="Héllo wörld 日本語")
@@ -259,6 +296,7 @@ class TestVault:
 
     def test_search_by_name(self):
         from ompa import Vault
+
         with tempfile.TemporaryDirectory() as tmpdir:
             vault = Vault(tmpdir)
             vault.update_brain_note("Auth Design", "Authentication design doc")
@@ -271,6 +309,7 @@ class TestHooks:
 
     def test_session_start_hook(self):
         from ompa import Ompa
+
         with tempfile.TemporaryDirectory() as tmpdir:
             ao = Ompa(tmpdir, enable_semantic=False)
             result = ao.session_start()
@@ -279,6 +318,7 @@ class TestHooks:
 
     def test_user_message_hook(self):
         from ompa import Ompa
+
         with tempfile.TemporaryDirectory() as tmpdir:
             ao = Ompa(tmpdir, enable_semantic=False)
             result = ao.handle_message("We decided to use Postgres")
@@ -287,6 +327,7 @@ class TestHooks:
 
     def test_post_tool_hook_skip_non_write(self):
         from ompa import Ompa
+
         with tempfile.TemporaryDirectory() as tmpdir:
             ao = Ompa(tmpdir, enable_semantic=False)
             result = ao.post_tool("read", {"file_path": "test.md"})
@@ -295,6 +336,7 @@ class TestHooks:
 
     def test_stop_hook(self):
         from ompa import Ompa
+
         with tempfile.TemporaryDirectory() as tmpdir:
             ao = Ompa(tmpdir, enable_semantic=False)
             result = ao.stop()
@@ -307,6 +349,7 @@ class TestMCPServer:
 
     def test_handle_list_tools(self):
         from ompa.mcp_server import handle_list_tools
+
         result = handle_list_tools()
         assert "tools" in result
         tool_names = [t["name"] for t in result["tools"]]
@@ -316,39 +359,50 @@ class TestMCPServer:
 
     def test_handle_call_tool_classify(self):
         from ompa.mcp_server import handle_call_tool
+
         with tempfile.TemporaryDirectory() as tmpdir:
-            result = handle_call_tool("ao_classify", {
-                "message": "We decided to use Postgres",
-                "vault_path": tmpdir,
-            })
+            result = handle_call_tool(
+                "ao_classify",
+                {
+                    "message": "We decided to use Postgres",
+                    "vault_path": tmpdir,
+                },
+            )
             assert "message_type" in result
             assert result["message_type"] == "decision"
 
     def test_handle_call_tool_unknown(self):
         from ompa.mcp_server import handle_call_tool
+
         result = handle_call_tool("nonexistent_tool", {})
         assert "error" in result
 
     def test_handle_call_tool_missing_arg(self):
         from ompa.mcp_server import handle_call_tool
+
         result = handle_call_tool("ao_classify", {"vault_path": "."})
         assert "error" in result
         assert "Missing" in result["error"]
 
     def test_vault_path_traversal_blocked(self):
         from ompa.mcp_server import handle_call_tool
+
         result = handle_call_tool("ao_status", {"vault_path": "/"})
         assert "error" in result
         assert "Invalid" in result["error"]
 
     def test_limit_capped(self):
         from ompa.mcp_server import handle_call_tool
+
         with tempfile.TemporaryDirectory() as tmpdir:
-            result = handle_call_tool("ao_search", {
-                "query": "test",
-                "vault_path": tmpdir,
-                "limit": 999999,
-            })
+            result = handle_call_tool(
+                "ao_search",
+                {
+                    "query": "test",
+                    "vault_path": tmpdir,
+                    "limit": 999999,
+                },
+            )
             # Should not crash; limit is silently capped to 100
             assert "results" in result or "error" not in result
 
@@ -358,6 +412,7 @@ class TestOmpa:
 
     def test_session_start(self):
         from ompa import Ompa
+
         with tempfile.TemporaryDirectory() as tmpdir:
             ao = Ompa(tmpdir, enable_semantic=False)
             result = ao.session_start()
@@ -365,6 +420,7 @@ class TestOmpa:
 
     def test_classify(self):
         from ompa import Ompa
+
         with tempfile.TemporaryDirectory() as tmpdir:
             ao = Ompa(tmpdir, enable_semantic=False)
             c = ao.classify("We decided to go with Postgres")
@@ -372,6 +428,7 @@ class TestOmpa:
 
     def test_kg_integration(self):
         from ompa import Ompa
+
         with tempfile.TemporaryDirectory() as tmpdir:
             ao = Ompa(tmpdir, enable_semantic=False)
             ao.kg.add_triple("Jarv", "works_on", "OMPA", valid_from="2026-04-10")
@@ -381,6 +438,7 @@ class TestOmpa:
 
     def test_stop(self):
         from ompa import Ompa
+
         with tempfile.TemporaryDirectory() as tmpdir:
             ao = Ompa(tmpdir, enable_semantic=False)
             result = ao.stop()
@@ -389,10 +447,176 @@ class TestOmpa:
     def test_backward_compat_alias(self):
         """Verify AgnosticObsidian still works as an alias."""
         from ompa import AgnosticObsidian, Ompa
+
         assert AgnosticObsidian is Ompa
 
     def test_python_m_ompa_entrypoint(self):
         """Verify __main__.py exists for python -m ompa."""
         import importlib
+
         spec = importlib.util.find_spec("ompa.__main__")
         assert spec is not None
+
+
+class TestKGPopulation:
+    """Test KG auto-population from vault notes."""
+
+    def test_populate_from_note_wikilinks(self):
+        """Wikilinks should create links_to triples."""
+        from ompa import KnowledgeGraph
+        from pathlib import Path
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            kg = KnowledgeGraph(db_path=os.path.join(tmpdir, "kg.sqlite3"))
+            # Create a note with wikilinks
+            vault_path = Path(tmpdir)
+            note_path = vault_path / "brain" / "Test.md"
+            note_path.parent.mkdir(parents=True, exist_ok=True)
+            note_path.write_text(
+                "---\ndate: 2026-04-10\ntags: [auth, security]\n---\n"
+                "This links to [[North Star]] and [[Key Decisions]].",
+                encoding="utf-8",
+            )
+            count = kg.populate_from_note(note_path, vault_path)
+            assert count >= 2  # at least 2 wikilinks
+            triples = kg.query_entity("Test")
+            link_triples = [t for t in triples if t.predicate == "links_to"]
+            assert len(link_triples) == 2
+
+    def test_populate_from_note_tags(self):
+        """Frontmatter tags should create has_tag triples."""
+        from ompa import KnowledgeGraph
+        from pathlib import Path
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            kg = KnowledgeGraph(db_path=os.path.join(tmpdir, "kg.sqlite3"))
+            vault_path = Path(tmpdir)
+            note_path = vault_path / "brain" / "Tagged.md"
+            note_path.parent.mkdir(parents=True, exist_ok=True)
+            note_path.write_text(
+                "---\ndate: 2026-04-10\ntags: [auth, security]\n---\nContent here.",
+                encoding="utf-8",
+            )
+            count = kg.populate_from_note(note_path, vault_path)
+            triples = kg.query_entity("Tagged")
+            tag_triples = [t for t in triples if t.predicate == "has_tag"]
+            assert len(tag_triples) == 2
+            tags = {t.object for t in tag_triples}
+            assert "auth" in tags
+            assert "security" in tags
+
+    def test_populate_from_note_folders(self):
+        """Notes should get in_folder triples from their directory."""
+        from ompa import KnowledgeGraph
+        from pathlib import Path
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            kg = KnowledgeGraph(db_path=os.path.join(tmpdir, "kg.sqlite3"))
+            vault_path = Path(tmpdir)
+            note_path = vault_path / "work" / "active" / "Auth.md"
+            note_path.parent.mkdir(parents=True, exist_ok=True)
+            note_path.write_text(
+                "---\ndate: 2026-04-10\n---\nAuth work note.",
+                encoding="utf-8",
+            )
+            count = kg.populate_from_note(note_path, vault_path)
+            triples = kg.query_entity("Auth")
+            folder_triples = [t for t in triples if t.predicate == "in_folder"]
+            assert len(folder_triples) == 1
+            assert folder_triples[0].object == "work"
+
+    def test_populate_from_vault(self):
+        """populate_from_vault should scan all notes."""
+        from ompa import KnowledgeGraph
+        from pathlib import Path
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            kg = KnowledgeGraph(db_path=os.path.join(tmpdir, "kg.sqlite3"))
+            vault_path = Path(tmpdir)
+            # Create multiple notes
+            for name in ["Note1", "Note2"]:
+                p = vault_path / "brain" / f"{name}.md"
+                p.parent.mkdir(parents=True, exist_ok=True)
+                p.write_text(
+                    f"---\ndate: 2026-04-10\n---\nSee [[{name}Link]].",
+                    encoding="utf-8",
+                )
+            total = kg.populate_from_vault(vault_path)
+            assert total >= 4  # at least 2 links + 2 folders
+            stats = kg.stats()
+            assert stats["entity_count"] >= 4
+
+    def test_session_start_auto_populates_kg(self):
+        """session_start should auto-populate KG if empty."""
+        from ompa import Ompa
+        from pathlib import Path
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            vault_path = Path(tmpdir)
+            # Create a note with content before starting session
+            brain = vault_path / "brain"
+            brain.mkdir(parents=True, exist_ok=True)
+            (brain / "Test.md").write_text(
+                "---\ndate: 2026-04-10\ntags: [test]\n---\nSee [[North Star]].",
+                encoding="utf-8",
+            )
+            ao = Ompa(tmpdir, enable_semantic=False)
+            ao.session_start()
+            stats = ao.kg.stats()
+            assert stats["triple_count"] > 0
+
+    def test_sync(self):
+        """sync() should rebuild KG and palace."""
+        from ompa import Ompa
+        from pathlib import Path
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            vault_path = Path(tmpdir)
+            brain = vault_path / "brain"
+            brain.mkdir(parents=True, exist_ok=True)
+            (brain / "Sync Test.md").write_text(
+                "---\ndate: 2026-04-10\n---\nContent [[Link]].",
+                encoding="utf-8",
+            )
+            ao = Ompa(tmpdir, enable_semantic=False)
+            result = ao.sync()
+            assert result["kg_triples"] > 0
+            assert result["palace_wings"] >= 0
+
+    def test_update_brain_syncs_kg(self):
+        """update_brain should auto-update KG."""
+        from ompa import Ompa
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            ao = Ompa(tmpdir, enable_semantic=False)
+            ao.update_brain("Decisions", "We chose [[Postgres]] for the DB.")
+            triples = ao.kg.query_entity("Decisions")
+            link_triples = [t for t in triples if t.predicate == "links_to"]
+            assert len(link_triples) == 1
+            assert link_triples[0].object == "Postgres"
+
+    def test_mcp_kg_populate(self):
+        """MCP ao_kg_populate tool should work."""
+        from ompa.mcp_server import handle_call_tool
+        from pathlib import Path
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            vault_path = Path(tmpdir)
+            brain = vault_path / "brain"
+            brain.mkdir(parents=True, exist_ok=True)
+            (brain / "MCP Test.md").write_text(
+                "---\ndate: 2026-04-10\n---\nSee [[Link]].",
+                encoding="utf-8",
+            )
+            result = handle_call_tool("ao_kg_populate", {"vault_path": tmpdir})
+            assert result["success"] is True
+            assert result["triples_added"] > 0
+
+    def test_mcp_sync(self):
+        """MCP ao_sync tool should work."""
+        from ompa.mcp_server import handle_call_tool
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            result = handle_call_tool("ao_sync", {"vault_path": tmpdir})
+            assert result["success"] is True
+            assert "kg_triples" in result

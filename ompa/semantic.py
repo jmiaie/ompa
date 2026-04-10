@@ -73,11 +73,15 @@ class SemanticIndex:
         self._initialized = True
 
     def index_file(self, path: Path) -> None:
-        """Index a single file."""
+        """Index a single file (or re-index if already present)."""
         if not self._initialized or not path.exists():
             return
 
         try:
+            # Remove existing chunks for this file (incremental update)
+            path_str = str(path)
+            self.chunks = [c for c in self.chunks if c["path"] != path_str]
+
             content = path.read_text(encoding="utf-8")
             # Split into chunks (512 tokens each)
             chunk_size = 512
@@ -94,7 +98,7 @@ class SemanticIndex:
                 self.chunks.append(
                     {
                         "hash": chunk_hash,
-                        "path": str(path),
+                        "path": path_str,
                         "chunk_index": i,
                         "text": chunk_text,
                         "embedding": embedding.tolist(),
@@ -102,6 +106,36 @@ class SemanticIndex:
                 )
         except Exception as e:
             logger.warning("Error indexing %s: %s", path, e)
+
+    def update_file(self, path: Path) -> bool:
+        """
+        Incrementally update the index for a single file.
+        Re-indexes the file and saves the updated index.
+        Returns True if successful.
+        """
+        path = Path(path)
+        if not path.exists() or path.suffix != ".md":
+            return False
+
+        try:
+            self.index_file(path)
+            self.save_index()
+            logger.debug("Incrementally updated index for %s", path)
+            return True
+        except Exception as e:
+            logger.warning("Incremental index update failed for %s: %s", path, e)
+            return False
+
+    def remove_file(self, path: Path) -> bool:
+        """Remove a file from the index (e.g., after deletion)."""
+        path_str = str(Path(path))
+        before = len(self.chunks)
+        self.chunks = [c for c in self.chunks if c["path"] != path_str]
+        removed = before - len(self.chunks)
+        if removed > 0:
+            self.save_index()
+            logger.debug("Removed %d chunks for %s", removed, path)
+        return removed > 0
 
     def index_vault(self, vault_path: Path, exclude_patterns: list = None) -> int:
         """Index all markdown files in a vault."""
