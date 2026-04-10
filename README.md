@@ -1,224 +1,180 @@
-# agent-memory
+# AgnosticObsidian
 
-**Universal Agent Memory Layer** — Persistent memory for AI agents with lifecycle hooks, semantic search, and classification routing.
+> **Universal AI agent memory layer** — gives any AI agent persistent memory with vault conventions, palace navigation, and a temporal knowledge graph.
 
-Built by [Micap AI](https://micap.ai) as part of our agent infrastructure. Designed to work with any AI agent framework — OpenClaw, Claude Code, Codex CLI, Gemini CLI, or custom agents.
+[![PyPI version](https://img.shields.io/pypi/v/agnostic-obsidian)](https://pypi.org/project/agnostic-obsidian/)
+[![Python versions](https://img.shields.io/pypi/pyversions/agnostic-obsidian)](https://pypi.org/project/agnostic-obsidian/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
-## Why?
+## The Problem
 
-AI agents are powerful but they forget. Every session starts from zero. You re-explain the same things. Decisions made three conversations ago disappear. Knowledge never compounds.
+Every AI agent starts empty every session. Important decisions get lost. Context grows expensive. `ANKI` prompts only get you so far.
 
-**agent-memory** gives your agents a brain. Persistent memory across sessions. Structured organization. Semantic search. Token-efficient context loading.
+## The Solution
 
-## Features
+AgnosticObsidian gives any AI agent — **Claude Code, OpenClaw, Codex, Gemini CLI, or any custom agent** — persistent, structured memory that:
 
-- **Lifecycle Hooks** — `session_start`, `user_message`, `post_tool`, `pre_compact`, `stop` — exactly like obsidian-mind but framework-agnostic
-- **Tiered Context Loading** — Lightweight session start (~2K tokens), targeted queries on demand
-- **Message Classification** — Classifies every message and injects routing hints (~100 tokens)
-- **Semantic Search** — Local embeddings (zero API cost) with hybrid keyword + semantic search
-- **Structured Vault** — `brain/`, `work/`, `org/`, `perf/` organization with wikilinks
-- **Python + CLI** — Use as a library or standalone
-
-## Installation
-
-```bash
-pip install agent-memory
-```
-
-With semantic search (requires torch + sentence-transformers):
-```bash
-pip install agent-memory[semantic]
-```
+- **Never forgets a decision** (vault + knowledge graph)
+- **Knows where things belong** (15 message types with routing hints)
+- **Survives context compaction** (verbatim storage, no summarization loss)
+- **Works offline** (local sentence-transformers, zero API cost)
 
 ## Quick Start
 
-### Python API
-
-```python
-from agent_memory import AgentMemory
-
-memory = AgentMemory(vault_path="./workspace")
-
-# At session start
-result = memory.session_start()
-print(result.output)  # Inject this into context
-
-# On every user message
-hint = memory.handle_message("We decided to defer the Redis migration to Q2")
-print(hint.output)  # "[DECISION] Record decision and update relevant project notes"
-
-# After writing a file
-memory.post_tool("write", {"file_path": "work/active/auth-refactor.md"})
-
-# At session end
-memory.stop()
-```
-
-### CLI
-
 ```bash
-# Initialize
-agent-memory init --path ./workspace
+pip install agnostic-obsidian
 
-# Run session start
-agent-memory session-start
+# Initialize a vault
+ao init ./workspace
 
-# Classify a message
-agent-memory classify "We decided to go with Postgres"
-
-# Search the vault
-agent-memory search "what did we decide about caching"
-
-# Check for orphans
-agent-memory orphans
-
-# Wrap up
-agent-memory wrap-up
+# Run your agent session, then:
+ao session-start     # ~2K token context injection
+ao classify "We decided to go with Postgres"   # Route to right folder
+ao search "authentication decisions"           # Semantic search
+ao kg-query Kai       # Query the knowledge graph
+ao wrap-up            # Session summary + save to vault
 ```
+
+## How It Works
+
+### Three-Layer Memory Architecture
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  Layer 1: Vault (human-navigable markdown)              │
+│  brain/  work/  org/  perf/  ← obsidian-mind structure  │
+├─────────────────────────────────────────────────────────┤
+│  Layer 2: Palace (agent-accessible metadata)            │
+│  wings → rooms → drawers (vault file references)       │
+│  halls: facts, events, discoveries, preferences         │
+│  tunnels: cross-wing connections                       │
+├─────────────────────────────────────────────────────────┤
+│  Layer 3: Knowledge Graph (temporal triples)             │
+│  SQLite: subject → predicate → object + validity window │
+│  Query entity history at any point in time             │
+└─────────────────────────────────────────────────────────┘
+```
+
+### 5 Lifecycle Hooks
+
+| Hook | Tokens | When |
+|------|--------|------|
+| `session_start` | ~2K | Session begins |
+| `user_message` | ~100 | Each user message |
+| `post_tool` | ~200 | After each tool call |
+| `pre_compact` | ~100 | Before context compaction |
+| `stop` | ~500 | Session ends |
+
+### 15 Message Types
+
+DECISION, INCIDENT, WIN, LOSS, BLOCKER, QUESTION, SUGGESTION, REVIEW, BUG, FEATURE, LEARN, RETROSPECTIVE, ALERT, STATUS, CHORE — each with routing hints that automatically file things in the right place.
+
+### Semantic Search (Zero API Cost)
+
+Uses `sentence-transformers` (all-MiniLM-L6-v2) locally. No OpenAI/Anthropic API calls for search.
 
 ## Architecture
 
 ```
-Session Lifecycle
-─────────────────
-session_start  →  Load lightweight context (~2K tokens)
-                    - Vault file listing
-                    - North Star goals
-                    - Active work
-                    - Recent git changes
-
-user_message  →  Classify + route (~100 tokens)
-                    - Decision, incident, win, question, etc.
-                    - Routing hints injected into context
-
-post_tool     →  Validate writes (~200 tokens)
-                    - Check frontmatter
-                    - Verify wikilinks
-
-pre_compact   →  Archive transcript
-                    - Save to thinking/session-logs/
-
-stop          →  Wrap up checklist
-                    - Verify notes have links
-                    - Update indexes
-                    - Spot uncaptured wins
+agnostic_obsidian/
+├── core.py              # AgnosticObsidian main class
+├── vault.py             # Vault management (brain/work/org/perf)
+├── palace.py            # Palace metadata (wings/rooms/drawers)
+├── knowledge_graph.py   # Temporal KG (SQLite triples)
+├── hooks.py             # 5 lifecycle hooks
+├── classifier.py       # 15 message types
+├── semantic.py          # Local semantic search
+├── mcp_server.py        # MCP protocol server (15 tools)
+└── cli.py              # 14 CLI commands
 ```
 
-## Vault Structure
+## MCP Server (15 Tools)
 
-```
-workspace/
-├── brain/              # Agent's operational memory
-│   ├── North Star.md   # Goals, focus areas
-│   ├── Key Decisions.md
-│   ├── Patterns.md
-│   ├── Gotchas.md
-│   └── Memories.md
-├── work/               # Work notes
-│   ├── active/         # Current projects
-│   ├── archive/        # Completed
-│   ├── incidents/      # Incident docs
-│   └── 1-1/            # Meeting notes
-├── org/                # People, teams
-│   ├── people/
-│   └── teams/
-├── perf/               # Performance, reviews
-│   ├── competencies/
-│   └── brag/
-├── thinking/           # Scratchpads
-│   └── session-logs/  # Archived transcripts
-└── templates/          # Note templates
+Works with **Claude Desktop, Cursor, Windsurf** natively:
+
+```bash
+# Claude Desktop
+claude mcp add agnostic-obsidian -- python -m agnostic_obsidian.mcp_server
 ```
 
-## Message Classification
+Tools: `ao_session_start`, `ao_classify`, `ao_search`, `ao_kg_query`, `ao_kg_add`, `ao_palace_wings`, `ao_palace_rooms`, `ao_palace_tunnel`, `ao_validate`, `ao_wrap_up`, `ao_status`, `ao_orphans`, `ao_init`, `ao_search`, `ao_stop`
 
-Every message is classified into one of:
-
-| Type | Routing |
-|------|---------|
-| `DECISION` | Record in brain/Key Decisions.md |
-| `INCIDENT` | Create in work/incidents/ |
-| `WIN` | Add to perf/Brag Doc.md |
-| `ONE_ON_ONE` | Update work/1-1/ |
-| `MEETING` | Create in work/meetings/ |
-| `PROJECT_UPDATE` | Update work/active/ |
-| `PERSON_INFO` | Update org/people/ |
-| `QUESTION` | Search vault first |
-| `TASK` | Add to task list |
-| `ARCHITECTURE` | Create ADR in work/active/ |
-| `BRAIN_DUMP` | Route to appropriate notes |
-| `WRAP_UP` | Run /om-wrap-up |
-| `STANDUP` | Run /om-standup |
-
-## Semantic Search
-
-Uses local `sentence-transformers` for zero API cost:
+## Python API
 
 ```python
-results = memory.search("what did we decide about caching")
-# Returns: [(path, excerpt, score, match_type), ...]
+from agnostic_obsidian import AgnosticObsidian
 
-# Or use qsearch (QMD-style)
-results = memory.qsearch("architecture decisions for auth")
+ao = AgnosticObsidian(vault_path="./workspace")
+
+# Lifecycle
+result = ao.session_start()       # Returns ~2K token context injection
+hint = ao.handle_message("We won the enterprise deal!")
+ao.post_tool("write", {"file_path": "work/active/auth.md"})
+ao.stop()
+
+# Search
+results = ao.search("authentication decisions", wing="Orion")
+
+# Knowledge Graph
+ao.kg.add_triple("Kai", "works_on", "Orion", valid_from="2025-06-01")
+triples = ao.kg.query_entity("Kai")
+timeline = ao.kg.timeline("Orion")
+
+# Palace
+ao.palace.create_wing("Orion", type="project")
+ao.palace.create_tunnel("Kai", "Orion", "auth-migration")
+traversal = ao.palace.traverse("Orion", "auth-migration")
 ```
 
-## Hook System
+## CLI Commands
 
-Customize behavior by registering your own hooks:
-
-```python
-from agent_memory.hooks import Hook, HookContext, HookResult
-
-class MyHook(Hook):
-    def execute(self, context: HookContext) -> HookResult:
-        return HookResult(
-            hook_name="my_hook",
-            success=True,
-            output="Custom output"
-        )
-
-memory = AgentMemory("./workspace")
-memory.hooks.register_hook("my_hook", MyHook())
+```
+ao init          ao status      ao session-start  ao classify
+ao search        ao orphans     ao wrap-up        ao wings
+ao rooms         ao tunnel      ao kg-query       ao kg-timeline
+ao kg-stats      ao validate    ao rebuild-index
 ```
 
-## OpenClaw Integration
+## Framework Agnostic
 
-```python
-# In your OpenClaw agent, call hooks at appropriate points:
+Unlike MemPalace (Claude Code + MCP only) or obsidian-mind (Claude Code hooks only), AgnosticObsidian works with **any AI agent**:
 
-from agent_memory import AgentMemory
+| Agent | Integration |
+|-------|-------------|
+| OpenClaw | Python API or MCP server |
+| Claude Code | Python API or MCP server |
+| Codex | Python API or MCP server |
+| Gemini CLI | Python API or MCP server |
+| Custom agent | Python API |
 
-memory = AgentMemory(vault_path="/path/to/workspace")
+## Installation
 
-# On session start
-result = memory.session_start()
-# Inject result.output into system prompt
-
-# On user message
-hint = memory.handle_message(user_message)
-# Include hint.output in context
-
-# On file write
-memory.post_tool("write", {"file_path": file_path})
-
-# On session end
-memory.stop()
+```bash
+pip install agnostic-obsidian        # Core only
+pip install agnostic-obsidian[all]   # All dependencies including sentence-transformers
 ```
 
-## For Developer Portfolio
+Requires Python 3.10+.
 
-This tool is designed to be:
-- **Framework-agnostic** — Works with any AI agent (OpenClaw, Claude Code, Codex, Gemini CLI)
-- **Self-hosted** — No external API dependencies for core functionality
-- **Token-efficient** — Designed for cost-conscious deployments
-- **Extensible** — Easy to add custom hooks and classifiers
+## Why "Agnostic"?
 
-Perfect for demonstrating skills in AI agent systems, memory architecture, and production-grade Python.
+Because memory should not be coupled to your agent framework. Build once, use anywhere. The "Universal" angle is the moat — not just another Claude Code plugin.
+
+## Comparison
+
+| Feature | AgnosticObsidian | MemPalace | obsidian-mind |
+|---------|-----------------|------------|---------------|
+| Framework | Any | Claude Code | Claude Code |
+| Memory type | Vault + Palace + KG | Palace + KG | Vault only |
+| Semantic search | Local (free) | ChromaDB API | QMD (paid) |
+| Temporal KG | SQLite ✓ | SQLite ✓ | ✗ |
+| MCP server | 15 tools | 15 tools | ✗ |
+| CLI | 14 commands | ✗ | ✗ |
+| Hooks | 5 lifecycle | 3 lifecycle | 3 lifecycle |
+| Message types | 15 | 15 | 5 |
+| Verbatim storage | ✓ | ✓ | ✗ |
+| Multi-agent | ✓ | ✗ | ✗ |
 
 ## License
 
-MIT
-
----
-
-Built with ❤️ by [Micap AI](https://micap.ai)
+MIT — Micap AI
