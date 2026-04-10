@@ -58,7 +58,7 @@ class SemanticIndex:
             self._initialized = True
         except ImportError:
             print("Warning: sentence-transformers not installed. Semantic search unavailable.")
-            print("Install with: pip install agent-memory[semantic]")
+            print("Install with: pip install ompa[all]")
             self._model = None
         except Exception as e:
             print(f"Warning: Could not load embedding model: {e}")
@@ -67,7 +67,7 @@ class SemanticIndex:
     
     def index_file(self, path: Path) -> None:
         """Index a single file."""
-        if not self._initialized or not path.exists():
+        if self.model is None or not path.exists():
             return
         
         try:
@@ -99,7 +99,7 @@ class SemanticIndex:
         exclude_patterns = exclude_patterns or [".git", ".claude", "thinking"]
         count = 0
         
-        if not self._initialized:
+        if self.model is None:
             return 0
         
         for path in vault_path.rglob("*.md"):
@@ -114,12 +114,9 @@ class SemanticIndex:
         """Save the index to disk."""
         index_file = self.index_path / "semantic_index.json"
         
-        # Save without numpy arrays (convert to lists)
         serializable = {
             "model": self.model_name,
-            "chunks": [
-                {**c, "embedding": c["embedding"]} for c in self.chunks
-            ],
+            "chunks": self.chunks,
         }
         
         with open(index_file, 'w') as f:
@@ -158,7 +155,7 @@ class SemanticIndex:
         Returns:
             List of SearchResult
         """
-        if not self._initialized or not self.chunks:
+        if self.model is None or not self.chunks:
             return self._keyword_search(query, limit)
         
         try:
@@ -215,41 +212,22 @@ class SemanticIndex:
             return self._keyword_search(query, limit)
     
     def _keyword_search(self, query: str, limit: int) -> list[SearchResult]:
-        """Fallback keyword search using grep."""
-        import subprocess
-        
+        """Fallback keyword search over indexed chunks (pure Python, cross-platform)."""
         query_lower = query.lower()
         results = []
-        
-        try:
-            result = subprocess.run(
-                ["grep", "-r", "-l", query_lower, str(self.index_path.parent)],
-                capture_output=True,
-                text=True,
-                timeout=10
-            )
-            
-            for line in result.stdout.strip().split("\n"):
-                if line.endswith(".md"):
-                    path = Path(line)
-                    try:
-                        content = path.read_text()
-                        # Find the matching line
-                        for l in content.split("\n"):
-                            if query_lower in l.lower():
-                                results.append(SearchResult(
-                                    path=str(path),
-                                    content_excerpt=l[:200],
-                                    score=1.0,
-                                    match_type="keyword",
-                                ))
-                                break
-                    except:
-                        pass
-        except Exception:
-            pass
-        
-        return results[:limit]
+
+        for chunk in self.chunks:
+            if query_lower in chunk["text"].lower():
+                results.append(SearchResult(
+                    path=chunk["path"],
+                    content_excerpt=chunk["text"][:200],
+                    score=1.0,
+                    match_type="keyword",
+                ))
+                if len(results) >= limit:
+                    break
+
+        return results
     
     def clear(self) -> None:
         """Clear the index."""

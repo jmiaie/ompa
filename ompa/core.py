@@ -1,5 +1,5 @@
 """
-AgnosticObsidian — Universal AI Agent Memory Layer
+OMPA — Universal AI Agent Memory Layer
 Core module integrating vault, palace, KG, hooks, classifier, and semantic search.
 """
 from pathlib import Path
@@ -13,7 +13,7 @@ from .classifier import MessageClassifier, Classification, MessageType
 from .semantic import SemanticIndex, SearchResult
 
 
-class AgnosticObsidian:
+class Ompa:
     """
     Universal agent memory layer.
 
@@ -26,7 +26,7 @@ class AgnosticObsidian:
     - Semantic Search (local sentence-transformers)
 
     Usage:
-        ao = AgnosticObsidian(vault_path="./workspace")
+        ao = Ompa(vault_path="./workspace")
         result = ao.session_start()    # ~2K tokens
         hint = ao.handle_message(msg)  # ~100 tokens
         ao.post_tool("write", {"file_path": "work/active/auth.md"})

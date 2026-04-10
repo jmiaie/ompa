@@ -1,4 +1,4 @@
-# OMPA (OMPA)
+# OMPA
 
 > **Obsidian-MemPalace-Agnostic** — Universal AI agent memory layer
 
@@ -80,7 +80,7 @@ ao wrap-up            # Session summary + save to vault
 
 ### 15 Message Types
 
-DECISION, INCIDENT, WIN, LOSS, BLOCKER, QUESTION, SUGGESTION, REVIEW, BUG, FEATURE, LEARN, RETROSPECTIVE, ALERT, STATUS, CHORE — each with routing hints that automatically file things in the right place.
+DECISION, INCIDENT, WIN, ONE-ON-ONE, MEETING, PROJECT-UPDATE, PERSON-INFO, QUESTION, TASK, ARCHITECTURE, CODE, BRAIN-DUMP, WRAP-UP, STANDUP, UNKNOWN — each with routing hints that automatically file things in the right place.
 
 ### Semantic Search (Zero API Cost)
 
@@ -89,35 +89,35 @@ Uses `sentence-transformers` (all-MiniLM-L6-v2) locally. No OpenAI/Anthropic API
 ## Architecture
 
 ```
-agnostic_obsidian/
-├── core.py              # OMPA main class
+ompa/
+├── core.py              # Ompa main class
 ├── vault.py             # Vault management (brain/work/org/perf)
 ├── palace.py            # Palace metadata (wings/rooms/drawers)
 ├── knowledge_graph.py   # Temporal KG (SQLite triples)
 ├── hooks.py             # 5 lifecycle hooks
-├── classifier.py       # 15 message types
+├── classifier.py        # 15 message types
 ├── semantic.py          # Local semantic search
-├── mcp_server.py        # MCP protocol server (15 tools)
-└── cli.py              # 14 CLI commands
+├── mcp_server.py        # MCP protocol server (14 tools)
+└── cli.py               # 15 CLI commands
 ```
 
-## MCP Server (15 Tools)
+## MCP Server (14 Tools)
 
 Works with **Claude Desktop, Cursor, Windsurf** natively:
 
 ```bash
 # Claude Desktop
-claude mcp add ompa -- python -m agnostic_obsidian.mcp_server
+claude mcp add ompa -- python -m ompa.mcp_server
 ```
 
-Tools: `ao_session_start`, `ao_classify`, `ao_search`, `ao_kg_query`, `ao_kg_add`, `ao_palace_wings`, `ao_palace_rooms`, `ao_palace_tunnel`, `ao_validate`, `ao_wrap_up`, `ao_status`, `ao_orphans`, `ao_init`, `ao_search`, `ao_stop`
+Tools: `ao_session_start`, `ao_classify`, `ao_search`, `ao_kg_query`, `ao_kg_add`, `ao_kg_stats`, `ao_palace_wings`, `ao_palace_rooms`, `ao_palace_tunnel`, `ao_validate`, `ao_wrap_up`, `ao_status`, `ao_orphans`, `ao_init`
 
 ## Python API
 
 ```python
-from agnostic_obsidian import OMPA
+from ompa import Ompa
 
-ao = OMPA(vault_path="./workspace")
+ao = Ompa(vault_path="./workspace")
 
 # Lifecycle
 result = ao.session_start()       # Returns ~2K token context injection
@@ -163,8 +163,9 @@ Unlike MemPalace (Claude Code + MCP only) or obsidian-mind (Claude Code hooks on
 ## Installation
 
 ```bash
-pip install ompa        # Core only
-pip install ompa[all]   # All dependencies including sentence-transformers
+pip install ompa              # Core (vault, palace, KG, CLI)
+pip install ompa[semantic]    # + sentence-transformers for semantic search
+pip install ompa[all]         # All optional dependencies
 ```
 
 Requires Python 3.10+.
@@ -176,17 +177,17 @@ Because memory should not be coupled to your agent framework. Build once, use an
 ## Comparison
 
 | Feature | OMPA | MemPalace | obsidian-mind |
-|---------|-----------------|------------|---------------|
+|---------|------|-----------|---------------|
 | Framework | Any | Claude Code | Claude Code |
 | Memory type | Vault + Palace + KG | Palace + KG | Vault only |
 | Semantic search | Local (free) | ChromaDB API | QMD (paid) |
-| Temporal KG | SQLite ✓ | SQLite ✓ | ✗ |
-| MCP server | 15 tools | 15 tools | ✗ |
-| CLI | 14 commands | ✗ | ✗ |
+| Temporal KG | SQLite | SQLite | - |
+| MCP server | 14 tools | 15 tools | - |
+| CLI | 15 commands | - | - |
 | Hooks | 5 lifecycle | 3 lifecycle | 3 lifecycle |
 | Message types | 15 | 15 | 5 |
-| Verbatim storage | ✓ | ✓ | ✗ |
-| Multi-agent | ✓ | ✗ | ✗ |
+| Verbatim storage | Yes | Yes | No |
+| Multi-agent | Yes | No | No |
 
 ## License
 

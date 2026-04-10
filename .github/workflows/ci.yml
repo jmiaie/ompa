@@ -44,8 +44,8 @@ jobs:
         run: pip install ruff black
       - name: Lint
         run: |
-          ruff check ompa/ || true
-          black --check ompa/ || true
+          ruff check ompa/
+          black --check ompa/
 
   publish:
     needs: [test]

@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:pypi.org)",
+      "Bash(gh repo:*)",
+      "Bash(echo \"Exit: $?\")",
+      "Bash(pip install:*)",
+      "Bash(PYTHONPATH=. pytest tests/ -v --tb=short)",
+      "Bash(pip --version)",
+      "Bash(python -m pip --version)",
+      "Bash(python -m pytest --version)"
+    ]
+  }
+}

@@ -1,11 +1,11 @@
 """
-AgnosticObsidian MCP Server
-Provides 15+ tools via the Model Context Protocol.
+OMPA MCP Server
+Provides 14 tools via the Model Context Protocol.
 Works with Claude Desktop, Cursor, Windsurf, and any MCP-compatible client.
 
 Usage:
     # Claude Desktop
-    claude mcp add agnostic-obsidian -- python -m ompa.mcp_server
+    claude mcp add ompa -- python -m ompa.mcp_server
 
     # Then in any Claude session, use the tools:
     # - ao_session_start: Start a session, load context
@@ -20,7 +20,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 
 # ---------------------------------------------------------------------------
@@ -29,8 +29,8 @@ __version__ = "0.1.0"
 
 def _load_core():
     """Lazy-load the core module."""
-    from ompa import AgnosticObsidian
-    return AgnosticObsidian
+    from ompa import Ompa
+    return Ompa
 
 
 def ao_session_start(vault_path: str = ".") -> dict:
@@ -456,7 +456,7 @@ def handle_call_tool(name: str, arguments: dict) -> dict:
         return {"error": f"Unknown tool: {name}"}
 
     try:
-        vault_path = arguments.pop("vault_path", ".")
+        vault_path = arguments.get("vault_path", ".")
 
         if name == "ao_session_start":
             result = ao_session_start(vault_path)
@@ -527,74 +527,122 @@ def handle_call_tool(name: str, arguments: dict) -> dict:
 # MCP Protocol — JSON-RPC over stdin/stdout
 # ---------------------------------------------------------------------------
 
+def _read_message() -> dict | None:
+    """Read a JSON-RPC message from stdin using content-length framing."""
+    # Try content-length header first (standard MCP/LSP framing)
+    header_line = sys.stdin.readline()
+    if not header_line:
+        return None
+
+    header_line = header_line.strip()
+
+    # Support content-length framed messages
+    if header_line.lower().startswith("content-length:"):
+        content_length = int(header_line.split(":", 1)[1].strip())
+        # Read blank separator line
+        sys.stdin.readline()
+        body = sys.stdin.read(content_length)
+        return json.loads(body)
+
+    # Fallback: bare JSON line (for simple testing / piped input)
+    if header_line.startswith("{"):
+        return json.loads(header_line)
+
+    return None
+
+
+def _write_message(response: dict) -> None:
+    """Write a JSON-RPC response with content-length framing."""
+    body = json.dumps(response)
+    sys.stdout.write(f"Content-Length: {len(body)}\r\n\r\n{body}")
+    sys.stdout.flush()
+
+
+def _handle_request(request: dict) -> dict | None:
+    """Process a single JSON-RPC request and return a response (or None for notifications)."""
+    method = request.get("method", "")
+    request_id = request.get("id")
+
+    if method == "initialize":
+        return {
+            "jsonrpc": "2.0",
+            "id": request_id,
+            "result": {
+                "protocolVersion": "2024-11-05",
+                "capabilities": {"tools": {}},
+                "serverInfo": {
+                    "name": "ompa",
+                    "version": __version__,
+                },
+            },
+        }
+
+    elif method == "notifications/initialized":
+        return None  # Notification, no response needed
+
+    elif method == "tools/list":
+        return {
+            "jsonrpc": "2.0",
+            "id": request_id,
+            "result": handle_list_tools(),
+        }
+
+    elif method == "tools/call":
+        name = request["params"]["name"]
+        arguments = request["params"].get("arguments", {})
+        result = handle_call_tool(name, arguments)
+        return {
+            "jsonrpc": "2.0",
+            "id": request_id,
+            "result": {
+                "content": [
+                    {
+                        "type": "text",
+                        "text": json.dumps(result, indent=2),
+                    }
+                ]
+            },
+        }
+
+    elif method in ("shutdown", "exit"):
+        return None  # Signal to exit
+
+    else:
+        if request_id is not None:
+            return {
+                "jsonrpc": "2.0",
+                "id": request_id,
+                "error": {"code": -32601, "message": f"Method not found: {method}"},
+            }
+        return None
+
+
 def main():
     """
     MCP server main loop.
     Reads JSON-RPC requests from stdin, writes responses to stdout.
+    Supports both content-length framing (standard MCP) and bare JSON lines.
     """
     while True:
         try:
-            line = sys.stdin.readline()
-            if not line:
+            request = _read_message()
+            if request is None:
                 break
 
-            request = json.loads(line.strip())
-            method = request.get("method", "")
-            request_id = request.get("id")
+            if request.get("method") in ("shutdown", "exit"):
+                break
 
-            if method == "initialize":
-                response = {
-                    "jsonrpc": "2.0",
-                    "id": request_id,
-                    "result": {
-                        "protocolVersion": "2024-11-05",
-                        "capabilities": {"tools": {}},
-                        "serverInfo": {
-                            "name": "agnostic-obsidian",
-                            "version": __version__,
-                        },
-                    },
-                }
-                print(json.dumps(response), flush=True)
-
-            elif method == "tools/list":
-                response = {
-                    "jsonrpc": "2.0",
-                    "id": request_id,
-                    "result": handle_list_tools(),
-                }
-                print(json.dumps(response), flush=True)
-
-            elif method == "tools/call":
-                name = request["params"]["name"]
-                arguments = request["params"].get("arguments", {})
-                result = handle_call_tool(name, arguments)
-                response = {
-                    "jsonrpc": "2.0",
-                    "id": request_id,
-                    "result": {
-                        "content": [
-                            {
-                                "type": "text",
-                                "text": json.dumps(result, indent=2),
-                            }
-                        ]
-                    },
-                }
-                print(json.dumps(response), flush=True)
-
-            else:
-                # Notified of shutdown
-                if method in ("shutdown", "exit"):
-                    break
+            response = _handle_request(request)
+            if response is not None:
+                _write_message(response)
 
         except Exception as e:
             error_response = {
                 "jsonrpc": "2.0",
-                "id": request.get("id") if request else None,
+                "id": None,
                 "error": {"code": -32603, "message": str(e)},
             }
-            print(json.dumps(error_response), flush=True)
+            _write_message(error_response)
 
 
 if __name__ == "__main__":

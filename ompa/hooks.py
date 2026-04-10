@@ -20,7 +20,7 @@ class HookContext:
     session_id: str
     timestamp: datetime
     agent_name: str = "agent"
-    memory: "AgnosticObsidian" = None  # Set by AgnosticObsidian
+    memory: "Ompa" = None  # Set by Ompa
 
 
 @dataclass
@@ -204,9 +204,6 @@ class PostToolHook(Hook):
             return HookResult(hook_name=self.name, success=True, output="(skipped - not a markdown file)")
         
         try:
-            vault = Vault(context.vault_path)
-            note = vault.list_notes([n for n in vault.list_notes() if n.path == path])
-            
             warnings = []
             if not path.exists():
                 warnings.append("File was not created")

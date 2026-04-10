@@ -21,8 +21,10 @@ env/
 *.swp
 *.swo
 
-# Agent memory index (regenerated on rebuild)
+# OMPA data (regenerated on rebuild)
 .agent-memory/
+.palace/
+.ompa/
 
 # OS
 .DS_Store

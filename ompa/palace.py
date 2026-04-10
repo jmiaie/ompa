@@ -1,5 +1,5 @@
 """
-Palace — Wing/Room/Closet/Drawer metadata layer for AgnosticObsidian.
+Palace — Wing/Room/Closet/Drawer metadata layer for OMPA.
 Inspired by MemPalace. Manages the structured metadata that accelerates retrieval.
 """
 import json
@@ -100,16 +100,17 @@ class Palace:
     # Room operations
 
     def create_room(self, wing: str, room_name: str) -> None:
-        """Create a new room in a wing."""
+        """Create a new room in a wing (no-op if room already exists)."""
         if wing not in self._data.get("wings", {}):
             self.create_wing(wing)
-        self._data["wings"][wing].setdefault("rooms", {})
-        self._data["wings"][wing]["rooms"][room_name] = {
-            "name": room_name,
-            "drawers": [],
-            "halls": {},
-        }
-        self._save()
+        rooms = self._data["wings"][wing].setdefault("rooms", {})
+        if room_name not in rooms:
+            rooms[room_name] = {
+                "name": room_name,
+                "drawers": [],
+                "halls": {},
+            }
+            self._save()
 
     def list_rooms(self, wing: str) -> list[str]:
         """List all rooms in a wing."""
