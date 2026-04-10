@@ -1,10 +1,9 @@
-name: CI/CD
+name: CI
 
 on:
   push:
     branches: [main]
-    tags:
-      - 'v*'
+    tags: ['v*']
   pull_request:
     branches: [main]
 
@@ -17,21 +16,17 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
 
       - name: Install dependencies
         run: |
-          pip install numpy typer rich python-frontmatter watchdog
-          pip install pytest
-          pip install -e . --no-deps
+          pip install -e ".[dev]"
 
       - name: Run tests
         run: |
-          PYTHONPATH=. pytest tests/ -v --tb=short
+          PYTHONPATH=. pytest tests/ -v
 
   lint:
     runs-on: ubuntu-latest
@@ -44,8 +39,8 @@ jobs:
         run: pip install ruff black
       - name: Lint
         run: |
-          ruff check ompa/ || true
-          black --check ompa/ || true
+          ruff check ompa/
+          black --check ompa/
 
   publish:
     needs: [test]
@@ -56,23 +51,14 @@ jobs:
       url: https://pypi.org/p/ompa
     permissions:
       id-token: write
-
     steps:
       - uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-
-      - name: Install build
-        run: pip install build twine
-
-      - name: Build package
-        run: python -m build
-
+      - name: Build
+        run: |
+          pip install build
+          python -m build
       - name: Publish to PyPI
-        env:
-          TWINE_USERNAME: __token__
-          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
-        run: twine upload dist/*
+        uses: pypa/gh-action-pypi-publish@release/v1

@@ -1,5 +1,5 @@
 """
-AgnosticObsidian test suite.
+OMPA test suite.
 Run: PYTHONPATH=. pytest tests/ -v
 """
 import os
@@ -79,13 +79,13 @@ class TestKnowledgeGraph:
         with tempfile.TemporaryDirectory() as tmpdir:
             kg = KnowledgeGraph(db_path=os.path.join(tmpdir, "kg.sqlite3"))
             kg.add_triple("Kai", "works_on", "Orion", valid_from="2025-06-01", valid_to="2025-12-01")
-            kg.add_triple("Kai", "works_on", "AgnosticObsidian", valid_from="2026-01-01")
+            kg.add_triple("Kai", "works_on", "OMPA", valid_from="2026-01-01")
             # Query as of date when Orion was current
             triples = kg.query_entity("Kai", as_of="2025-09-01")
             assert any(t.object == "Orion" for t in triples)
-            # Query as of date when only AgnosticObsidian is current
+            # Query as of date when only OMPA is current
             triples = kg.query_entity("Kai", as_of="2026-03-01")
-            assert all(t.object == "AgnosticObsidian" for t in triples)
+            assert all(t.object == "OMPA" for t in triples)
 
     def test_timeline(self):
         from ompa import KnowledgeGraph
@@ -103,7 +103,7 @@ class TestKnowledgeGraph:
         with tempfile.TemporaryDirectory() as tmpdir:
             kg = KnowledgeGraph(db_path=os.path.join(tmpdir, "kg.sqlite3"))
             kg.add_triple("Kai", "works_on", "Orion", valid_from="2025-06-01")
-            kg.add_triple("Jarv", "works_on", "AgnosticObsidian", valid_from="2026-04-10")
+            kg.add_triple("Jarv", "works_on", "OMPA", valid_from="2026-04-10")
             stats = kg.stats()
             assert stats["entity_count"] == 4
 
@@ -139,61 +139,62 @@ class TestClassifier:
     def test_suggestion(self):
         from ompa import MessageClassifier
         c = MessageClassifier()
-        # 'suggestion' type doesn't exist; "we should" patterns map to task/unknown
         result = c.classify("We should add tests before merging")
         assert result.message_type.value in ("task", "unknown")
 
     def test_blocker(self):
         from ompa import MessageClassifier
         c = MessageClassifier()
-        # 'blocked' + architecture terms map to architecture type (no 'blocker' type exists)
         result = c.classify("I'm blocked on the API design")
         assert result.message_type.value == "architecture"
 
     def test_learning(self):
         from ompa import MessageClassifier
         c = MessageClassifier()
-        # 'learning'/'TIL' patterns map to brain-dump when they share knowledge
         result = c.classify("TIL that Postgres has built-in full-text search")
         assert result.message_type.value in ("brain-dump", "code", "unknown")
 
     def test_retrospective(self):
         from ompa import MessageClassifier
         c = MessageClassifier()
-        # 'retrospective' keyword maps to meeting type
         result = c.classify("In our retrospective we found three issues")
         assert result.message_type.value == "meeting"
 
 
-class TestAgnosticObsidian:
-    """Test core AgnosticObsidian integration."""
+class TestOmpa:
+    """Test core Ompa integration."""
 
     def test_session_start(self):
-        from ompa import AgnosticObsidian
+        from ompa import Ompa
         with tempfile.TemporaryDirectory() as tmpdir:
-            ao = AgnosticObsidian(tmpdir, enable_semantic=False)
+            ao = Ompa(tmpdir, enable_semantic=False)
             result = ao.session_start()
             assert result.success == True
 
     def test_classify(self):
-        from ompa import AgnosticObsidian
+        from ompa import Ompa
         with tempfile.TemporaryDirectory() as tmpdir:
-            ao = AgnosticObsidian(tmpdir, enable_semantic=False)
+            ao = Ompa(tmpdir, enable_semantic=False)
             c = ao.classify("We decided to go with Postgres")
             assert c.message_type.value == "decision"
 
     def test_kg_integration(self):
-        from ompa import AgnosticObsidian
+        from ompa import Ompa
         with tempfile.TemporaryDirectory() as tmpdir:
-            ao = AgnosticObsidian(tmpdir, enable_semantic=False)
-            ao.kg.add_triple("Jarv", "works_on", "AgnosticObsidian", valid_from="2026-04-10")
+            ao = Ompa(tmpdir, enable_semantic=False)
+            ao.kg.add_triple("Jarv", "works_on", "OMPA", valid_from="2026-04-10")
             triples = ao.kg.query_entity("Jarv")
             assert len(triples) == 1
-            assert triples[0].object == "AgnosticObsidian"
+            assert triples[0].object == "OMPA"
 
     def test_stop(self):
-        from ompa import AgnosticObsidian
+        from ompa import Ompa
         with tempfile.TemporaryDirectory() as tmpdir:
-            ao = AgnosticObsidian(tmpdir, enable_semantic=False)
+            ao = Ompa(tmpdir, enable_semantic=False)
             result = ao.stop()
             assert result.success == True
+
+    def test_backward_compat_alias(self):
+        """Verify AgnosticObsidian still works as an alias."""
+        from ompa import AgnosticObsidian, Ompa
+        assert AgnosticObsidian is Ompa

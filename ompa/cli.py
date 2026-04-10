@@ -1,20 +1,17 @@
 """
-CLI for AgnosticObsidian.
+CLI for OMPA.
 Run with: ao <command> or ao-mcp <command>
 """
 
-import sys
 from pathlib import Path
 
 import typer
 from rich.console import Console
 from rich.table import Table
 
-sys.path.insert(0, str(Path(__file__).parent))
+from ompa import Ompa, Palace, KnowledgeGraph
 
-from ompa import AgnosticObsidian
-
-app = typer.Typer(help="AgnosticObsidian — Universal AI agent memory layer")
+app = typer.Typer(help="OMPA — Universal AI agent memory layer")
 console = Console()
 
 
@@ -27,7 +24,7 @@ def init(
 
     vault = Vault(vault_path)
     stats = vault.get_stats()
-    ao = AgnosticObsidian(vault_path, enable_semantic=False)
+    ao = Ompa(vault_path, enable_semantic=False)
     palace_count = ao.palace_build()
     console.print(f"[green]Initialized at {vault_path.absolute()}[/green]")
     console.print(f"  Notes: {stats['total_notes']}")
@@ -40,7 +37,7 @@ def status(
     vault_path: Path = Path("."),
 ):
     """Show vault + palace + KG overview."""
-    ao = AgnosticObsidian(vault_path, enable_semantic=False)
+    ao = Ompa(vault_path, enable_semantic=False)
 
     vault_stats = ao.get_stats()
     palace_stats = ao.palace.stats()
@@ -50,16 +47,12 @@ def status(
     console.print(f"  Total notes: {vault_stats['total_notes']}")
     console.print(f"  Brain notes: {vault_stats['brain_notes']}")
     console.print(f"  Orphans: {vault_stats['orphans']}")
-
     console.print("[bold]Palace[/bold]")
     console.print(f"  Wings: {palace_stats['wing_count']}")
     console.print(f"  Rooms: {palace_stats['room_count']}")
     console.print(f"  Drawers: {palace_stats['drawer_count']}")
-    console.print(f"  Tunnels: {palace_stats['tunnel_count']}")
-
     console.print("[bold]Knowledge Graph[/bold]")
     console.print(f"  Entities: {kg_stats['entity_count']}")
-    console.print(f"  Triples: {kg_stats['triple_count']}")
     console.print(f"  Current facts: {kg_stats['current_facts']}")
 
 
@@ -68,7 +61,7 @@ def session_start(
     vault_path: Path = Path("."),
 ):
     """Run session start hook."""
-    ao = AgnosticObsidian(vault_path, enable_semantic=False)
+    ao = Ompa(vault_path, enable_semantic=False)
     result = ao.session_start()
     console.print(result.output)
 
@@ -79,7 +72,7 @@ def classify(
     vault_path: Path = Path("."),
 ):
     """Classify a message."""
-    ao = AgnosticObsidian(vault_path, enable_semantic=False)
+    ao = Ompa(vault_path, enable_semantic=False)
     c = ao.classify(message)
     console.print(f"[bold]Type:[/bold] {c.message_type.value.upper()}")
     console.print(f"[bold]Confidence:[/bold] {c.confidence:.0%}")
@@ -97,7 +90,7 @@ def search(
     limit: int = 5,
 ):
     """Search the vault semantically."""
-    ao = AgnosticObsidian(vault_path, enable_semantic=True)
+    ao = Ompa(vault_path, enable_semantic=True)
     results = ao.search(query, limit=limit)
 
     table = Table(title=f"Search: {query}")
@@ -122,7 +115,7 @@ def orphans(
     vault_path: Path = Path("."),
 ):
     """Find orphan notes (no wikilinks)."""
-    ao = AgnosticObsidian(vault_path, enable_semantic=False)
+    ao = Ompa(vault_path, enable_semantic=False)
     orphan_notes = ao.find_orphans()
     if not orphan_notes:
         console.print("[green]No orphan notes found![/green]")
@@ -142,7 +135,7 @@ def wrap_up(
     vault_path: Path = Path("."),
 ):
     """Run wrap-up (stop) hook."""
-    ao = AgnosticObsidian(vault_path, enable_semantic=False)
+    ao = Ompa(vault_path, enable_semantic=False)
     result = ao.stop()
     console.print(result.output)
 
@@ -152,7 +145,7 @@ def wings(
     vault_path: Path = Path("."),
 ):
     """List palace wings."""
-    ao = AgnosticObsidian(vault_path, enable_semantic=False)
+    ao = Ompa(vault_path, enable_semantic=False)
     wing_list = ao.palace.list_wings()
 
     table = Table(title="Palace Wings")
@@ -172,7 +165,7 @@ def rooms(
     vault_path: Path = Path("."),
 ):
     """List rooms in a wing."""
-    ao = AgnosticObsidian(vault_path, enable_semantic=False)
+    ao = Ompa(vault_path, enable_semantic=False)
     room_list = ao.palace.list_rooms(wing)
     if not room_list:
         console.print(f"[yellow]No rooms found in wing '{wing}'[/yellow]")
@@ -190,7 +183,7 @@ def tunnel(
     vault_path: Path = Path("."),
 ):
     """Find tunnels between two wings."""
-    ao = AgnosticObsidian(vault_path, enable_semantic=False)
+    ao = Ompa(vault_path, enable_semantic=False)
     tunnels = ao.palace.find_tunnels(wing_a, wing_b)
     if not tunnels:
         console.print(f"[yellow]No tunnels between {wing_a} and {wing_b}[/yellow]")
@@ -209,7 +202,7 @@ def kg_query(
     vault_path: Path = Path("."),
 ):
     """Query the knowledge graph."""
-    ao = AgnosticObsidian(vault_path, enable_semantic=False)
+    ao = Ompa(vault_path, enable_semantic=False)
     triples = ao.kg.query_entity(entity, as_of=as_of)
 
     if not triples:
@@ -220,10 +213,7 @@ def kg_query(
     if as_of:
         console.print(f"  (as of {as_of})")
     for t in triples:
-        validity = f"({t.valid_from}"
-        validity += f" to {t.valid_to}" if t.valid_to else ""
-        validity += ")"
-        console.print(f"  {t.subject} --{t.predicate}--> {t.object} {validity}")
+        console.print(f"  {t.subject} --{t.predicate}--> {t.object}")
 
 
 @app.command()
@@ -232,7 +222,7 @@ def kg_timeline(
     vault_path: Path = Path("."),
 ):
     """Get entity timeline."""
-    ao = AgnosticObsidian(vault_path, enable_semantic=False)
+    ao = Ompa(vault_path, enable_semantic=False)
     timeline = ao.kg.timeline(entity)
 
     if not timeline:
@@ -241,7 +231,7 @@ def kg_timeline(
 
     console.print(f"[bold]Timeline: {entity}[/bold]")
     for event in timeline:
-        date_str = event["date"] or "(no date)"
+        date_str = event.get("date", "unknown")
         console.print(f"  [{date_str}] {event['label']}")
 
 
@@ -250,7 +240,7 @@ def kg_stats(
     vault_path: Path = Path("."),
 ):
     """Show KG statistics."""
-    ao = AgnosticObsidian(vault_path, enable_semantic=False)
+    ao = Ompa(vault_path, enable_semantic=False)
     stats = ao.kg.stats()
     console.print("[bold]Knowledge Graph Stats[/bold]")
     for k, v in stats.items():
@@ -262,7 +252,7 @@ def validate(
     vault_path: Path = Path("."),
 ):
     """Validate all notes in the vault."""
-    ao = AgnosticObsidian(vault_path, enable_semantic=False)
+    ao = Ompa(vault_path, enable_semantic=False)
     from ompa import Vault
 
     vault = Vault(vault_path)
@@ -283,11 +273,9 @@ def validate(
                 warnings_list.append(f"  {rel}: {w}")
 
     if warnings_list:
-        console.print(f"[yellow]Found issues in {total} notes:[/yellow]")
-        for w in warnings_list[:20]:
+        console.print(f"[yellow]Found {total} notes with warnings:[/yellow]")
+        for w in warnings_list:
             console.print(w)
-        if len(warnings_list) > 20:
-            console.print(f"  ... and {len(warnings_list) - 20} more")
     else:
         console.print("[green]All notes valid![/green]")
 
@@ -297,13 +285,12 @@ def rebuild_index(
     vault_path: Path = Path("."),
 ):
     """Rebuild the semantic search index."""
-    ao = AgnosticObsidian(vault_path, enable_semantic=True)
+    ao = Ompa(vault_path, enable_semantic=True)
     count = ao.rebuild_index()
-    console.print(f"[green]Indexed {count} files[/green]")
+    console.print(f"[green]Rebuilt index: {count} files indexed[/green]")
 
 
 def main():
-    """Main entry point."""
     app()
 
 

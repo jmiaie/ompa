@@ -1,5 +1,5 @@
 """
-Knowledge Graph — Temporal Entity-Relationship Graph for AgnosticObsidian.
+Knowledge Graph — Temporal Entity-Relationship Graph for OMPA.
 Inspired by MemPalace's knowledge_graph.py. SQLite-based triples with validity windows.
 
 Usage:
@@ -17,7 +17,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
-DEFAULT_KG_PATH = "~/.agnostic-obsidian/knowledge_graph.sqlite3"
+DEFAULT_KG_PATH = "~/.ompa/knowledge_graph.sqlite3"
 
 
 @dataclass

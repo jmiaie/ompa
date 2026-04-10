@@ -14,7 +14,7 @@ from .classifier import MessageClassifier
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from .core import AgnosticObsidian
+    from .core import Ompa
 
 
 @dataclass
@@ -25,7 +25,7 @@ class HookContext:
     session_id: str
     timestamp: datetime
     agent_name: str = "agent"
-    memory: "AgnosticObsidian" = None  # Set by AgnosticObsidian
+    memory: "Ompa" = None  # Set by Ompa
 
 
 @dataclass

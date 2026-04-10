@@ -1,11 +1,11 @@
 """
-AgnosticObsidian MCP Server
+OMPA MCP Server
 Provides 15+ tools via the Model Context Protocol.
 Works with Claude Desktop, Cursor, Windsurf, and any MCP-compatible client.
 
 Usage:
     # Claude Desktop
-    claude mcp add agnostic-obsidian -- python -m ompa.mcp_server
+    claude mcp add ompa -- python -m ompa.mcp_server
 
     # Then in any Claude session, use the tools:
     # - ao_session_start: Start a session, load context
@@ -20,7 +20,7 @@ import json
 import sys
 from pathlib import Path
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 
 # ---------------------------------------------------------------------------
@@ -30,9 +30,9 @@ __version__ = "0.1.0"
 
 def _load_core():
     """Lazy-load the core module."""
-    from ompa import AgnosticObsidian
+    from ompa import Ompa
 
-    return AgnosticObsidian
+    return Ompa
 
 
 def ao_session_start(vault_path: str = ".") -> dict:
@@ -43,35 +43,24 @@ def ao_session_start(vault_path: str = ".") -> dict:
     AO = _load_core()
     ao = AO(vault_path=vault_path, enable_semantic=False)
     result = ao.session_start()
-    return {
-        "success": result.success,
-        "output": result.output,
-        "tokens_hint": result.tokens_hint,
-        "error": result.error,
-    }
+    return {"success": result.success, "output": result.output, "tokens": result.tokens_hint}
 
 
 def ao_classify(message: str, vault_path: str = ".") -> dict:
-    """
-    Classify a user message into one of 15 types and get routing hints.
-    ~100 tokens. Run on every user message.
-    """
+    """Classify a user message into one of 15 types."""
     AO = _load_core()
     ao = AO(vault_path=vault_path, enable_semantic=False)
     c = ao.classify(message)
     return {
         "message_type": c.message_type.value,
         "confidence": c.confidence,
-        "suggested_action": c.suggested_action,
+        "action": c.suggested_action,
         "routing_hints": c.routing_hints,
-        "suggested_folder": c.suggested_folder,
     }
 
 
 def ao_search(query: str, vault_path: str = ".", limit: int = 5) -> dict:
-    """
-    Semantic search across the vault. Local embeddings (zero API cost).
-    """
+    """Search the vault with hybrid semantic + keyword search."""
     AO = _load_core()
     ao = AO(vault_path=vault_path, enable_semantic=True)
     results = ao.search(query, limit=limit)
@@ -81,33 +70,27 @@ def ao_search(query: str, vault_path: str = ".", limit: int = 5) -> dict:
                 "path": r.path,
                 "excerpt": r.content_excerpt,
                 "score": r.score,
-                "match_type": r.match_type,
+                "type": r.match_type,
             }
             for r in results
-        ],
-        "count": len(results),
+        ]
     }
 
 
-def ao_kg_query(entity: str, as_of: str = None, vault_path: str = ".") -> dict:
-    """
-    Query the knowledge graph for an entity.
-    Pass as_of in YYYY-MM-DD format for historical query.
-    """
+def ao_kg_query(entity: str, vault_path: str = ".", as_of: str = None) -> dict:
+    """Query the knowledge graph for an entity."""
     AO = _load_core()
     ao = AO(vault_path=vault_path, enable_semantic=False)
     triples = ao.kg.query_entity(entity, as_of=as_of)
     return {
         "entity": entity,
-        "as_of": as_of,
-        "triples": [
+        "facts": [
             {
                 "subject": t.subject,
                 "predicate": t.predicate,
                 "object": t.object,
                 "valid_from": t.valid_from,
                 "valid_to": t.valid_to,
-                "source": t.source_file,
             }
             for t in triples
         ],
@@ -138,104 +121,69 @@ def ao_kg_add(
 
 
 def ao_kg_stats(vault_path: str = ".") -> dict:
-    """
-    Get knowledge graph statistics.
-    """
+    """Get knowledge graph statistics."""
     AO = _load_core()
     ao = AO(vault_path=vault_path, enable_semantic=False)
     return ao.kg.stats()
 
 
 def ao_palace_wings(vault_path: str = ".") -> dict:
-    """
-    List all palace wings (people and projects).
-    """
+    """List all palace wings."""
     AO = _load_core()
     ao = AO(vault_path=vault_path, enable_semantic=False)
-    wings = ao.palace.list_wings()
-    return {"wings": wings, "count": len(wings)}
+    return {"wings": ao.palace.list_wings()}
 
 
 def ao_palace_rooms(wing: str, vault_path: str = ".") -> dict:
-    """
-    List all rooms in a wing.
-    """
+    """List rooms in a wing."""
     AO = _load_core()
     ao = AO(vault_path=vault_path, enable_semantic=False)
     rooms = ao.palace.list_rooms(wing)
-    return {"wing": wing, "rooms": rooms, "count": len(rooms)}
+    return {"wing": wing, "rooms": rooms}
 
 
-def ao_palace_tunnel(wing_a: str, wing_b: str, vault_path: str = ".") -> dict:
-    """
-    Find tunnels (cross-wing connections) between two wings.
-    """
+def ao_palace_tunnel(wing_a: str, wing_b: str, room: str, vault_path: str = ".") -> dict:
+    """Create a tunnel between two wings."""
     AO = _load_core()
     ao = AO(vault_path=vault_path, enable_semantic=False)
-    tunnels = ao.palace.find_tunnels(wing_a, wing_b)
-    return {
-        "wing_a": wing_a,
-        "wing_b": wing_b,
-        "tunnels": tunnels,
-        "count": len(tunnels),
-    }
+    ao.palace.create_tunnel(wing_a, wing_b, room)
+    return {"success": True, "tunnel": f"{wing_a} <-> {wing_b} via {room}"}
 
 
 def ao_validate(file_path: str, vault_path: str = ".") -> dict:
-    """
-    Validate a markdown file for frontmatter and wikilinks.
-    """
+    """Validate a markdown file."""
     AO = _load_core()
     ao = AO(vault_path=vault_path, enable_semantic=False)
-    result = ao.validate_write(file_path)
-    return {
-        "file_path": file_path,
-        "valid": result["valid"],
-        "warnings": result.get("warnings", []),
-    }
+    return ao.validate_write(file_path)
 
 
 def ao_wrap_up(vault_path: str = ".") -> dict:
-    """
-    Run session wrap-up: orphan check, North Star check, KG stats.
-    """
+    """Run session wrap-up."""
     AO = _load_core()
     ao = AO(vault_path=vault_path, enable_semantic=False)
     result = ao.stop()
-    return {
-        "success": result.success,
-        "output": result.output,
-        "error": result.error,
-    }
+    return {"success": result.success, "output": result.output}
 
 
 def ao_status(vault_path: str = ".") -> dict:
-    """
-    Get full vault + palace + KG status overview.
-    """
+    """Get full status (vault + palace + KG)."""
     AO = _load_core()
     ao = AO(vault_path=vault_path, enable_semantic=False)
-    vault_stats = ao.get_stats()
-    palace_wings = ao.palace.list_wings()
-    kg_stats = ao.kg.stats()
     return {
-        "vault": vault_stats,
-        "palace_wings": palace_wings,
-        "palace_wing_count": len(palace_wings),
-        "kg": kg_stats,
+        "vault": ao.get_stats(),
+        "palace": ao.palace.stats(),
+        "kg": ao.kg.stats(),
     }
 
 
 def ao_orphans(vault_path: str = ".") -> dict:
-    """
-    Find all orphan notes (no wikilinks).
-    """
+    """Find orphan notes."""
     AO = _load_core()
     ao = AO(vault_path=vault_path, enable_semantic=False)
     orphans = ao.find_orphans()
     return {
-        "orphans": [str(o.path) for o in orphans],
-        "count": len(orphans),
+        "orphan_count": len(orphans),
+        "orphans": [str(o.path) for o in orphans[:20]],
     }
 
 
@@ -257,82 +205,50 @@ def ao_init(vault_path: str = ".") -> dict:
 
 
 # ---------------------------------------------------------------------------
-# MCP Protocol Handler
+# Tool Definitions
 # ---------------------------------------------------------------------------
 
 TOOLS = {
     "ao_session_start": {
-        "description": "Start a session. Loads vault context (~2K tokens): file listing, North Star goals, active work, palace wings, KG stats. Call at session start.",
+        "description": "Start a session. Loads vault context (~2K tokens): file listing, North Star goals, active work, palace wings, KG stats.",
         "input_schema": {
             "type": "object",
             "properties": {
-                "vault_path": {
-                    "type": "string",
-                    "description": "Path to the vault directory. Defaults to current directory.",
-                    "default": ".",
-                }
+                "vault_path": {"type": "string", "default": "."},
             },
         },
     },
     "ao_classify": {
-        "description": "Classify a user message into 15 types (DECISION, INCIDENT, WIN, QUESTION, etc.) and get routing hints. ~100 tokens. Call on every user message.",
+        "description": "Classify a user message into one of 15 types (DECISION, INCIDENT, WIN, etc.) with routing hints.",
         "input_schema": {
             "type": "object",
             "properties": {
-                "message": {
-                    "type": "string",
-                    "description": "The user message to classify.",
-                },
-                "vault_path": {
-                    "type": "string",
-                    "description": "Path to the vault directory.",
-                    "default": ".",
-                },
+                "message": {"type": "string", "description": "The message to classify."},
+                "vault_path": {"type": "string", "default": "."},
             },
             "required": ["message"],
         },
     },
     "ao_search": {
-        "description": "Semantic search across the vault using local embeddings (zero API cost). Returns ranked results with excerpts.",
+        "description": "Search the vault with hybrid semantic + keyword search. Returns scored results with excerpts.",
         "input_schema": {
             "type": "object",
             "properties": {
-                "query": {
-                    "type": "string",
-                    "description": "Search query.",
-                },
-                "vault_path": {
-                    "type": "string",
-                    "description": "Path to the vault directory.",
-                    "default": ".",
-                },
-                "limit": {
-                    "type": "integer",
-                    "description": "Maximum results to return.",
-                    "default": 5,
-                },
+                "query": {"type": "string", "description": "Search query."},
+                "vault_path": {"type": "string", "default": "."},
+                "limit": {"type": "integer", "default": 5},
             },
             "required": ["query"],
         },
     },
     "ao_kg_query": {
-        "description": "Query the temporal knowledge graph for an entity. Returns all facts about the entity. Use as_of for historical queries.",
+        "description": "Query the knowledge graph for all facts about an entity. Supports temporal queries with as_of date.",
         "input_schema": {
             "type": "object",
             "properties": {
-                "entity": {
-                    "type": "string",
-                    "description": "Entity name to query.",
-                },
-                "as_of": {
-                    "type": "string",
-                    "description": "Historical date filter (YYYY-MM-DD).",
-                },
-                "vault_path": {
-                    "type": "string",
-                    "description": "Path to the vault directory.",
-                    "default": ".",
-                },
+                "entity": {"type": "string", "description": "Entity name to query."},
+                "as_of": {"type": "string", "description": "Historical date (YYYY-MM-DD)."},
+                "vault_path": {"type": "string", "default": "."},
             },
             "required": ["entity"],
         },
@@ -368,7 +284,7 @@ TOOLS = {
         },
     },
     "ao_palace_wings": {
-        "description": "List all palace wings (people and projects).",
+        "description": "List all palace wings (top-level memory categories).",
         "input_schema": {
             "type": "object",
             "properties": {
@@ -377,7 +293,7 @@ TOOLS = {
         },
     },
     "ao_palace_rooms": {
-        "description": "List all rooms in a palace wing.",
+        "description": "List rooms in a palace wing.",
         "input_schema": {
             "type": "object",
             "properties": {
@@ -388,12 +304,13 @@ TOOLS = {
         },
     },
     "ao_palace_tunnel": {
-        "description": "Find tunnel connections between two wings.",
+        "description": "Create a tunnel (cross-wing connection) between two wings via a shared room.",
         "input_schema": {
             "type": "object",
             "properties": {
-                "wing_a": {"type": "string", "description": "First wing."},
-                "wing_b": {"type": "string", "description": "Second wing."},
+                "wing_a": {"type": "string"},
+                "wing_b": {"type": "string"},
+                "room": {"type": "string"},
                 "vault_path": {"type": "string", "default": "."},
             },
             "required": ["wing_a", "wing_b"],
@@ -423,7 +340,7 @@ TOOLS = {
         },
     },
     "ao_status": {
-        "description": "Get full vault + palace + KG status overview.",
+        "description": "Get full status: vault stats, palace stats, KG stats.",
         "input_schema": {
             "type": "object",
             "properties": {
@@ -432,7 +349,7 @@ TOOLS = {
         },
     },
     "ao_orphans": {
-        "description": "Find all orphan notes (notes with no wikilinks).",
+        "description": "Find orphan notes (notes with no wikilinks pointing to them).",
         "input_schema": {
             "type": "object",
             "properties": {
@@ -441,7 +358,7 @@ TOOLS = {
         },
     },
     "ao_init": {
-        "description": "Initialize a new vault + palace structure.",
+        "description": "Initialize a new vault + palace structure with folders and brain notes.",
         "input_schema": {
             "type": "object",
             "properties": {
@@ -472,7 +389,8 @@ def handle_call_tool(name: str, arguments: dict) -> dict:
         return {"error": f"Unknown tool: {name}"}
 
     try:
-        vault_path = arguments.pop("vault_path", ".")
+        # Extract vault_path without mutating the original dict
+        vault_path = arguments.get("vault_path", ".")
 
         if name == "ao_session_start":
             result = ao_session_start(vault_path)
@@ -490,8 +408,8 @@ def handle_call_tool(name: str, arguments: dict) -> dict:
         elif name == "ao_kg_query":
             result = ao_kg_query(
                 entity=arguments["entity"],
-                as_of=arguments.get("as_of"),
                 vault_path=vault_path,
+                as_of=arguments.get("as_of"),
             )
         elif name == "ao_kg_add":
             result = ao_kg_add(
@@ -515,6 +433,7 @@ def handle_call_tool(name: str, arguments: dict) -> dict:
             result = ao_palace_tunnel(
                 wing_a=arguments["wing_a"],
                 wing_b=arguments["wing_b"],
+                room=arguments.get("room", "shared"),
                 vault_path=vault_path,
             )
         elif name == "ao_validate":
@@ -531,10 +450,9 @@ def handle_call_tool(name: str, arguments: dict) -> dict:
         elif name == "ao_init":
             result = ao_init(vault_path)
         else:
-            result = {"error": f"Tool {name} not yet implemented"}
+            result = {"error": f"Unhandled tool: {name}"}
 
-        return {"result": result}
-
+        return result
     except Exception as e:
         return {"error": str(e)}
 
@@ -567,7 +485,7 @@ def main():
                         "protocolVersion": "2024-11-05",
                         "capabilities": {"tools": {}},
                         "serverInfo": {
-                            "name": "agnostic-obsidian",
+                            "name": "ompa",
                             "version": __version__,
                         },
                     },

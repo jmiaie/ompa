@@ -60,7 +60,7 @@ class SemanticIndex:
             print(
                 "Warning: sentence-transformers not installed. Semantic search unavailable."
             )
-            print("Install with: pip install agent-memory[semantic]")
+            print("Install with: pip install ompa[semantic]")
             self._model = None
         except Exception as e:
             print(f"Warning: Could not load embedding model: {e}")
@@ -273,7 +273,7 @@ def qmd_query(vault_path: str, query: str, limit: int = 5) -> list[SearchResult]
     Convenience function for QMD-style queries.
     Mimics the qmd CLI behavior.
     """
-    index_path = Path(vault_path) / ".agent-memory"
+    index_path = Path(vault_path) / ".palace" / "semantic_index"
     index = SemanticIndex(index_path)
     index.load_index()
     return index.search(query, limit)

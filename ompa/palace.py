@@ -1,5 +1,5 @@
 """
-Palace — Wing/Room/Closet/Drawer metadata layer for AgnosticObsidian.
+Palace — Wing/Room/Closet/Drawer metadata layer for OMPA.
 Inspired by MemPalace. Manages the structured metadata that accelerates retrieval.
 """
 
