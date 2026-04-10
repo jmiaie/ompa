@@ -84,7 +84,7 @@ class SemanticIndex:
                     continue
 
                 embedding = self.model.encode(chunk_text)
-                chunk_hash = hashlib.md5(f"{path}:{i}".encode()).hexdigest()
+                chunk_hash = hashlib.md5(f"{path}:{i}".encode(), usedforsecurity=False).hexdigest()
 
                 self.chunks.append(
                     {
