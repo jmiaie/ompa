@@ -1,6 +1,7 @@
 """
 Message classification for routing and context injection.
 Classifies user messages into categories and injects routing hints.
+Also classifies content for dual-vault routing (shared vs personal).
 """
 
 import re
@@ -267,3 +268,35 @@ class MessageClassifier:
         """
         classification = self.classify(message)
         return f"[{classification.message_type.value.upper()}] {classification.suggested_action}"
+
+    # Shared-vault message types (team-visible content)
+    SHARED_TYPES = {
+        MessageType.DECISION,
+        MessageType.MEETING,
+        MessageType.PROJECT_UPDATE,
+        MessageType.PERSON_INFO,
+        MessageType.ONE_ON_ONE,
+        MessageType.WIN,
+        MessageType.ARCHITECTURE,
+        MessageType.STANDUP,
+        MessageType.WRAP_UP,
+    }
+
+    # Personal-vault message types (agent-private content)
+    PERSONAL_TYPES = {
+        MessageType.BRAIN_DUMP,
+    }
+
+    def classify_vault_target(self, message: str) -> str:
+        """
+        Classify whether a message belongs in shared or personal vault.
+
+        Returns: "shared", "personal", or "ambiguous"
+        """
+        classification = self.classify(message)
+
+        if classification.message_type in self.SHARED_TYPES:
+            return "shared"
+        if classification.message_type in self.PERSONAL_TYPES:
+            return "personal"
+        return "ambiguous"

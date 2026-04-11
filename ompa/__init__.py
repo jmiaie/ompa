@@ -15,7 +15,7 @@ Usage:
     ao.stop()
 """
 
-__version__ = "0.3.1"
+__version__ = "0.4.0"
 
 from .core import Ompa
 from .vault import Vault, Note, VaultConfig
@@ -24,6 +24,7 @@ from .knowledge_graph import KnowledgeGraph
 from .classifier import MessageClassifier, Classification, MessageType
 from .hooks import HookManager, HookContext, HookResult, Hook
 from .semantic import SemanticIndex, SearchResult
+from .config import DualVaultConfig, IsolationMode, VaultTarget
 
 # Backward compatibility alias
 AgnosticObsidian = Ompa
@@ -45,4 +46,7 @@ __all__ = [
     "Hook",
     "SemanticIndex",
     "SearchResult",
+    "DualVaultConfig",
+    "IsolationMode",
+    "VaultTarget",
 ]

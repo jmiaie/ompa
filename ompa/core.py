@@ -1,18 +1,22 @@
 """
 OMPA — Universal AI Agent Memory Layer
 Core module integrating vault, palace, KG, hooks, classifier, and semantic search.
+Supports single-vault (legacy) and dual-vault (shared + personal) architecture.
 """
 
 import logging
+import re
+import shutil
 from pathlib import Path
 from typing import Optional
 
-from .vault import Vault
+from .vault import Vault, Note
 from .palace import Palace
 from .knowledge_graph import KnowledgeGraph
 from .hooks import HookManager, HookResult
 from .classifier import MessageClassifier, Classification
 from .semantic import SemanticIndex, SearchResult
+from .config import DualVaultConfig, IsolationMode, VaultTarget
 
 logger = logging.getLogger(__name__)
 
@@ -29,38 +33,85 @@ class Ompa:
     - Classifier (15 message types with routing hints)
     - Semantic Search (local sentence-transformers)
 
-    Usage:
+    Usage (single vault — legacy):
         ao = Ompa(vault_path="./workspace")
-        result = ao.session_start()    # ~2K tokens
-        hint = ao.handle_message(msg)  # ~100 tokens
-        ao.post_tool("write", {"file_path": "work/active/auth.md"})
-        ao.stop()
+
+    Usage (dual vault):
+        ao = Ompa(
+            shared_vault_path="/shared/ompa-vault",
+            personal_vault_path="~/.ompa-personal",
+            isolation_mode="strict",
+        )
     """
 
     def __init__(
         self,
-        vault_path: str | Path,
+        vault_path: str | Path = None,
         agent_name: str = "agent",
         enable_semantic: bool = True,
+        # Dual-vault parameters
+        shared_vault_path: str | Path = None,
+        personal_vault_path: str | Path = None,
+        isolation_mode: str = "strict",
     ):
-        self.vault_path = Path(vault_path)
         self.agent_name = agent_name
+        self._enable_semantic = enable_semantic
+        self._session_started = False
+        self._last_classification: Optional[Classification] = None
 
-        # Core systems
-        self.vault = Vault(self.vault_path)
-        self.palace = Palace(self.vault_path / ".palace")
-        self.kg = KnowledgeGraph(
-            db_path=str(self.vault_path / ".palace" / "knowledge_graph.sqlite3")
+        # Dual-vault config
+        self.dual_config = DualVaultConfig(
+            isolation_mode=IsolationMode(isolation_mode),
         )
+
+        if shared_vault_path and personal_vault_path:
+            # Dual-vault mode
+            self.dual_config.shared_path = Path(shared_vault_path).expanduser()
+            self.dual_config.personal_path = Path(personal_vault_path).expanduser()
+            self.vault_path = self.dual_config.shared_path  # primary for hooks
+
+            # Shared vault systems
+            self.vault = Vault(self.dual_config.shared_path)
+            self.palace = Palace(self.dual_config.shared_path / ".palace")
+            self.kg = KnowledgeGraph(
+                db_path=str(
+                    self.dual_config.shared_path / ".palace" / "knowledge_graph.sqlite3"
+                )
+            )
+
+            # Personal vault systems
+            self.personal_vault = Vault(self.dual_config.personal_path)
+            self.personal_palace = Palace(self.dual_config.personal_path / ".palace")
+            self.personal_kg = KnowledgeGraph(
+                db_path=str(
+                    self.dual_config.personal_path
+                    / ".palace"
+                    / "knowledge_graph.sqlite3"
+                )
+            )
+        else:
+            # Single-vault mode (legacy / backward compatible)
+            self.vault_path = Path(vault_path or ".")
+            self.vault = Vault(self.vault_path)
+            self.palace = Palace(self.vault_path / ".palace")
+            self.kg = KnowledgeGraph(
+                db_path=str(self.vault_path / ".palace" / "knowledge_graph.sqlite3")
+            )
+            self.personal_vault = None
+            self.personal_palace = None
+            self.personal_kg = None
+
         self.classifier = MessageClassifier()
         self.hooks = HookManager(self.vault_path, agent_name=self.agent_name)
 
         # Semantic search (lazy-loaded)
         self._semantic = None
-        self._enable_semantic = enable_semantic
+        self._personal_semantic = None
 
-        self._session_started = False
-        self._last_classification: Optional[Classification] = None
+    @property
+    def is_dual_vault(self) -> bool:
+        """True if dual-vault mode is active."""
+        return self.dual_config.is_dual_vault
 
     @property
     def semantic(self) -> Optional[SemanticIndex]:
@@ -74,6 +125,27 @@ class Ompa:
                 if count > 0:
                     self._semantic.save_index()
         return self._semantic
+
+    @property
+    def personal_semantic(self) -> Optional[SemanticIndex]:
+        """Lazy-load personal semantic index."""
+        if (
+            self._personal_semantic is None
+            and self._enable_semantic
+            and self.dual_config.personal_path
+        ):
+            self._personal_semantic = SemanticIndex(
+                index_path=self.dual_config.personal_path
+                / ".palace"
+                / "semantic_index",
+            )
+            if not self._personal_semantic.load_index():
+                count = self._personal_semantic.index_vault(
+                    self.dual_config.personal_path
+                )
+                if count > 0:
+                    self._personal_semantic.save_index()
+        return self._personal_semantic
 
     # -------------------------------------------------------------------------
     # Lifecycle Hooks
@@ -231,9 +303,10 @@ class Ompa:
         hybrid: bool = True,
         wing: str = None,
         room: str = None,
+        vaults: list[str] = None,
     ) -> list[SearchResult]:
         """
-        Search the vault semantically.
+        Search the vault(s) semantically.
 
         Args:
             query: Search query
@@ -241,10 +314,59 @@ class Ompa:
             hybrid: Use hybrid (semantic + keyword) search
             wing: Filter by palace wing
             room: Filter by palace room
+            vaults: Which vaults to search. Options: ["shared"], ["personal"],
+                    ["shared", "personal"]. Default: ["shared"] in dual mode,
+                    or the single vault in legacy mode.
         """
-        if self.semantic is None:
-            # Fallback to name search
-            notes = self.vault.search_by_name(query)
+        # Determine which vaults to search
+        if not self.is_dual_vault:
+            vaults = ["shared"]  # single vault acts as shared
+        elif vaults is None:
+            vaults = ["shared"]
+
+        all_results = []
+
+        # Search shared vault
+        if "shared" in vaults:
+            all_results.extend(
+                self._search_vault(
+                    self.vault, self.semantic, query, limit, hybrid, wing, room
+                )
+            )
+
+        # Search personal vault
+        if "personal" in vaults and self.personal_vault:
+            personal_results = self._search_vault(
+                self.personal_vault,
+                self.personal_semantic,
+                query,
+                limit,
+                hybrid,
+                wing,
+                room,
+            )
+            # Tag personal results
+            for r in personal_results:
+                r.match_type = f"personal:{r.match_type}"
+            all_results.extend(personal_results)
+
+        # Sort by score and limit
+        all_results.sort(key=lambda r: r.score, reverse=True)
+        return all_results[:limit]
+
+    def _search_vault(
+        self,
+        vault: Vault,
+        semantic: Optional[SemanticIndex],
+        query: str,
+        limit: int,
+        hybrid: bool,
+        wing: str = None,
+        room: str = None,
+    ) -> list[SearchResult]:
+        """Search a single vault."""
+        if semantic is None:
+            notes = vault.search_by_name(query)
             return [
                 SearchResult(
                     path=str(n.path),
@@ -255,14 +377,11 @@ class Ompa:
                 for n in notes[:limit]
             ]
 
-        results = self.semantic.search(query, limit, hybrid)
+        results = semantic.search(query, limit, hybrid)
 
-        # Filter by palace wing/room if specified
         if wing or room:
             filtered = []
             for r in results:
-                # Try to match palace metadata
-                # (In production, would join with palace data)
                 if wing and wing not in r.path:
                     continue
                 if room and room not in r.path:
@@ -372,5 +491,296 @@ class Ompa:
             "palace_wings": palace_count,
             "indexed_files": index_count,
         }
+
+        # Sync personal vault too if in dual mode
+        if self.is_dual_vault:
+            p_kg = self.personal_kg.populate_from_vault(self.dual_config.personal_path)
+            p_palace = self.personal_palace.auto_build_from_vault(
+                self.dual_config.personal_path
+            )
+            result["personal_kg_triples"] = p_kg
+            result["personal_palace_wings"] = p_palace
+
         logger.info("Full sync complete: %s", result)
         return result
+
+    # -------------------------------------------------------------------------
+    # Dual-vault operations
+    # -------------------------------------------------------------------------
+
+    def write(
+        self,
+        content: str,
+        file_path: str = None,
+        tags: list[str] = None,
+        vault: str = None,
+    ) -> dict:
+        """
+        Write content to the appropriate vault.
+
+        In dual-vault mode, auto-classifies content unless vault is specified.
+        In single-vault mode, writes to the single vault.
+
+        Args:
+            content: Note content to write
+            file_path: Target file path (relative to vault root)
+            tags: Tags for classification and frontmatter
+            vault: Force target vault: "shared" or "personal"
+
+        Returns:
+            dict with {vault, path, classified_as}
+        """
+        tags = tags or []
+
+        # Determine target vault
+        if not self.is_dual_vault:
+            target = VaultTarget.SHARED
+            target_vault = self.vault
+        elif vault:
+            target = VaultTarget(vault)
+            target_vault = (
+                self.vault if target == VaultTarget.SHARED else self.personal_vault
+            )
+        elif self.dual_config.isolation_mode == IsolationMode.MANUAL:
+            # In manual mode, default to personal (safe default)
+            target = self.dual_config.default_vault
+            target_vault = (
+                self.vault if target == VaultTarget.SHARED else self.personal_vault
+            )
+        else:
+            # Auto-classify
+            target = self.dual_config.classify_content(
+                content, tags=tags, file_path=file_path
+            )
+            target_vault = (
+                self.vault if target == VaultTarget.SHARED else self.personal_vault
+            )
+
+        # Build file path if not provided
+        if not file_path:
+            # Use classifier to determine folder
+            classification = self.classifier.classify(content[:200])
+            folder = classification.suggested_folder
+            # Sanitize content for filename
+            words = re.sub(r"[^\w\s]", "", content[:40]).split()
+            name = "-".join(words[:5]) if words else "note"
+            file_path = f"{folder}{name}.md"
+
+        # Write the note
+        from datetime import datetime
+
+        frontmatter = {
+            "date": datetime.now().strftime("%Y-%m-%d"),
+            "tags": tags,
+            "vault": target.value,
+        }
+
+        full_path = target_vault.vault_path / file_path
+        note = Note(path=full_path, frontmatter=frontmatter, content=content)
+        note.save()
+
+        # Update KG + index
+        target_kg = self.kg if target == VaultTarget.SHARED else self.personal_kg
+        if target_kg:
+            target_kg.populate_from_note(full_path, target_vault.vault_path)
+
+        return {
+            "vault": target.value,
+            "path": str(full_path),
+            "classified_as": target.value,
+        }
+
+    def export_to_shared(
+        self,
+        note_path: str,
+        confirm: bool = True,
+        sanitize: bool = True,
+    ) -> dict:
+        """
+        Export a note from personal vault to shared vault.
+
+        Args:
+            note_path: Path relative to personal vault root
+            confirm: If True, returns preview without writing (for confirmation)
+            sanitize: Strip personal markers (@private, credentials, etc.)
+
+        Returns:
+            dict with {success, source, target, sanitized, preview}
+        """
+        if not self.is_dual_vault:
+            return {"success": False, "error": "Not in dual-vault mode"}
+
+        if self.dual_config.isolation_mode == IsolationMode.STRICT and confirm:
+            # In strict mode, first call returns preview for confirmation
+            source = self.dual_config.personal_path / note_path
+            if not source.exists():
+                return {"success": False, "error": f"Note not found: {note_path}"}
+
+            note = Note.from_file(source)
+            content = note.content
+
+            if sanitize:
+                content = self._sanitize_content(content)
+
+            return {
+                "success": True,
+                "action": "preview",
+                "source": str(source),
+                "target": str(self.dual_config.shared_path / note_path),
+                "sanitized": sanitize,
+                "preview": content[:500],
+            }
+
+        # Perform the export
+        source = self.dual_config.personal_path / note_path
+        if not source.exists():
+            return {"success": False, "error": f"Note not found: {note_path}"}
+
+        note = Note.from_file(source)
+        if sanitize:
+            note.content = self._sanitize_content(note.content)
+
+        # Update frontmatter for shared vault
+        note.frontmatter["vault"] = "shared"
+        note.frontmatter.pop("@private", None)
+
+        target = self.dual_config.shared_path / note_path
+        note.path = target
+        note.save()
+
+        # Update shared KG
+        self.kg.populate_from_note(target, self.dual_config.shared_path)
+
+        logger.info("Exported %s to shared vault", note_path)
+        return {
+            "success": True,
+            "action": "exported",
+            "source": str(source),
+            "target": str(target),
+        }
+
+    def import_to_personal(
+        self,
+        note_path: str,
+        link_back: bool = True,
+    ) -> dict:
+        """
+        Import a note from shared vault to personal vault.
+
+        Args:
+            note_path: Path relative to shared vault root
+            link_back: Maintain a wikilink reference to the shared original
+
+        Returns:
+            dict with {success, source, target}
+        """
+        if not self.is_dual_vault:
+            return {"success": False, "error": "Not in dual-vault mode"}
+
+        source = self.dual_config.shared_path / note_path
+        if not source.exists():
+            return {"success": False, "error": f"Note not found: {note_path}"}
+
+        note = Note.from_file(source)
+        note.frontmatter["vault"] = "personal"
+        note.frontmatter["imported_from"] = str(source)
+
+        if link_back:
+            note.content += f"\n\n---\n*Imported from shared: [[{note_path}]]*"
+
+        target = self.dual_config.personal_path / note_path
+        note.path = target
+        note.save()
+
+        # Update personal KG
+        if self.personal_kg:
+            self.personal_kg.populate_from_note(target, self.dual_config.personal_path)
+
+        logger.info("Imported %s to personal vault", note_path)
+        return {
+            "success": True,
+            "source": str(source),
+            "target": str(target),
+        }
+
+    def _sanitize_content(self, content: str) -> str:
+        """Remove sensitive markers and credentials from content."""
+        # Remove personal tags
+        content = re.sub(r"@private\b", "", content)
+        content = re.sub(r"#personal\b", "", content)
+
+        # Redact credential-like patterns
+        content = re.sub(r"(sk-[a-zA-Z0-9]{20,})", "[REDACTED]", content)
+        content = re.sub(r"(AKIA[A-Z0-9]{16})", "[REDACTED]", content)
+        content = re.sub(
+            r"(token|password|secret|api_key|api-key)\s*[:=]\s*\S+",
+            r"\1: [REDACTED]",
+            content,
+            flags=re.IGNORECASE,
+        )
+
+        return content
+
+    def migrate_to_dual_vault(
+        self,
+        shared_path: str | Path,
+        personal_path: str | Path,
+        classification_rules: str = "auto",
+    ) -> dict:
+        """
+        Migrate a single-vault OMPA to dual-vault architecture.
+
+        Args:
+            shared_path: Path for the shared vault
+            personal_path: Path for the personal vault
+            classification_rules: "auto" to auto-classify, "all-shared" to keep all in shared
+
+        Returns:
+            dict with migration stats
+        """
+        shared_path = Path(shared_path).expanduser()
+        personal_path = Path(personal_path).expanduser()
+
+        shared_path.mkdir(parents=True, exist_ok=True)
+        personal_path.mkdir(parents=True, exist_ok=True)
+
+        shared_count = 0
+        personal_count = 0
+
+        notes = self.vault.list_notes()
+        for note in notes:
+            if classification_rules == "auto":
+                target = self.dual_config.classify_content(
+                    note.content,
+                    tags=list(note.frontmatter.get("tags", [])),
+                    file_path=str(note.path),
+                )
+            else:
+                target = VaultTarget.SHARED
+
+            try:
+                rel_path = note.path.relative_to(self.vault_path)
+            except ValueError:
+                continue
+
+            if target == VaultTarget.PERSONAL:
+                dest = personal_path / rel_path
+                personal_count += 1
+            else:
+                dest = shared_path / rel_path
+                shared_count += 1
+
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(note.path, dest)
+
+        # Save config
+        self.dual_config.shared_path = shared_path
+        self.dual_config.personal_path = personal_path
+        config_path = Path("~/.ompa/config.yaml").expanduser()
+        self.dual_config.to_yaml(config_path)
+
+        return {
+            "shared_notes": shared_count,
+            "personal_notes": personal_count,
+            "config_saved": str(config_path),
+        }

@@ -4,6 +4,7 @@ Run with: ao <command> or ao-mcp <command>
 """
 
 from pathlib import Path
+from typing import Optional
 
 import typer
 from rich.console import Console
@@ -15,21 +16,56 @@ app = typer.Typer(help="OMPA — Universal AI agent memory layer")
 console = Console()
 
 
+def _make_ompa(
+    vault_path: Path = None,
+    shared_vault: Path = None,
+    personal_vault: Path = None,
+    isolation_mode: str = "strict",
+    enable_semantic: bool = False,
+) -> Ompa:
+    """Create an Ompa instance, supporting both single and dual vault modes."""
+    if shared_vault and personal_vault:
+        return Ompa(
+            shared_vault_path=shared_vault,
+            personal_vault_path=personal_vault,
+            isolation_mode=isolation_mode,
+            enable_semantic=enable_semantic,
+        )
+    return Ompa(vault_path or Path("."), enable_semantic=enable_semantic)
+
+
 @app.command()
 def init(
     vault_path: Path = Path("."),
+    shared_vault: Optional[Path] = typer.Option(None, help="Shared vault path"),
+    personal_vault: Optional[Path] = typer.Option(None, help="Personal vault path"),
 ):
     """Initialize vault + palace structure."""
     from ompa import Vault
 
-    vault = Vault(vault_path)
-    stats = vault.get_stats()
-    ao = Ompa(vault_path, enable_semantic=False)
-    palace_count = ao.palace_build()
-    console.print(f"[green]Initialized at {vault_path.absolute()}[/green]")
-    console.print(f"  Notes: {stats['total_notes']}")
-    console.print(f"  Brain notes: {stats['brain_notes']}")
-    console.print(f"  Palace wings built: {palace_count}")
+    if shared_vault and personal_vault:
+        # Dual-vault init
+        Vault(shared_vault)
+        Vault(personal_vault)
+        ao = _make_ompa(
+            shared_vault=shared_vault,
+            personal_vault=personal_vault,
+            enable_semantic=False,
+        )
+        shared_stats = ao.get_stats()
+        console.print("[green]Dual-vault initialized![/green]")
+        console.print(f"  Shared: {shared_vault.absolute()}")
+        console.print(f"  Personal: {personal_vault.absolute()}")
+        console.print(f"  Shared notes: {shared_stats['total_notes']}")
+    else:
+        vault = Vault(vault_path)
+        stats = vault.get_stats()
+        ao = Ompa(vault_path, enable_semantic=False)
+        palace_count = ao.palace_build()
+        console.print(f"[green]Initialized at {vault_path.absolute()}[/green]")
+        console.print(f"  Notes: {stats['total_notes']}")
+        console.print(f"  Brain notes: {stats['brain_notes']}")
+        console.print(f"  Palace wings built: {palace_count}")
 
 
 @app.command()
@@ -88,10 +124,18 @@ def search(
     query: str,
     vault_path: Path = Path("."),
     limit: int = 5,
+    vault: Optional[str] = typer.Option(
+        None, help="Which vault: shared, personal, or both"
+    ),
+    shared_vault: Optional[Path] = typer.Option(None, help="Shared vault path"),
+    personal_vault: Optional[Path] = typer.Option(None, help="Personal vault path"),
 ):
     """Search the vault semantically."""
-    ao = Ompa(vault_path, enable_semantic=True)
-    results = ao.search(query, limit=limit)
+    ao = _make_ompa(vault_path, shared_vault, personal_vault, enable_semantic=True)
+    vaults = [vault] if vault and vault != "both" else None
+    if vault == "both":
+        vaults = ["shared", "personal"]
+    results = ao.search(query, limit=limit, vaults=vaults)
 
     table = Table(title=f"Search: {query}")
     table.add_column("Score")
@@ -307,14 +351,94 @@ def kg_populate(
 @app.command()
 def sync(
     vault_path: Path = Path("."),
+    shared_vault: Optional[Path] = typer.Option(None, help="Shared vault path"),
+    personal_vault: Optional[Path] = typer.Option(None, help="Personal vault path"),
 ):
     """Full sync: rebuild KG, palace, and search index from vault."""
-    ao = Ompa(vault_path, enable_semantic=True)
+    ao = _make_ompa(vault_path, shared_vault, personal_vault, enable_semantic=True)
     result = ao.sync()
     console.print("[green]Full sync complete![/green]")
     console.print(f"  KG triples: {result['kg_triples']}")
     console.print(f"  Palace wings: {result['palace_wings']}")
     console.print(f"  Indexed files: {result['indexed_files']}")
+    if "personal_kg_triples" in result:
+        console.print(f"  Personal KG triples: {result['personal_kg_triples']}")
+        console.print(f"  Personal palace wings: {result['personal_palace_wings']}")
+
+
+@app.command()
+def write_note(
+    content: str,
+    vault: Optional[str] = typer.Option(None, help="Target vault: shared or personal"),
+    tags: Optional[str] = typer.Option(None, help="Comma-separated tags"),
+    file_path: Optional[str] = typer.Option(None, help="Target file path"),
+    shared_vault: Optional[Path] = typer.Option(None, help="Shared vault path"),
+    personal_vault: Optional[Path] = typer.Option(None, help="Personal vault path"),
+    vault_path: Path = Path("."),
+):
+    """Write content to the appropriate vault (auto-classifies in dual mode)."""
+    ao = _make_ompa(vault_path, shared_vault, personal_vault, enable_semantic=False)
+    tag_list = [t.strip() for t in tags.split(",")] if tags else []
+    result = ao.write(content, file_path=file_path, tags=tag_list, vault=vault)
+    console.print(f"[green]Written to {result['vault']} vault[/green]")
+    console.print(f"  Path: {result['path']}")
+    console.print(f"  Classified as: {result['classified_as']}")
+
+
+@app.command()
+def export(
+    note_path: str,
+    shared_vault: Path = typer.Option(..., help="Shared vault path"),
+    personal_vault: Path = typer.Option(..., help="Personal vault path"),
+    sanitize: bool = typer.Option(True, help="Remove personal markers"),
+    confirm: bool = typer.Option(False, help="Skip confirmation, export directly"),
+):
+    """Export a note from personal vault to shared vault."""
+    ao = _make_ompa(shared_vault=shared_vault, personal_vault=personal_vault)
+    result = ao.export_to_shared(note_path, confirm=not confirm, sanitize=sanitize)
+    if result.get("action") == "preview":
+        console.print("[yellow]Preview (run with --confirm to export):[/yellow]")
+        console.print(f"  From: {result['source']}")
+        console.print(f"  To: {result['target']}")
+        console.print(f"  Content: {result['preview'][:200]}...")
+    elif result.get("success"):
+        console.print("[green]Exported to shared vault[/green]")
+        console.print(f"  {result['source']} -> {result['target']}")
+    else:
+        console.print(f"[red]Export failed: {result.get('error')}[/red]")
+
+
+@app.command()
+def import_note(
+    note_path: str,
+    shared_vault: Path = typer.Option(..., help="Shared vault path"),
+    personal_vault: Path = typer.Option(..., help="Personal vault path"),
+    link_back: bool = typer.Option(True, help="Maintain reference to original"),
+):
+    """Import a note from shared vault to personal vault."""
+    ao = _make_ompa(shared_vault=shared_vault, personal_vault=personal_vault)
+    result = ao.import_to_personal(note_path, link_back=link_back)
+    if result.get("success"):
+        console.print("[green]Imported to personal vault[/green]")
+        console.print(f"  {result['source']} -> {result['target']}")
+    else:
+        console.print(f"[red]Import failed: {result.get('error')}[/red]")
+
+
+@app.command()
+def migrate(
+    shared_path: Path = typer.Option(..., help="New shared vault path"),
+    personal_path: Path = typer.Option(..., help="New personal vault path"),
+    vault_path: Path = Path("."),
+    rules: str = typer.Option("auto", help="Classification: auto or all-shared"),
+):
+    """Migrate single vault to dual-vault architecture."""
+    ao = Ompa(vault_path, enable_semantic=False)
+    result = ao.migrate_to_dual_vault(shared_path, personal_path, rules)
+    console.print("[green]Migration complete![/green]")
+    console.print(f"  Shared notes: {result['shared_notes']}")
+    console.print(f"  Personal notes: {result['personal_notes']}")
+    console.print(f"  Config saved: {result['config_saved']}")
 
 
 def main():

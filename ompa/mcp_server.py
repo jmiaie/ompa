@@ -20,7 +20,7 @@ import json
 import sys
 from pathlib import Path
 
-__version__ = "0.3.1"
+__version__ = "0.4.0"
 
 
 # ---------------------------------------------------------------------------
@@ -33,6 +33,24 @@ def _load_core():
     from ompa import Ompa
 
     return Ompa
+
+
+def _make_ompa(arguments: dict, enable_semantic: bool = False):
+    """Create an Ompa instance from MCP arguments, supporting dual vault."""
+    AO = _load_core()
+    vault_path = str(arguments.get("vault_path", "."))
+    shared_vault = arguments.get("shared_vault_path")
+    personal_vault = arguments.get("personal_vault_path")
+    isolation = arguments.get("isolation_mode", "strict")
+
+    if shared_vault and personal_vault:
+        return AO(
+            shared_vault_path=shared_vault,
+            personal_vault_path=personal_vault,
+            isolation_mode=isolation,
+            enable_semantic=enable_semantic,
+        )
+    return AO(vault_path=vault_path, enable_semantic=enable_semantic)
 
 
 def ao_session_start(vault_path: str = ".") -> dict:
@@ -218,6 +236,40 @@ def ao_sync(vault_path: str = ".") -> dict:
     ao = AO(vault_path=vault_path, enable_semantic=True)
     result = ao.sync()
     return {"success": True, **result}
+
+
+def ao_write(arguments: dict) -> dict:
+    """Write content to the appropriate vault (auto-classifies in dual mode)."""
+    ao = _make_ompa(arguments, enable_semantic=False)
+    content = arguments.get("content", "")
+    tags_raw = arguments.get("tags", "")
+    tags = [t.strip() for t in tags_raw.split(",") if t.strip()] if tags_raw else []
+    result = ao.write(
+        content,
+        file_path=arguments.get("file_path"),
+        tags=tags,
+        vault=arguments.get("vault"),
+    )
+    return result
+
+
+def ao_export(arguments: dict) -> dict:
+    """Export a note from personal vault to shared vault."""
+    ao = _make_ompa(arguments, enable_semantic=False)
+    return ao.export_to_shared(
+        note_path=arguments["note_path"],
+        confirm=arguments.get("confirm", True),
+        sanitize=arguments.get("sanitize", True),
+    )
+
+
+def ao_import(arguments: dict) -> dict:
+    """Import a note from shared vault to personal vault."""
+    ao = _make_ompa(arguments, enable_semantic=False)
+    return ao.import_to_personal(
+        note_path=arguments["note_path"],
+        link_back=arguments.get("link_back", True),
+    )
 
 
 def ao_init(vault_path: str = ".") -> dict:
@@ -414,6 +466,78 @@ TOOLS = {
             },
         },
     },
+    "ao_write": {
+        "description": "Write content to the appropriate vault. Auto-classifies in dual-vault mode (shared vs personal).",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "content": {"type": "string", "description": "Note content."},
+                "vault": {
+                    "type": "string",
+                    "description": "Target vault: shared or personal.",
+                },
+                "tags": {
+                    "type": "string",
+                    "description": "Comma-separated tags.",
+                },
+                "file_path": {
+                    "type": "string",
+                    "description": "Target file path.",
+                },
+                "vault_path": {"type": "string", "default": "."},
+                "shared_vault_path": {
+                    "type": "string",
+                    "description": "Shared vault path (for dual mode).",
+                },
+                "personal_vault_path": {
+                    "type": "string",
+                    "description": "Personal vault path (for dual mode).",
+                },
+            },
+            "required": ["content"],
+        },
+    },
+    "ao_export": {
+        "description": "Export a note from personal vault to shared vault. Sanitizes credentials by default.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "note_path": {
+                    "type": "string",
+                    "description": "Path relative to personal vault.",
+                },
+                "confirm": {"type": "boolean", "default": True},
+                "sanitize": {"type": "boolean", "default": True},
+                "shared_vault_path": {"type": "string"},
+                "personal_vault_path": {"type": "string"},
+            },
+            "required": [
+                "note_path",
+                "shared_vault_path",
+                "personal_vault_path",
+            ],
+        },
+    },
+    "ao_import": {
+        "description": "Import a note from shared vault to personal vault.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "note_path": {
+                    "type": "string",
+                    "description": "Path relative to shared vault.",
+                },
+                "link_back": {"type": "boolean", "default": True},
+                "shared_vault_path": {"type": "string"},
+                "personal_vault_path": {"type": "string"},
+            },
+            "required": [
+                "note_path",
+                "shared_vault_path",
+                "personal_vault_path",
+            ],
+        },
+    },
     "ao_init": {
         "description": "Initialize a new vault + palace structure with folders and brain notes.",
         "input_schema": {
@@ -514,6 +638,12 @@ def handle_call_tool(name: str, arguments: dict) -> dict:
             result = ao_kg_populate(vault_path)
         elif name == "ao_sync":
             result = ao_sync(vault_path)
+        elif name == "ao_write":
+            result = ao_write(arguments)
+        elif name == "ao_export":
+            result = ao_export(arguments)
+        elif name == "ao_import":
+            result = ao_import(arguments)
         elif name == "ao_init":
             result = ao_init(vault_path)
         else:
