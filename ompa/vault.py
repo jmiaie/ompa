@@ -87,8 +87,18 @@ class Note:
 
     @staticmethod
     def _extract_wikilinks(text: str) -> list[str]:
-        """Extract [[wikilinks]] from text."""
-        return re.findall(r"\[\[([^\]]+)\]\]", text)
+        """Extract [[wikilinks]] from text, normalizing targets."""
+        raw = re.findall(r"\[\[([^\]]+)\]\]", text)
+        normalized = []
+        for link in raw:
+            # Strip display text: [[target|display]] → target
+            target = link.split("|")[0].strip()
+            # Strip .md extension if present (will be re-added during resolution)
+            if target.lower().endswith(".md"):
+                target = target[:-3]
+            if target:
+                normalized.append(target)
+        return normalized
 
     def has_links(self) -> bool:
         """Check if note has any wikilinks."""
@@ -157,19 +167,54 @@ class Vault:
 
         return notes
 
+    def _build_filename_index(self, notes: list[Note]) -> dict[str, Path]:
+        """Build a case-insensitive filename → path index for wikilink resolution."""
+        index = {}
+        for note in notes:
+            # Index by stem (without .md) — case-insensitive
+            key = note.path.stem.lower()
+            index[key] = note.path
+            # Also index by full filename
+            index[note.path.name.lower()] = note.path
+        return index
+
+    def _resolve_wikilink(
+        self, link: str, filename_index: dict[str, Path]
+    ) -> Optional[Path]:
+        """Resolve a wikilink to a file path using multiple strategies."""
+        link_lower = link.lower()
+
+        # 1. Direct filename match (case-insensitive)
+        if link_lower in filename_index:
+            return filename_index[link_lower]
+
+        # 2. Try with .md extension stripped
+        if link_lower.endswith(".md"):
+            stem = link_lower[:-3]
+            if stem in filename_index:
+                return filename_index[stem]
+
+        # 3. Try exact path from vault root
+        direct = self.vault_path / link
+        if direct.exists():
+            return direct
+        with_ext = self.vault_path / f"{link}.md"
+        if with_ext.exists():
+            return with_ext
+
+        return None
+
     def find_orphans(self) -> list[Note]:
-        """Find notes with no links to other notes."""
+        """Find notes with no incoming links from other notes."""
         all_notes = self.list_notes()
+        filename_index = self._build_filename_index(all_notes)
         linked_files = set()
 
         for note in all_notes:
             for link in note.links:
-                # Resolve wikilink to file
-                linked_path = self.vault_path / link
-                if not linked_path.exists():
-                    linked_path = self.vault_path / f"{link}.md"
-                if linked_path.exists():
-                    linked_files.add(linked_path)
+                resolved = self._resolve_wikilink(link, filename_index)
+                if resolved:
+                    linked_files.add(resolved)
 
         return [
             n
@@ -244,16 +289,15 @@ class Vault:
     def get_stats(self) -> dict:
         """Get vault statistics."""
         notes = self.list_notes()
+        filename_index = self._build_filename_index(notes)
 
-        # Build linked set in one pass (instead of calling find_orphans which re-reads)
+        # Build linked set using smart wikilink resolution
         linked_files = set()
         for note in notes:
             for link in note.links:
-                linked_path = self.vault_path / link
-                if not linked_path.exists():
-                    linked_path = self.vault_path / f"{link}.md"
-                if linked_path.exists():
-                    linked_files.add(linked_path)
+                resolved = self._resolve_wikilink(link, filename_index)
+                if resolved:
+                    linked_files.add(resolved)
 
         orphan_count = sum(
             1
@@ -263,19 +307,27 @@ class Vault:
         )
 
         folder_counts = {}
+        brain_count = 0
         for note in notes:
             folder = note.path.parent.name or "root"
             folder_counts[folder] = folder_counts.get(folder, 0) + 1
+
+            # Count brain notes: in brain/ folder OR wing=brain in frontmatter
+            if "brain" in note.path.parts:
+                brain_count += 1
+            elif note.frontmatter.get("wing", "").lower() == "brain":
+                brain_count += 1
+
+        # Also count brain folder files not yet in notes list (e.g., empty ones)
+        if self.config.brain_folder.exists():
+            folder_brain = len(list(self.config.brain_folder.glob("*.md")))
+            brain_count = max(brain_count, folder_brain)
 
         return {
             "total_notes": len(notes),
             "orphans": orphan_count,
             "folder_counts": folder_counts,
-            "brain_notes": (
-                len(list(self.config.brain_folder.glob("*.md")))
-                if self.config.brain_folder.exists()
-                else 0
-            ),
+            "brain_notes": brain_count,
         }
 
     def validate_write(self, file_path: str) -> dict:

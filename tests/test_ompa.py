@@ -620,3 +620,127 @@ class TestKGPopulation:
             result = handle_call_tool("ao_sync", {"vault_path": tmpdir})
             assert result["success"] is True
             assert "kg_triples" in result
+
+
+class TestOrphanAndBrainFixes:
+    """Test orphan detection and brain note counting fixes."""
+
+    def test_orphans_resolve_wikilinks_by_filename(self):
+        """Wikilinks should resolve by filename even in subdirectories."""
+        from ompa import Vault
+        from pathlib import Path
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            vault = Vault(tmpdir)
+            # Create notes in subdirectories
+            skills = Path(tmpdir) / "work" / "active"
+            skills.mkdir(parents=True, exist_ok=True)
+            (skills / "Auth.md").write_text(
+                "---\ndate: 2026-04-10\n---\nSee [[Design]].",
+                encoding="utf-8",
+            )
+            (skills / "Design.md").write_text(
+                "---\ndate: 2026-04-10\n---\nDesign doc for [[Auth]].",
+                encoding="utf-8",
+            )
+            orphans = vault.find_orphans()
+            orphan_names = [o.path.stem for o in orphans]
+            # Auth and Design link to each other — neither should be orphaned
+            assert "Auth" not in orphan_names
+            assert "Design" not in orphan_names
+
+    def test_orphans_with_md_extension_in_wikilink(self):
+        """Wikilinks like [[SOUL.md]] should resolve correctly."""
+        from ompa import Vault
+        from pathlib import Path
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            vault = Vault(tmpdir)
+            brain = Path(tmpdir) / "brain"
+            brain.mkdir(parents=True, exist_ok=True)
+            (brain / "SOUL.md").write_text(
+                "---\ndate: 2026-04-10\n---\nSoul content.",
+                encoding="utf-8",
+            )
+            (brain / "Index.md").write_text(
+                "---\ndate: 2026-04-10\n---\nLinks: [[SOUL.md]]",
+                encoding="utf-8",
+            )
+            orphans = vault.find_orphans()
+            orphan_names = [o.path.stem for o in orphans]
+            # SOUL is linked from Index, so not an orphan
+            assert "SOUL" not in orphan_names
+
+    def test_brain_notes_count_by_frontmatter_wing(self):
+        """Notes with wing=brain in frontmatter should count as brain notes."""
+        from ompa import Vault
+        from pathlib import Path
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            vault = Vault(tmpdir)
+            # Put notes outside brain/ folder but with wing: brain
+            root = Path(tmpdir)
+            (root / "SOUL.md").write_text(
+                "---\ndate: 2026-04-10\nwing: brain\n---\nSoul content.",
+                encoding="utf-8",
+            )
+            (root / "IDENTITY.md").write_text(
+                "---\ndate: 2026-04-10\nwing: brain\n---\nIdentity.",
+                encoding="utf-8",
+            )
+            (root / "SKILLS.md").write_text(
+                "---\ndate: 2026-04-10\nwing: work\n---\nSkills.",
+                encoding="utf-8",
+            )
+            stats = vault.get_stats()
+            # Should count the 2 wing=brain notes
+            assert stats["brain_notes"] >= 2
+
+    def test_brain_notes_count_in_brain_folder(self):
+        """Notes in brain/ folder should always count."""
+        from ompa import Vault
+        from pathlib import Path
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            vault = Vault(tmpdir)
+            brain = Path(tmpdir) / "brain"
+            brain.mkdir(parents=True, exist_ok=True)
+            (brain / "North Star.md").write_text(
+                "---\ndate: 2026-04-10\n---\nGoals.",
+                encoding="utf-8",
+            )
+            (brain / "Decisions.md").write_text(
+                "---\ndate: 2026-04-10\n---\nKey decisions.",
+                encoding="utf-8",
+            )
+            stats = vault.get_stats()
+            assert stats["brain_notes"] >= 2
+
+    def test_orphan_stats_match_find_orphans(self):
+        """get_stats() orphan count should match find_orphans() length."""
+        from ompa import Vault
+        from pathlib import Path
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            vault = Vault(tmpdir)
+            brain = Path(tmpdir) / "brain"
+            brain.mkdir(parents=True, exist_ok=True)
+            (brain / "A.md").write_text(
+                "---\ndate: 2026-04-10\n---\nSee [[B]].",
+                encoding="utf-8",
+            )
+            (brain / "B.md").write_text(
+                "---\ndate: 2026-04-10\n---\nSee [[A]].",
+                encoding="utf-8",
+            )
+            (brain / "Lonely.md").write_text(
+                "---\ndate: 2026-04-10\n---\nNo links here.",
+                encoding="utf-8",
+            )
+            stats = vault.get_stats()
+            orphans = vault.find_orphans()
+            assert stats["orphans"] == len(orphans)
+            # A and B link to each other, Lonely has no incoming links
+            orphan_names = [o.path.stem for o in orphans]
+            assert "Lonely" in orphan_names
+            assert "A" not in orphan_names
