@@ -146,14 +146,30 @@ class KnowledgeGraph:
 
         return [_row_to_triple(row) for row in rows]
 
-    def query_relation(self, subject: str, predicate: str) -> list[Triple]:
-        """Query all triples matching a specific subject+predicate."""
+    def query_relation(
+        self, subject: str, predicate: str, as_of: str = None
+    ) -> list[Triple]:
+        """
+        Query triples matching a specific subject+predicate, filtered by validity.
+
+        Args:
+            subject: Subject entity name.
+            predicate: Predicate to match.
+            as_of: YYYY-MM-DD date for historical query. Defaults to today.
+                Triples whose ``valid_to`` is before ``as_of`` (i.e.,
+                invalidated) are excluded, consistent with ``query_entity``.
+        """
+        as_of = as_of or self._now()
+
         with self._conn() as conn:
             rows = conn.execute(
                 """SELECT subject, predicate, object, valid_from, valid_to, confidence, source_file
                    FROM triples
-                   WHERE subject = ? AND predicate = ?""",
-                (subject, predicate),
+                   WHERE subject = ? AND predicate = ?
+                     AND (valid_from IS NULL OR valid_from <= ?)
+                     AND (valid_to IS NULL OR valid_to >= ?)
+                   ORDER BY valid_from DESC""",
+                (subject, predicate, as_of, as_of),
             ).fetchall()
         return [_row_to_triple(r) for r in rows]
 

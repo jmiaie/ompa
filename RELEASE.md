@@ -1,151 +1,95 @@
-# Release Checklist — AgnosticObsidian
+# Release Checklist — OMPA
 
-## Pre-Release (do once)
+This document describes how OMPA is cut and published to PyPI.
 
-### 1. Create PyPI Account + API Token
-1. Go to https://pypi.org/account/register
-2. Verify email
-3. Go to https://pypi.org/manage/account/api-tokens/
-4. Create token scoped to `agnostic-obsidian` project
-5. Save token — you'll use it as `PYPI_API_TOKEN` in GitHub Secrets
+## Pre-flight (already configured, kept here for reference)
 
-### 2. Add GitHub Secrets
-```
-Repository → Settings → Secrets and variables → Actions
-Add:
-- PYPI_API_TOKEN = pypi-...
-```
+### Trusted publishing (OIDC)
 
-### 3. Configure Trusted Publishing (recommended)
-On PyPI, go to your project → Publishing → Add a new publisher:
-- GitHub repository: `YOUR_USERNAME/agnostic-obsidian`
-- Workflow filename: `ci.yml`
-- Environment: `pypi`
+PyPI trusted publishing is configured for the `ompa` project against
+`jmiaie/ompa` using the `publish` job in `.github/workflows/ci.yml` with the
+`pypi` environment. No API token is stored in the repo — GitHub Actions
+authenticates to PyPI via OIDC on tag push.
 
-This eliminates API tokens entirely (OIDC-based).
+If this ever needs to be re-created:
 
----
+1. https://pypi.org/manage/project/ompa/settings/publishing/ → Add publisher.
+2. Repository: `jmiaie/ompa`.
+3. Workflow: `ci.yml`.
+4. Environment: `pypi`.
 
-## Release Steps
+## Cutting a release
 
-### Option A: Via GitHub Actions (recommended)
+1. **Update the version.** Edit `pyproject.toml::project.version` and
+   `ompa/__init__.py::__version__` (and `ompa/mcp_server.py::__version__`
+   until P3.6 consolidates this into one source of truth).
+2. **Run local gates.**
+
+   ```bash
+   pytest tests/ -v
+   ruff check ompa/
+   black --check ompa/
+   ```
+
+3. **Commit the version bump.**
+
+   ```bash
+   git add pyproject.toml ompa/__init__.py ompa/mcp_server.py
+   git commit -m "Release v0.4.2"
+   ```
+
+4. **Tag and push.**
+
+   ```bash
+   git tag v0.4.2 -m "Release v0.4.2"
+   git push origin main --tags
+   ```
+
+5. **Watch CI.** The `publish` job in `ci.yml` runs on `push: tags: ['v*']`,
+   builds the wheel and sdist, and uploads to PyPI via OIDC. Check
+   https://github.com/jmiaie/ompa/actions.
+
+6. **Create a GitHub release.** Use the tag, paste the `CHANGELOG.md` stanza
+   as the body (once P3.1 adds it).
+
+## Manual fallback (only if CI publishing breaks)
 
 ```bash
-# 1. Update version in __init__.py and pyproject.toml
-# 2. Tag and push
-git tag v0.1.0 -m "Release v0.1.0"
-git push origin v0.1.0
-# GitHub Actions automatically:
-#   - Runs tests on 3 Python versions
-#   - Runs ruff + black linting
-#   - Builds wheel
-#   - Publishes to PyPI on tag push
-```
-
-### Option B: Manual Publish
-
-```bash
-# Install build tools
-pip install build twine --break-system-packages
-
-# Build
-cd agnostic-obsidian
+pip install build twine
 python -m build
-
-# Check
 twine check dist/*
-
-# Upload (you'll need PYPI_API_TOKEN)
-TWINE_PASSWORD=YOUR_TOKEN twine upload dist/*
+twine upload dist/*   # prompts for credentials; prefer fixing OIDC instead
 ```
 
----
+## Versioning
 
-## Version Numbering
+Semantic versioning. OMPA is still 0.x, so breaking changes are allowed on a
+minor bump with a note in the changelog.
 
-We use Semantic Versioning: `MAJOR.MINOR.PATCH`
-- `v0.1.0` — initial beta release
-- `v0.2.0` — add features (e.g., MCP server tools)
-- `v0.2.1` — bug fixes
+- Patch (`0.4.x`): bugs, docs, perf where the public API is unchanged.
+- Minor (`0.5.0`): new features or intentional API/storage-format changes
+  (e.g., the v0.5.0 semantic-index binary format swap).
+- Major (`1.0.0`): stability commitment for the public Python API.
 
----
-
-## What Gets Published
+## What's published
 
 | Artifact | Description |
 |----------|-------------|
-| Wheel (`agnostic_obsidian-*.whl`) | Installable Python package |
-| Source tarball (`agnostic_obsidian-*.tar.gz`) | Source distribution |
+| `ompa-<ver>-py3-none-any.whl` | Installable wheel |
+| `ompa-<ver>.tar.gz` | Source distribution |
 
-### Includes:
-- `__init__.py`, `core.py`, `vault.py`, `palace.py`, `knowledge_graph.py`, `hooks.py`, `classifier.py`, `semantic.py`, `mcp_server.py`, `cli.py`
-- `pyproject.toml`
-- `README.md` (long_description from this)
-- `LICENSE` (MIT)
+Includes `ompa/` (all modules), `pyproject.toml`, `README.md`, `LICENSE`.
+Excludes `tests/`, `docs/`, `CLAUDE.md`, development scripts.
 
-### Excludes (via `.gitignore`):
-- `.github/`
-- `tests/`
-- `demo.cast`
-- `CLAUDE.md`, `PUSH.md`, `*.md` in repo root (not included in package)
+## Post-release
 
----
+1. Verify `pip install ompa==<ver>` from a clean venv.
+2. Smoke test:
 
-## Post-Release
+   ```bash
+   ao init /tmp/ompa-smoke
+   ao status --vault-path /tmp/ompa-smoke
+   ao classify "We decided to use Postgres" --vault-path /tmp/ompa-smoke
+   ```
 
-1. Create GitHub Release with release notes
-2. Post to:
-   - Twitter/X: "Just released agnostic-obsidian v0.1.0 — universal AI agent memory layer. pip install agnostic-obsidian"
-   - Hacker News: "Show: AgnosticObsidian — universal AI memory layer"
-   - r/LocalLLaMA, r/ClaudeAI
-   - Discord community
-
----
-
-## Quick Publish Commands (one-time setup)
-
-```bash
-# Clone fresh
-git clone https://github.com/YOUR_USERNAME/agnostic-obsidian.git
-cd agnostic-obsidian
-
-# Edit version
-# __init__.py: __version__ = "0.1.0"
-# pyproject.toml: version = "0.1.0"
-
-# Tag
-git tag v0.1.0
-git push origin v0.1.0
-
-# Done — GitHub Actions handles the rest
-```
-
----
-
-## Dependencies (must be in pyproject.toml)
-
-Core runtime:
-- numpy>=1.24.0
-- sentence-transformers>=2.2.0
-- typer>=0.9.0
-- rich>=13.0.0
-- python-frontmatter>=1.1.0
-- watchdog>=3.0.0
-
-Dev (not published):
-- pytest>=7.0.0
-- ruff>=0.1.0
-- black>=23.0.0
-
----
-
-## Verification After Install
-
-```bash
-pip install agnostic-obsidian
-
-# Test
-ao --version    # or: python -m agnostic_obsidian.cli --version
-ao init /tmp/test
-ao status --vault-path /tmp/test
-```
+3. Announce in release notes; bump `CHANGELOG.md`.

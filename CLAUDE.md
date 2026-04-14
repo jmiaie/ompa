@@ -6,12 +6,14 @@ You are building **OMPA** (Obsidian-MemPalace-Agnostic) — a universal AI agent
 
 Gives any AI agent persistent memory with:
 - **Vault** (obsidian-mind conventions): brain/work/org/perf folders, wikilinks, frontmatter
-- **Palace** (MemPalace): wings/rooms/closets/drawers metadata layer
+- **Palace** (MemPalace): wings/rooms/drawers/halls/tunnels metadata layer
 - **Knowledge Graph**: temporal SQLite triples with validity windows
 - **5 Lifecycle hooks**: session_start, user_message, post_tool, pre_compact, stop
-- **15 Message types**: with routing hints (DECISION, INCIDENT, WIN, etc.)
+- **15 Message types** (English-only regex classifier): DECISION, INCIDENT,
+  WIN, ONE_ON_ONE, MEETING, PROJECT_UPDATE, PERSON_INFO, QUESTION, TASK,
+  ARCHITECTURE, CODE, BRAIN_DUMP, WRAP_UP, STANDUP, UNKNOWN
 - **Semantic search**: local sentence-transformers (zero API cost)
-- **MCP server**: 14 tools via Model Context Protocol
+- **MCP server**: 19 tools via Model Context Protocol
 
 ## Package Structure
 
@@ -21,13 +23,14 @@ ompa/
 ├── __main__.py          # python -m ompa support
 ├── core.py              # Ompa main class
 ├── vault.py             # Vault management
-├── palace.py            # Palace metadata (wings/rooms/closets/drawers)
+├── palace.py            # Palace metadata (wings/rooms/drawers/halls/tunnels)
 ├── knowledge_graph.py   # Temporal KG (SQLite triples)
 ├── hooks.py             # 5 lifecycle hooks + HookManager
-├── classifier.py        # 15 message types + multilingual
+├── classifier.py        # 15 message types (English-only regex)
 ├── semantic.py          # Local semantic search
-├── mcp_server.py        # MCP protocol server (14 tools)
-└── cli.py               # typer CLI
+├── config.py            # Dual-vault configuration & isolation modes
+├── mcp_server.py        # MCP protocol server (19 tools)
+└── cli.py               # typer CLI (21 commands)
 ```
 
 ## Key APIs
@@ -61,10 +64,12 @@ ao.search("authentication", wing="Orion", room="auth-migration")
 # Claude Desktop
 claude mcp add ompa -- python -m ompa.mcp_server
 
-# Tools available:
-# ao_session_start, ao_classify, ao_search, ao_kg_query,
-# ao_kg_add, ao_kg_stats, ao_palace_wings, ao_palace_rooms,
-# ao_palace_tunnel, ao_validate, ao_wrap_up, ao_status, ao_orphans, ao_init
+# 19 tools available:
+# ao_session_start, ao_classify, ao_search,
+# ao_kg_query, ao_kg_add, ao_kg_stats, ao_kg_populate,
+# ao_palace_wings, ao_palace_rooms, ao_palace_tunnel,
+# ao_validate, ao_wrap_up, ao_status, ao_orphans,
+# ao_sync, ao_write, ao_export, ao_import, ao_init
 ```
 
 ## Architecture Decisions

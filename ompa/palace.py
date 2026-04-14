@@ -73,18 +73,34 @@ class Palace:
     # Wing operations
 
     def create_wing(
-        self, name: str, type: str = "project", keywords: list[str] = None
+        self,
+        name: str,
+        type: str = "project",
+        keywords: list[str] | None = None,
     ) -> None:
-        """Create a new wing."""
+        """Create a wing if missing; preserve existing rooms/metadata otherwise.
+
+        Idempotent: re-calling with the same name will not overwrite existing
+        rooms, drawers, halls, type, or keywords. Use update-style helpers to
+        modify metadata on an existing wing.
+        """
         if keywords is None:
             keywords = []
-        self._data.setdefault("wings", {})
-        self._data["wings"][name] = {
-            "name": name,
-            "type": type,
-            "keywords": keywords,
-            "rooms": {},
-        }
+        wings = self._data.setdefault("wings", {})
+        if name in wings:
+            # Wing already exists — preserve everything (including type/keywords),
+            # but ensure required keys are present for older-format palaces.
+            wings[name].setdefault("name", name)
+            wings[name].setdefault("type", type)
+            wings[name].setdefault("keywords", keywords)
+            wings[name].setdefault("rooms", {})
+        else:
+            wings[name] = {
+                "name": name,
+                "type": type,
+                "keywords": keywords,
+                "rooms": {},
+            }
         self._save()
 
     def list_wings(self) -> list[dict]:
@@ -101,15 +117,25 @@ class Palace:
     # Room operations
 
     def create_room(self, wing: str, room_name: str) -> None:
-        """Create a new room in a wing."""
+        """Create a room if missing; preserve existing drawers/halls otherwise.
+
+        Idempotent: re-calling with the same wing/room name will not overwrite
+        existing drawers or halls.
+        """
         if wing not in self._data.get("wings", {}):
             self.create_wing(wing)
-        self._data["wings"][wing].setdefault("rooms", {})
-        self._data["wings"][wing]["rooms"][room_name] = {
-            "name": room_name,
-            "drawers": [],
-            "halls": {},
-        }
+        rooms = self._data["wings"][wing].setdefault("rooms", {})
+        if room_name in rooms:
+            # Room already exists — preserve drawers/halls, ensure shape.
+            rooms[room_name].setdefault("name", room_name)
+            rooms[room_name].setdefault("drawers", [])
+            rooms[room_name].setdefault("halls", {})
+        else:
+            rooms[room_name] = {
+                "name": room_name,
+                "drawers": [],
+                "halls": {},
+            }
         self._save()
 
     def list_rooms(self, wing: str) -> list[str]:

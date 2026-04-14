@@ -82,7 +82,11 @@ ao wrap-up            # Session summary + save to vault
 
 ### 15 Message Types
 
-DECISION, INCIDENT, WIN, LOSS, BLOCKER, QUESTION, SUGGESTION, REVIEW, BUG, FEATURE, LEARN, RETROSPECTIVE, ALERT, STATUS, CHORE — each with routing hints that automatically file things in the right place.
+`DECISION`, `INCIDENT`, `WIN`, `ONE_ON_ONE`, `MEETING`, `PROJECT_UPDATE`,
+`PERSON_INFO`, `QUESTION`, `TASK`, `ARCHITECTURE`, `CODE`, `BRAIN_DUMP`,
+`WRAP_UP`, `STANDUP`, `UNKNOWN` — each with routing hints that file things
+in the right place automatically. See
+[`ompa/classifier.py`](ompa/classifier.py) for the regex patterns.
 
 ### Semantic Search (Zero API Cost)
 
@@ -94,16 +98,16 @@ Uses `sentence-transformers` (all-MiniLM-L6-v2) locally. No OpenAI/Anthropic API
 ompa/
 ├── core.py              # Ompa main class
 ├── vault.py             # Vault management (brain/work/org/perf)
-├── palace.py            # Palace metadata (wings/rooms/drawers)
+├── palace.py            # Palace metadata (wings/rooms/drawers/halls/tunnels)
 ├── knowledge_graph.py   # Temporal KG (SQLite triples)
 ├── hooks.py             # 5 lifecycle hooks
-├── classifier.py       # 15 message types
+├── classifier.py        # 15 message types
 ├── semantic.py          # Local semantic search
-├── mcp_server.py        # MCP protocol server (14 tools)
-└── cli.py              # CLI commands
+├── mcp_server.py        # MCP protocol server (19 tools)
+└── cli.py               # CLI (21 commands)
 ```
 
-## MCP Server (15 Tools)
+## MCP Server (19 Tools)
 
 Works with **Claude Desktop, Cursor, Windsurf** natively:
 
@@ -112,7 +116,11 @@ Works with **Claude Desktop, Cursor, Windsurf** natively:
 claude mcp add ompa -- python -m ompa.mcp_server
 ```
 
-Tools: `ao_session_start`, `ao_classify`, `ao_search`, `ao_kg_query`, `ao_kg_add`, `ao_palace_wings`, `ao_palace_rooms`, `ao_palace_tunnel`, `ao_validate`, `ao_wrap_up`, `ao_status`, `ao_orphans`, `ao_init`, `ao_search`, `ao_stop`
+Tools: `ao_session_start`, `ao_classify`, `ao_search`, `ao_kg_query`,
+`ao_kg_add`, `ao_kg_stats`, `ao_kg_populate`, `ao_palace_wings`,
+`ao_palace_rooms`, `ao_palace_tunnel`, `ao_validate`, `ao_wrap_up`,
+`ao_status`, `ao_orphans`, `ao_sync`, `ao_write`, `ao_export`, `ao_import`,
+`ao_init`.
 
 ## Python API
 
@@ -141,14 +149,19 @@ ao.palace.create_tunnel("Kai", "Orion", "auth-migration")
 traversal = ao.palace.traverse("Orion", "auth-migration")
 ```
 
-## CLI Commands
+## CLI Commands (21)
 
 ```
-ao init          ao status      ao session-start  ao classify
-ao search        ao orphans     ao wrap-up        ao wings
-ao rooms         ao tunnel      ao kg-query       ao kg-timeline
-ao kg-stats      ao validate    ao rebuild-index
+ao init           ao status        ao session-start   ao classify
+ao search         ao orphans       ao wrap-up         ao wings
+ao rooms          ao tunnel        ao kg-query        ao kg-timeline
+ao kg-stats       ao kg-populate   ao validate        ao rebuild-index
+ao sync           ao write-note    ao export          ao import-note
+ao migrate
 ```
+
+Run `ao --help` for the full list with descriptions, or `ao <command> --help`
+for a single command.
 
 ## Framework Agnostic
 
@@ -183,8 +196,8 @@ Because memory should not be coupled to your agent framework. Build once, use an
 | Memory type | Vault + Palace + KG | Palace + KG | Vault only |
 | Semantic search | Local (free) | ChromaDB API | QMD (paid) |
 | Temporal KG | SQLite ✓ | SQLite ✓ | ✗ |
-| MCP server | 15 tools | 15 tools | ✗ |
-| CLI | 14 commands | ✗ | ✗ |
+| MCP server | 19 tools | 15 tools | ✗ |
+| CLI | 21 commands | ✗ | ✗ |
 | Hooks | 5 lifecycle | 3 lifecycle | 3 lifecycle |
 | Message types | 15 | 15 | 5 |
 | Verbatim storage | ✓ | ✓ | ✗ |

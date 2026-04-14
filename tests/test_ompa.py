@@ -69,6 +69,66 @@ class TestPalace:
             assert stats["wing_count"] == 1
             assert stats["room_count"] == 1
 
+    def test_create_wing_idempotent_preserves_rooms(self):
+        """Regression: create_wing on existing wing must NOT wipe rooms.
+
+        Prior bug (pre-0.4.2): create_wing unconditionally overwrote
+        ``rooms: {}``, destroying all rooms/drawers/halls under the wing.
+        """
+        from ompa import Palace
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            p = Palace(os.path.join(tmpdir, ".palace"))
+            p.create_wing("Orion", type="project", keywords=["analytics"])
+            p.create_room("Orion", "auth")
+            p.link_drawer("Orion", "auth", "work/auth.md")
+            p.add_hall("Orion", "auth", "hall_facts", "we chose Clerk")
+
+            # Re-create same wing — must preserve everything.
+            p.create_wing("Orion", type="project", keywords=["analytics"])
+
+            assert "auth" in p.list_rooms("Orion")
+            assert "work/auth.md" in p.get_drawers("Orion", "auth")
+            assert "Clerk" in p.get_hall("Orion", "auth", "hall_facts")
+
+    def test_create_room_idempotent_preserves_drawers_and_halls(self):
+        """Regression: create_room on existing room must NOT wipe drawers/halls.
+
+        Prior bug (pre-0.4.2): create_room unconditionally overwrote
+        ``drawers: []`` and ``halls: {}``.
+        """
+        from ompa import Palace
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            p = Palace(os.path.join(tmpdir, ".palace"))
+            p.create_wing("Orion")
+            p.create_room("Orion", "auth")
+            p.link_drawer("Orion", "auth", "work/auth.md")
+            p.add_hall("Orion", "auth", "hall_facts", "we chose Clerk")
+
+            # Re-create same room — must preserve drawers and halls.
+            p.create_room("Orion", "auth")
+
+            assert "work/auth.md" in p.get_drawers("Orion", "auth")
+            assert "Clerk" in p.get_hall("Orion", "auth", "hall_facts")
+
+    def test_create_wing_preserves_existing_type_and_keywords(self):
+        """Re-creating an existing wing must not silently override metadata."""
+        from ompa import Palace
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            p = Palace(os.path.join(tmpdir, ".palace"))
+            p.create_wing("Orion", type="project", keywords=["analytics"])
+
+            # Re-call with different type/keywords — must NOT clobber the
+            # original metadata. Callers wanting to update should use a
+            # dedicated update helper (none exists yet).
+            p.create_wing("Orion", type="person", keywords=["different"])
+
+            wing = p.get_wing("Orion")
+            assert wing["type"] == "project"
+            assert wing["keywords"] == ["analytics"]
+
 
 class TestKnowledgeGraph:
     """Test temporal knowledge graph."""
@@ -122,6 +182,39 @@ class TestKnowledgeGraph:
             triples = kg.query_relation("Kai", "works_on")
             assert len(triples) == 1
             assert triples[0].object == "Orion"
+
+    def test_query_relation_excludes_invalidated(self):
+        """Regression: query_relation must apply temporal filter, mirroring
+        query_entity. Pre-0.4.2 it returned invalidated triples too."""
+        from ompa import KnowledgeGraph
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            kg = KnowledgeGraph(db_path=os.path.join(tmpdir, "kg.sqlite3"))
+            kg.add_triple("Kai", "works_on", "Orion", valid_from="2025-06-01")
+            kg.invalidate("Kai", "works_on", "Orion", ended="2025-12-31")
+
+            # Default (today) — invalidated, must be excluded.
+            triples = kg.query_relation("Kai", "works_on")
+            assert triples == []
+
+            # Historical query — was valid then, must be included.
+            triples = kg.query_relation("Kai", "works_on", as_of="2025-09-01")
+            assert len(triples) == 1
+            assert triples[0].object == "Orion"
+
+    def test_query_relation_respects_valid_from(self):
+        """A triple with future valid_from must not appear before it starts."""
+        from ompa import KnowledgeGraph
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            kg = KnowledgeGraph(db_path=os.path.join(tmpdir, "kg.sqlite3"))
+            kg.add_triple("Kai", "works_on", "Helios", valid_from="2027-01-01")
+
+            triples = kg.query_relation("Kai", "works_on", as_of="2026-06-01")
+            assert triples == []
+            triples = kg.query_relation("Kai", "works_on", as_of="2027-06-01")
+            assert len(triples) == 1
+            assert triples[0].object == "Helios"
 
     def test_timeline(self):
         from ompa import KnowledgeGraph
@@ -405,6 +498,63 @@ class TestMCPServer:
         result = handle_call_tool("ao_status", {"vault_path": "/"})
         assert "error" in result
         assert "Invalid" in result["error"]
+
+    def test_vault_path_dotdot_rejected(self):
+        from ompa.mcp_server import handle_call_tool
+
+        result = handle_call_tool(
+            "ao_status", {"vault_path": "../../../etc"}
+        )
+        assert "error" in result
+        assert "Invalid" in result["error"]
+
+    def test_vault_path_system_roots_rejected(self):
+        """Absolute paths into system directories must be rejected."""
+        import sys
+        from ompa.mcp_server import handle_call_tool
+
+        if sys.platform == "win32":
+            bad_paths = [
+                "C:\\Windows",
+                "C:\\Windows\\System32",
+                "C:\\Program Files",
+                "C:\\",
+                "C:/",
+            ]
+        else:
+            bad_paths = ["/etc", "/etc/ssh", "/root", "/usr/bin", "/"]
+        for bad in bad_paths:
+            result = handle_call_tool("ao_status", {"vault_path": bad})
+            assert "error" in result, f"Expected error for {bad!r}"
+            assert "Invalid" in result["error"], (
+                f"Expected 'Invalid' in error for {bad!r}: {result['error']}"
+            )
+
+    def test_vault_path_empty_rejected(self):
+        from ompa.mcp_server import handle_call_tool
+
+        result = handle_call_tool("ao_status", {"vault_path": ""})
+        assert "error" in result
+        assert "Invalid" in result["error"]
+
+    def test_shared_and_personal_vault_paths_validated(self):
+        """Dual-vault paths must pass through the same validator."""
+        import sys
+        from ompa.mcp_server import handle_call_tool
+
+        bad = "C:\\Windows" if sys.platform == "win32" else "/etc"
+        with tempfile.TemporaryDirectory() as tmpdir:
+            result = handle_call_tool(
+                "ao_write",
+                {
+                    "content": "hello",
+                    "vault_path": tmpdir,
+                    "shared_vault_path": bad,
+                    "personal_vault_path": tmpdir,
+                },
+            )
+            assert "error" in result
+            assert "shared_vault_path" in result["error"]
 
     def test_limit_capped(self):
         from ompa.mcp_server import handle_call_tool
@@ -952,6 +1102,84 @@ class TestDualVault:
             assert "sk-abcdefghijklmnopqrstuvwxyz" not in exported
             assert "[REDACTED]" in exported
 
+    def test_sanitize_content_covers_broad_secret_set(self):
+        """P0.9: _sanitize_content must catch common cloud/service credentials."""
+        from ompa import Ompa
+        from pathlib import Path
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            ao = Ompa(
+                shared_vault_path=Path(tmpdir) / "s",
+                personal_vault_path=Path(tmpdir) / "p",
+                enable_semantic=False,
+            )
+            # Fixtures intentionally built from prefix + low-entropy "A" bodies
+            # so they exercise the regexes without tripping git-hosting secret
+            # scanners. Prefix strings are split into two adjacent literals so
+            # a naive regex scan of this file won't hit a canonical-format
+            # secret either.
+            secrets = {
+                "openai": ("sk-" "proj-") + "A" * 36,
+                "anthropic": ("sk-" "ant-") + "A" * 36,
+                "aws_akia": ("AK" "IA") + "A" * 16,
+                "aws_asia": ("AS" "IA") + "A" * 16,
+                "github_classic": ("gh" "p_") + "A" * 36,
+                "github_oauth": ("gh" "o_") + "A" * 36,
+                "github_fg": ("github_" "pat_") + "A" * 22,
+                "gitlab": ("gl" "pat-") + "A" * 20,
+                "slack_bot": ("xox" "b-") + "A" * 20,
+                "google": ("AI" "za") + "A" * 35,
+                "stripe_live": ("sk_" "live_") + "A" * 20,
+                "stripe_restricted": ("rk_" "live_") + "A" * 20,
+                "jwt": (
+                    ("ey" "J") + "A" * 15 + "."
+                    + ("ey" "J") + "A" * 15 + "."
+                    + "A" * 20
+                ),
+                "azure": "AccountKey=" + "A" * 60,
+                "mongodb": "mongodb+srv://user:pw@cluster.example.net/db",
+                "postgres": "postgresql://user:pw@db.example.com:5432/app",
+                "pem": (
+                    "-----BEGIN RSA PRIVATE KEY-----\n"
+                    + "A" * 20
+                    + "\n-----END RSA PRIVATE KEY-----"
+                ),
+                "generic_password": "password: hunter2",
+                "generic_bearer": "Bearer=abc123xyz",
+            }
+
+            for label, secret in secrets.items():
+                sanitized = ao._sanitize_content(f"note with {secret} inside")
+                if label in ("generic_password", "generic_bearer"):
+                    # generic KV redaction preserves the key, redacts value
+                    assert "[REDACTED]" in sanitized, label
+                else:
+                    assert "[REDACTED]" in sanitized, label
+                    # The literal secret body should not survive.
+                    # For JWT, the full token string is redacted.
+                    assert secret not in sanitized, label
+
+    def test_sanitize_content_preserves_safe_text(self):
+        """Guard against over-redaction of ordinary words."""
+        from ompa import Ompa
+        from pathlib import Path
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            ao = Ompa(
+                shared_vault_path=Path(tmpdir) / "s",
+                personal_vault_path=Path(tmpdir) / "p",
+                enable_semantic=False,
+            )
+            text = (
+                "The desk-work document mentions a token review. "
+                "We stored secrets in a vault. Not a real password."
+            )
+            sanitized = ao._sanitize_content(text)
+            # Plain prose about "secret" and "token" without a key=value
+            # pattern should pass through unchanged.
+            assert "desk-work" in sanitized
+            assert "token review" in sanitized
+
     def test_import_to_personal(self):
         """import_to_personal should copy note to personal vault."""
         from ompa import Ompa
@@ -1153,3 +1381,82 @@ class TestSemanticIndex:
             count = idx.index_vault(vault)
             assert len(called) == 1  # _init_model was triggered
             assert count >= 1
+
+
+class TestSearchFilter:
+    """P0.8: wing/room filter on search must not silently mask empty results."""
+
+    def test_search_vault_empty_filter_returns_empty(self):
+        """When wing/room filter excludes all results, return [] — do NOT fall
+        back to unfiltered results (prior bug)."""
+        from ompa import Ompa
+        from ompa.semantic import SearchResult
+
+        class StubSemantic:
+            def search(self, query, limit, hybrid):
+                # Two results, neither under wing "work" / room "payments".
+                return [
+                    SearchResult(
+                        path="brain/north-star.md",
+                        content_excerpt="...",
+                        score=0.9,
+                        match_type="semantic",
+                    ),
+                    SearchResult(
+                        path="org/people/alice.md",
+                        content_excerpt="...",
+                        score=0.8,
+                        match_type="semantic",
+                    ),
+                ]
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            ao = Ompa(tmpdir, enable_semantic=False)
+            # Bypass real semantic, invoke _search_vault directly with a stub.
+            results = ao._search_vault(
+                ao.vault,
+                StubSemantic(),
+                "anything",
+                limit=5,
+                hybrid=True,
+                wing="work",
+                room="payments",
+            )
+            # Must honor filter: no result has "work" AND "payments" in path.
+            assert results == []
+
+    def test_search_vault_filter_keeps_matches(self):
+        """Sanity: matching filter returns matches."""
+        from ompa import Ompa
+        from ompa.semantic import SearchResult
+
+        class StubSemantic:
+            def search(self, query, limit, hybrid):
+                return [
+                    SearchResult(
+                        path="work/active/payments.md",
+                        content_excerpt="...",
+                        score=0.9,
+                        match_type="semantic",
+                    ),
+                    SearchResult(
+                        path="brain/north-star.md",
+                        content_excerpt="...",
+                        score=0.8,
+                        match_type="semantic",
+                    ),
+                ]
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            ao = Ompa(tmpdir, enable_semantic=False)
+            results = ao._search_vault(
+                ao.vault,
+                StubSemantic(),
+                "x",
+                limit=5,
+                hybrid=True,
+                wing="work",
+                room="payments",
+            )
+            assert len(results) == 1
+            assert "payments" in results[0].path

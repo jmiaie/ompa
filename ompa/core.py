@@ -21,6 +21,48 @@ from .config import DualVaultConfig, IsolationMode, VaultTarget
 logger = logging.getLogger(__name__)
 
 
+# Credential patterns applied by ``_sanitize_content`` before exporting a note
+# from the personal vault to the shared vault. Each entry is a compiled regex
+# whose match span is replaced with ``[REDACTED]``. Patterns should aim for
+# high precision — false positives leak information via overly-aggressive
+# redaction, while false negatives leak credentials, so err slightly on the
+# side of over-redacting obvious secret formats.
+_SECRET_PATTERNS = [
+    # OpenAI (including project keys sk-proj-…)
+    re.compile(r"sk-(?:proj-)?[A-Za-z0-9_\-]{20,}"),
+    # Anthropic API keys
+    re.compile(r"sk-ant-[A-Za-z0-9_\-]{20,}"),
+    # AWS access key id + secret + session token
+    re.compile(r"\b(?:AKIA|ASIA|AIDA|AROA)[A-Z0-9]{16}\b"),
+    # GitHub personal access tokens (classic + fine-grained + app + refresh)
+    re.compile(r"\bgh[pousr]_[A-Za-z0-9]{36,}\b"),
+    re.compile(r"\bgithub_pat_[A-Za-z0-9_]{22,}\b"),
+    # GitLab personal access tokens
+    re.compile(r"\bglpat-[A-Za-z0-9\-_]{20,}\b"),
+    # Slack tokens
+    re.compile(r"\bxox[abprs]-[A-Za-z0-9\-]{10,}\b"),
+    # Google API keys
+    re.compile(r"\bAIza[0-9A-Za-z_\-]{35}\b"),
+    # Stripe live/test secret + restricted keys
+    re.compile(r"\b(?:sk|rk|pk)_(?:live|test)_[0-9a-zA-Z]{16,}\b"),
+    # JWT (three dot-separated base64url segments, header starts with eyJ)
+    re.compile(
+        r"\beyJ[A-Za-z0-9_\-]{10,}\.eyJ[A-Za-z0-9_\-]{10,}\.[A-Za-z0-9_\-]{10,}\b"
+    ),
+    # PEM-encoded private keys (RSA, EC, PGP, OpenSSH, generic) — multi-line
+    re.compile(
+        r"-----BEGIN (?:RSA |EC |DSA |OPENSSH |PGP |ENCRYPTED )?PRIVATE KEY-----"
+        r"[\s\S]*?-----END (?:RSA |EC |DSA |OPENSSH |PGP |ENCRYPTED )?PRIVATE KEY-----",
+    ),
+    # Azure storage connection strings — redact the AccountKey value
+    re.compile(r"AccountKey=[A-Za-z0-9+/=]{40,}"),
+    # MongoDB connection URIs with inline credentials
+    re.compile(r"\bmongodb(?:\+srv)?://[^\s/:@]+:[^\s/@]+@[^\s]+"),
+    # Postgres / MySQL connection URIs with inline credentials
+    re.compile(r"\b(?:postgres(?:ql)?|mysql)://[^\s/:@]+:[^\s/@]+@[^\s]+"),
+]
+
+
 class Ompa:
     """
     Universal agent memory layer.
@@ -387,7 +429,10 @@ class Ompa:
                 if room and room not in r.path:
                     continue
                 filtered.append(r)
-            results = filtered or results[:limit]
+            # Honor the filter even if it yields nothing — silently falling
+            # back to unfiltered results would mis-route callers that rely on
+            # wing/room scoping.
+            return filtered
 
         return results
 
@@ -713,16 +758,25 @@ class Ompa:
         }
 
     def _sanitize_content(self, content: str) -> str:
-        """Remove sensitive markers and credentials from content."""
+        """Remove sensitive markers and credentials from content.
+
+        Applies the centralized ``_SECRET_PATTERNS`` list plus generic
+        key/value redaction. All matched secret bodies are replaced with
+        ``[REDACTED]``.
+        """
         # Remove personal tags
         content = re.sub(r"@private\b", "", content)
         content = re.sub(r"#personal\b", "", content)
 
-        # Redact credential-like patterns
-        content = re.sub(r"(sk-[a-zA-Z0-9]{20,})", "[REDACTED]", content)
-        content = re.sub(r"(AKIA[A-Z0-9]{16})", "[REDACTED]", content)
+        # Redact known-format credentials.
+        for pattern in _SECRET_PATTERNS:
+            content = pattern.sub("[REDACTED]", content)
+
+        # Generic key/value redaction — catches "password: hunter2",
+        # "API_KEY=abc", etc. Must come after the specific patterns so
+        # we don't double-redact.
         content = re.sub(
-            r"(token|password|secret|api_key|api-key)\s*[:=]\s*\S+",
+            r"(token|password|passwd|secret|api[_-]?key|auth[_-]?token|bearer|access[_-]?key)\s*[:=]\s*\S+",
             r"\1: [REDACTED]",
             content,
             flags=re.IGNORECASE,

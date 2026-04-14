@@ -20,7 +20,73 @@ import json
 import sys
 from pathlib import Path
 
-__version__ = "0.4.1"
+__version__ = "0.4.2"
+
+
+# ---------------------------------------------------------------------------
+# Path validation
+# ---------------------------------------------------------------------------
+
+# Resolved paths that are never valid as a vault. Any vault_path that equals
+# one of these, or is inside one of them, is rejected. Compared case-
+# insensitively with forward-slash normalization to handle Windows variants.
+# Filesystem roots ("/", "C:\\") are caught by the anchor check below;
+# this list is only the non-root sensitive directories.
+_FORBIDDEN_VAULT_ROOTS = (
+    # Unix system directories
+    "/etc",
+    "/root",
+    "/boot",
+    "/sys",
+    "/proc",
+    "/dev",
+    "/usr",
+    "/bin",
+    "/sbin",
+    "/lib",
+    "/lib64",
+    # Windows system directories
+    "C:\\Windows",
+    "C:\\Program Files",
+    "C:\\Program Files (x86)",
+    "C:\\ProgramData",
+)
+
+
+def _validate_vault_path(vault_path: str) -> Path:
+    """Validate and resolve a vault path for use by the MCP server.
+
+    Rejects:
+      * Empty or non-string input.
+      * Paths containing ``..`` components (checked pre-resolve so symlink
+        tricks can't hide the token).
+      * Paths that resolve to a filesystem root (``/``, ``C:\\``, etc.).
+      * Paths that equal or are contained within a known-sensitive system
+        directory (``/etc``, ``C:\\Windows``, etc.).
+
+    Returns the resolved Path. Raises ValueError on rejection.
+    """
+    if not vault_path or not isinstance(vault_path, str):
+        raise ValueError("vault_path must be a non-empty string")
+    if ".." in Path(vault_path).parts:
+        raise ValueError("vault_path must not contain '..'")
+    try:
+        resolved = Path(vault_path).expanduser().resolve()
+    except (OSError, RuntimeError) as e:
+        raise ValueError(f"vault_path could not be resolved: {e}") from e
+
+    # Filesystem root: anchor equals the whole resolved path.
+    if resolved == Path(resolved.anchor):
+        raise ValueError(f"vault_path cannot be a filesystem root: {resolved}")
+
+    resolved_norm = str(resolved).replace("\\", "/").lower().rstrip("/")
+    for forbidden in _FORBIDDEN_VAULT_ROOTS:
+        fr = forbidden.replace("\\", "/").lower().rstrip("/")
+        if resolved_norm == fr or resolved_norm.startswith(fr + "/"):
+            raise ValueError(
+                f"vault_path is in a restricted system directory: {resolved}"
+            )
+    return resolved
 
 
 # ---------------------------------------------------------------------------
@@ -570,11 +636,19 @@ def handle_call_tool(name: str, arguments: dict) -> dict:
         return {"error": f"Unknown tool: {name}"}
 
     try:
-        # Extract and validate vault_path
+        # Extract and validate vault_path (and any dual-vault paths).
         vault_path = str(arguments.get("vault_path", "."))
-        # Block obvious traversal attempts
-        if ".." in vault_path or vault_path in ("/", "C:\\", "C:/"):
-            return {"error": "Invalid vault_path"}
+        try:
+            _validate_vault_path(vault_path)
+        except ValueError as e:
+            return {"error": f"Invalid vault_path: {e}"}
+        for key in ("shared_vault_path", "personal_vault_path"):
+            val = arguments.get(key)
+            if val:
+                try:
+                    _validate_vault_path(str(val))
+                except ValueError as e:
+                    return {"error": f"Invalid {key}: {e}"}
         # Cap limit parameters
         if "limit" in arguments:
             arguments = {**arguments, "limit": min(int(arguments["limit"]), 100)}

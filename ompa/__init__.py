@@ -15,7 +15,7 @@ Usage:
     ao.stop()
 """
 
-__version__ = "0.4.1"
+__version__ = "0.4.2"
 
 from .core import Ompa
 from .vault import Vault, Note, VaultConfig
