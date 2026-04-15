@@ -1,6 +1,13 @@
 """
 Semantic search for OMPA.
 Provides hybrid keyword + semantic search across the vault.
+
+Storage layout (v2, since 0.5.0):
+    <index_path>/semantic_index.meta.json   — chunk metadata (path, text, hash)
+    <index_path>/semantic_index.embeddings.npy — N×D float32 matrix
+
+The old format (<index_path>/semantic_index.json, all-in-one JSON with
+``embedding`` lists inside each chunk) is auto-migrated on first ``load_index``.
 """
 
 import json
@@ -12,6 +19,13 @@ from dataclasses import dataclass
 from .vault import DEFAULT_EXCLUDE_PATTERNS
 
 logger = logging.getLogger(__name__)
+
+
+def _np():
+    """Import numpy lazily so merely importing this module stays cheap."""
+    import numpy as np
+
+    return np
 
 
 @dataclass
@@ -28,7 +42,17 @@ class SemanticIndex:
     Uses local embeddings (sentence-transformers) for zero API cost.
 
     Falls back to keyword search if embeddings not available.
+
+    Search is O(N) matrix-vector: embeddings are stored as one
+    ``(N, embedding_dim)`` float32 matrix and scored with a single numpy
+    dot product per query, rather than a Python for-loop over chunks.
     """
+
+    # File names for the v2 storage format.
+    META_FILE = "semantic_index.meta.json"
+    EMB_FILE = "semantic_index.embeddings.npy"
+    # Legacy all-in-one JSON (auto-migrated on load).
+    LEGACY_FILE = "semantic_index.json"
 
     def __init__(
         self,
@@ -40,8 +64,9 @@ class SemanticIndex:
         self.index_path.mkdir(parents=True, exist_ok=True)
         self.model_name = model_name
         self.embedding_dim = embedding_dim
-        self.embeddings = None
-        self.chunks = []
+        # chunks[i] and self.embeddings[i] are row-aligned.
+        self.chunks: list[dict] = []
+        self.embeddings = None  # (N, embedding_dim) float32 matrix or None
         self._initialized = False
         self._model = None
 
@@ -72,8 +97,40 @@ class SemanticIndex:
             self._model = None
         self._initialized = True
 
+    # -------------------------------------------------------------------------
+    # Internal matrix helpers
+    # -------------------------------------------------------------------------
+
+    def _embeddings_for_indexes(self, indexes: list[int]):
+        """Return the sub-matrix of ``self.embeddings`` for the given rows.
+        Used when filtering out chunks for a file during incremental update.
+        """
+        if self.embeddings is None or not indexes:
+            return None
+        np = _np()
+        return self.embeddings[np.asarray(indexes, dtype=np.int64)]
+
+    def _rebuild_embeddings_from_rows(self, rows: list) -> None:
+        """Replace ``self.embeddings`` with the given row list/iterable.
+        Accepts numpy arrays or Python lists of floats (for old-format load).
+        """
+        np = _np()
+        if not rows:
+            self.embeddings = None
+            return
+        self.embeddings = np.asarray(rows, dtype=np.float32)
+
+    # -------------------------------------------------------------------------
+    # Indexing
+    # -------------------------------------------------------------------------
+
     def index_file(self, path: Path) -> None:
-        """Index a single file (or re-index if already present)."""
+        """Index a single file (or re-index if already present).
+
+        All new chunks for the file are encoded in a single batched
+        ``model.encode`` call so the sentence-transformers model runs its
+        forward pass once instead of once per chunk.
+        """
         if not path.exists():
             return
 
@@ -83,41 +140,63 @@ class SemanticIndex:
             return
 
         try:
-            # Remove existing chunks for this file (incremental update)
             path_str = str(path)
-            self.chunks = [c for c in self.chunks if c["path"] != path_str]
+
+            # Drop any existing chunks (and their embedding rows) for this path.
+            keep_indexes = [
+                i for i, c in enumerate(self.chunks) if c["path"] != path_str
+            ]
+            new_chunks = [self.chunks[i] for i in keep_indexes]
+            new_embeddings = self._embeddings_for_indexes(keep_indexes)
 
             content = path.read_text(encoding="utf-8")
-            # Split into chunks (512 tokens each)
+            # Split into chunks (512 words each — matches prior behavior).
             chunk_size = 512
             words = content.split()
 
+            chunk_texts: list[str] = []
+            chunk_records: list[dict] = []
             for i in range(0, len(words), chunk_size):
                 chunk_text = " ".join(words[i : i + chunk_size])
                 if len(chunk_text.strip()) < 20:
                     continue
-
-                embedding = self.model.encode(chunk_text)
                 chunk_hash = hashlib.sha256(f"{path}:{i}".encode()).hexdigest()[:16]
-
-                self.chunks.append(
+                chunk_texts.append(chunk_text)
+                chunk_records.append(
                     {
                         "hash": chunk_hash,
                         "path": path_str,
                         "chunk_index": i,
                         "text": chunk_text,
-                        "embedding": embedding.tolist(),
                     }
                 )
+
+            if chunk_texts:
+                # Single batched forward pass for every chunk in this file.
+                np = _np()
+                new_vecs = self._model.encode(
+                    chunk_texts,
+                    convert_to_numpy=True,
+                    show_progress_bar=False,
+                )
+                new_vecs = np.asarray(new_vecs, dtype=np.float32)
+
+                if new_embeddings is None:
+                    combined_vecs = new_vecs
+                else:
+                    combined_vecs = np.vstack([new_embeddings, new_vecs])
+                self.embeddings = combined_vecs
+                self.chunks = new_chunks + chunk_records
+            else:
+                # No new chunks survived the 20-char filter — just drop the old ones.
+                self.chunks = new_chunks
+                self.embeddings = new_embeddings
+
         except Exception as e:
             logger.warning("Error indexing %s: %s", path, e)
 
     def update_file(self, path: Path) -> bool:
-        """
-        Incrementally update the index for a single file.
-        Re-indexes the file and saves the updated index.
-        Returns True if successful.
-        """
+        """Incrementally update the index for a single file + save."""
         path = Path(path)
         if not path.exists() or path.suffix != ".md":
             return False
@@ -134,13 +213,20 @@ class SemanticIndex:
     def remove_file(self, path: Path) -> bool:
         """Remove a file from the index (e.g., after deletion)."""
         path_str = str(Path(path))
-        before = len(self.chunks)
-        self.chunks = [c for c in self.chunks if c["path"] != path_str]
-        removed = before - len(self.chunks)
-        if removed > 0:
-            self.save_index()
-            logger.debug("Removed %d chunks for %s", removed, path)
-        return removed > 0
+        keep_indexes = [i for i, c in enumerate(self.chunks) if c["path"] != path_str]
+        if len(keep_indexes) == len(self.chunks):
+            return False
+        new_chunks = [self.chunks[i] for i in keep_indexes]
+        new_embeddings = self._embeddings_for_indexes(keep_indexes)
+        self.chunks = new_chunks
+        self.embeddings = new_embeddings
+        self.save_index()
+        logger.debug(
+            "Removed %d chunks for %s",
+            len(self.chunks) - len(new_chunks),
+            path,
+        )
+        return True
 
     def index_vault(self, vault_path: Path, exclude_patterns: list = None) -> int:
         """Index all markdown files in a vault."""
@@ -160,33 +246,100 @@ class SemanticIndex:
 
         return count
 
+    # -------------------------------------------------------------------------
+    # Persistence (v2 binary format + legacy JSON migration)
+    # -------------------------------------------------------------------------
+
     def save_index(self) -> None:
-        """Save the index to disk."""
-        index_file = self.index_path / "semantic_index.json"
+        """Save the index using the v2 binary format.
 
-        serializable = {
+        Writes two files:
+          * ``semantic_index.meta.json`` — chunk metadata only
+          * ``semantic_index.embeddings.npy`` — float32 matrix
+        """
+        np = _np()
+        meta_file = self.index_path / self.META_FILE
+        emb_file = self.index_path / self.EMB_FILE
+
+        meta = {
             "model": self.model_name,
-            "chunks": [{**c, "embedding": c["embedding"]} for c in self.chunks],
+            "embedding_dim": self.embedding_dim,
+            "version": 2,
+            "chunks": self.chunks,
         }
+        with open(meta_file, "w", encoding="utf-8") as f:
+            json.dump(meta, f)
 
-        with open(index_file, "w", encoding="utf-8") as f:
-            json.dump(serializable, f)
+        if self.embeddings is None or len(self.embeddings) == 0:
+            # Keep on-disk state consistent with in-memory state.
+            if emb_file.exists():
+                emb_file.unlink()
+            return
+
+        np.save(emb_file, np.asarray(self.embeddings, dtype=np.float32))
 
     def load_index(self) -> bool:
-        """Load the index from disk."""
-        index_file = self.index_path / "semantic_index.json"
-        if not index_file.exists():
-            return False
+        """Load the index, migrating the legacy single-JSON format if needed."""
+        meta_file = self.index_path / self.META_FILE
+        emb_file = self.index_path / self.EMB_FILE
+        legacy_file = self.index_path / self.LEGACY_FILE
 
-        try:
-            with open(index_file, "r", encoding="utf-8") as f:
-                data = json.load(f)
+        # Prefer v2 (meta + .npy) when present.
+        if meta_file.exists():
+            try:
+                with open(meta_file, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                self.chunks = data.get("chunks", [])
+                if emb_file.exists() and self.chunks:
+                    np = _np()
+                    self.embeddings = np.load(emb_file)
+                else:
+                    self.embeddings = None
+                return True
+            except Exception as e:
+                logger.warning("Error loading v2 index: %s", e)
+                return False
 
-            self.chunks = data["chunks"]
-            return True
-        except Exception as e:
-            logger.warning("Error loading index: %s", e)
-            return False
+        # Legacy: single JSON with per-chunk embedding arrays.
+        if legacy_file.exists():
+            try:
+                with open(legacy_file, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                raw_chunks = data.get("chunks", [])
+                rows = []
+                stripped_chunks = []
+                for c in raw_chunks:
+                    emb = c.get("embedding")
+                    if emb is None:
+                        continue
+                    rows.append(emb)
+                    # Strip the embedding field from the chunk metadata —
+                    # from now on it lives in the .npy matrix.
+                    stripped = {k: v for k, v in c.items() if k != "embedding"}
+                    stripped_chunks.append(stripped)
+                self.chunks = stripped_chunks
+                self._rebuild_embeddings_from_rows(rows)
+                # Persist in the new format and remove the legacy file so
+                # subsequent loads skip the migration path.
+                self.save_index()
+                try:
+                    legacy_file.unlink()
+                except OSError:
+                    pass
+                logger.info(
+                    "Migrated legacy semantic index (%d chunks) to v2 binary format",
+                    len(self.chunks),
+                )
+                return True
+            except Exception as e:
+                logger.warning("Error migrating legacy index: %s", e)
+                return False
+
+        return False
+
+    # -------------------------------------------------------------------------
+    # Search
+    # -------------------------------------------------------------------------
 
     def search(
         self,
@@ -194,75 +347,86 @@ class SemanticIndex:
         limit: int = 5,
         hybrid: bool = True,
     ) -> list[SearchResult]:
-        """
-        Search the vault.
+        """Search the vault.
 
-        Args:
-            query: Search query
-            limit: Max results (capped at 100)
-            hybrid: Use both semantic + keyword if True, semantic only if False
-
-        Returns:
-            List of SearchResult
+        Scoring is a single numpy dot product: each chunk's cosine similarity
+        is computed in parallel, then best-per-path dedup returns the top
+        ``limit`` distinct files. A file's best chunk wins its slot.
         """
         limit = min(limit, 100)  # Cap to prevent DoS
 
-        if not self._initialized or not self.chunks:
+        if not self._initialized or not self.chunks or self.embeddings is None:
             return self._keyword_search(query, limit)
 
         try:
-            query_embedding = self.model.encode(query)
+            np = _np()
+            query_vec = self._model.encode(
+                query,
+                convert_to_numpy=True,
+                show_progress_bar=False,
+            )
+            query_vec = np.asarray(query_vec, dtype=np.float32)
 
-            from sentence_transformers import util
+            # Cosine similarity = (A · q) / (|A_i| * |q|).
+            q_norm = float(np.linalg.norm(query_vec))
+            if q_norm == 0.0:
+                return self._keyword_search(query, limit)
+            chunk_norms = np.linalg.norm(self.embeddings, axis=1)
+            # Guard against zero-norm rows (shouldn't happen but protects
+            # against divide-by-zero if corrupted data slips in).
+            chunk_norms = np.where(chunk_norms == 0.0, 1.0, chunk_norms)
+            dots = self.embeddings @ query_vec
+            sims = dots / (chunk_norms * q_norm)
 
-            best_results = []
+            # Optional keyword boost (hybrid mode).
+            query_lower = query.lower()
+            query_words = set(query_lower.split())
+            boosted_hits = 0
 
-            for chunk in self.chunks:
-                # Semantic similarity
-                chunk_embedding = chunk["embedding"]
-                similarity = util.cos_sim(query_embedding, chunk_embedding)[0][0].item()
+            # Keep the best score seen per path; also remember which chunk
+            # produced it so the excerpt is from the winning chunk.
+            best_per_path: dict[str, tuple[float, int, bool]] = {}
+            # (score, chunk_idx, had_keyword_overlap)
 
-                # Keyword boost
-                keyword_boost = 0.0
-                if hybrid:
-                    query_lower = query.lower()
-                    chunk_lower = chunk["text"].lower()
-                    query_words = set(query_lower.split())
-                    chunk_words = set(chunk_lower.split())
+            for idx, chunk in enumerate(self.chunks):
+                score = float(sims[idx])
+                had_overlap = False
+                if hybrid and query_words:
+                    chunk_words = set(chunk["text"].lower().split())
                     overlap = query_words & chunk_words
                     if overlap:
-                        keyword_boost = len(overlap) / len(query_words) * 0.3
+                        had_overlap = True
+                        boosted_hits += 1
+                        score += len(overlap) / len(query_words) * 0.3
 
-                combined_score = similarity + keyword_boost
+                existing = best_per_path.get(chunk["path"])
+                if existing is None or score > existing[0]:
+                    best_per_path[chunk["path"]] = (score, idx, had_overlap)
 
-                best_results.append(
+            # Sort the per-path bests and take the top ``limit``.
+            ranked = sorted(
+                best_per_path.values(),
+                key=lambda v: v[0],
+                reverse=True,
+            )[:limit]
+
+            results: list[SearchResult] = []
+            for score, chunk_idx, had_overlap in ranked:
+                chunk = self.chunks[chunk_idx]
+                excerpt = (
+                    chunk["text"][:300] + "..."
+                    if len(chunk["text"]) > 300
+                    else chunk["text"]
+                )
+                results.append(
                     SearchResult(
                         path=chunk["path"],
-                        content_excerpt=(
-                            chunk["text"][:300] + "..."
-                            if len(chunk["text"]) > 300
-                            else chunk["text"]
-                        ),
-                        score=combined_score,
-                        match_type=(
-                            "hybrid" if hybrid and keyword_boost > 0 else "semantic"
-                        ),
+                        content_excerpt=excerpt,
+                        score=score,
+                        match_type="hybrid" if hybrid and had_overlap else "semantic",
                     )
                 )
-
-            # Sort by score and dedupe by path
-            best_results.sort(key=lambda r: r.score, reverse=True)
-
-            seen_paths = set()
-            unique_results = []
-            for result in best_results:
-                if result.path not in seen_paths:
-                    seen_paths.add(result.path)
-                    unique_results.append(result)
-                    if len(unique_results) >= limit:
-                        break
-
-            return unique_results
+            return results
 
         except Exception as e:
             logger.warning("Search error: %s", e)
@@ -316,11 +480,16 @@ class SemanticIndex:
         return results
 
     def clear(self) -> None:
-        """Clear the index."""
+        """Clear the index (both in-memory and on disk)."""
         self.chunks = []
-        index_file = self.index_path / "semantic_index.json"
-        if index_file.exists():
-            index_file.unlink()
+        self.embeddings = None
+        for fname in (self.META_FILE, self.EMB_FILE, self.LEGACY_FILE):
+            p = self.index_path / fname
+            if p.exists():
+                try:
+                    p.unlink()
+                except OSError:
+                    pass
 
 
 def qmd_query(vault_path: str, query: str, limit: int = 5) -> list[SearchResult]:

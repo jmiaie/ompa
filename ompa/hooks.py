@@ -20,6 +20,22 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+def _estimate_tokens(text: str) -> int:
+    """Approximate GPT/Claude token count for a given string.
+
+    Uses the ~4-chars-per-token heuristic (accurate to within ~10% for
+    English prose, vastly better than ``len(text.split())`` which under-
+    counts by ~30–40% because it ignores subword tokenization and
+    whitespace-plus-punctuation tokens). We avoid pulling in ``tiktoken``
+    as a dependency — ``tokens_hint`` is purely advisory, exposed so
+    callers can budget context windows, and a cheap approximation is
+    sufficient here.
+    """
+    if not text:
+        return 0
+    return max(1, len(text) // 4)
+
+
 @dataclass
 class HookContext:
     """Context available during hook execution."""
@@ -169,7 +185,7 @@ class SessionStartHook(Hook):
                 hook_name=self.name,
                 success=True,
                 output=output,
-                tokens_hint=len(output.split()),  # Rough token estimate
+                tokens_hint=_estimate_tokens(output),
             )
         except Exception as e:
             logger.error("SessionStartHook failed: %s", e, exc_info=True)

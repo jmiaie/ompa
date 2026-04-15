@@ -4,6 +4,7 @@ Inspired by MemPalace. Manages the structured metadata that accelerates retrieva
 """
 
 import json
+from contextlib import contextmanager
 from pathlib import Path
 from dataclasses import dataclass, field
 from typing import Optional
@@ -57,6 +58,11 @@ class Palace:
         self.palace_path.mkdir(parents=True, exist_ok=True)
         self.data_file = self.palace_path / "palace.json"
         self._data = self._load()
+        # Re-entrant batch depth. When > 0, `_save` becomes a no-op and the
+        # final write happens when the outermost `batch()` block exits. This
+        # lets `auto_build_from_vault` (and `Ompa.sync`) mutate hundreds of
+        # wings/rooms/drawers without rewriting the JSON file each time.
+        self._batch_depth = 0
 
     def _load(self) -> dict:
         """Load palace data from disk."""
@@ -66,9 +72,35 @@ class Palace:
         return {"wings": {}, "tunnels": []}
 
     def _save(self) -> None:
-        """Save palace data to disk."""
+        """Save palace data to disk unless a batch() block is active.
+
+        Inside a batch, writes are deferred to the batch's exit. Outside a
+        batch this writes immediately, preserving the original behavior.
+        """
+        if self._batch_depth > 0:
+            return
+        self._save_now()
+
+    def _save_now(self) -> None:
+        """Write the palace JSON unconditionally (used by batch exit)."""
         with open(self.data_file, "w") as f:
             json.dump(self._data, f, indent=2)
+
+    @contextmanager
+    def batch(self):
+        """Defer all `_save` calls until the outermost batch exits.
+
+        Nestable — inner blocks do not flush; only the outermost block
+        writes to disk. If the block raises, the changes still flush so
+        partial progress is not lost.
+        """
+        self._batch_depth += 1
+        try:
+            yield self
+        finally:
+            self._batch_depth -= 1
+            if self._batch_depth == 0:
+                self._save_now()
 
     # Wing operations
 
@@ -271,45 +303,54 @@ class Palace:
     # Auto-build from vault
 
     def auto_build_from_vault(self, vault_path: Path) -> int:
-        """Auto-detect wings and rooms from vault folder structure."""
+        """Auto-detect wings and rooms from vault folder structure.
+
+        All mutations are collapsed into a single JSON write via `batch()`,
+        so even a thousand-note vault writes the palace file exactly once
+        at the end rather than once per create/link operation.
+        """
         count = 0
         vault_path = Path(vault_path)
 
-        # brain/ notes → wing "brain" with rooms by filename
-        brain = vault_path / "brain"
-        if brain.exists():
-            self.create_wing("brain", type="agent", keywords=["memory", "brain"])
-            for note in brain.glob("*.md"):
-                room_name = note.stem.lower().replace(" ", "-")
-                self.create_room("brain", room_name)
-                self.link_drawer("brain", room_name, str(note.relative_to(vault_path)))
-                count += 1
+        with self.batch():
+            # brain/ notes → wing "brain" with rooms by filename
+            brain = vault_path / "brain"
+            if brain.exists():
+                self.create_wing("brain", type="agent", keywords=["memory", "brain"])
+                for note in brain.glob("*.md"):
+                    room_name = note.stem.lower().replace(" ", "-")
+                    self.create_room("brain", room_name)
+                    self.link_drawer(
+                        "brain", room_name, str(note.relative_to(vault_path))
+                    )
+                    count += 1
 
-        # work/active/ → wings by subfolder or single wing "work"
-        work_active = vault_path / "work" / "active"
-        if work_active.exists():
-            self.create_wing("work", type="projects", keywords=["work", "projects"])
-            for note in work_active.glob("*.md"):
-                room_name = note.stem.lower().replace(" ", "-")
-                self.create_room("work", room_name)
-                self.link_drawer("work", room_name, str(note.relative_to(vault_path)))
-                count += 1
+            # work/active/ → wings by subfolder or single wing "work"
+            work_active = vault_path / "work" / "active"
+            if work_active.exists():
+                self.create_wing("work", type="projects", keywords=["work", "projects"])
+                for note in work_active.glob("*.md"):
+                    room_name = note.stem.lower().replace(" ", "-")
+                    self.create_room("work", room_name)
+                    self.link_drawer(
+                        "work", room_name, str(note.relative_to(vault_path))
+                    )
+                    count += 1
 
-        # org/people/ → wings per person
-        org_people = vault_path / "org" / "people"
-        if org_people.exists():
-            for note in org_people.glob("*.md"):
-                person_name = note.stem
-                self.create_wing(
-                    person_name, type="person", keywords=[person_name.lower()]
-                )
-                self.create_room(person_name, "context")
-                self.link_drawer(
-                    person_name, "context", str(note.relative_to(vault_path))
-                )
-                count += 1
+            # org/people/ → wings per person
+            org_people = vault_path / "org" / "people"
+            if org_people.exists():
+                for note in org_people.glob("*.md"):
+                    person_name = note.stem
+                    self.create_wing(
+                        person_name, type="person", keywords=[person_name.lower()]
+                    )
+                    self.create_room(person_name, "context")
+                    self.link_drawer(
+                        person_name, "context", str(note.relative_to(vault_path))
+                    )
+                    count += 1
 
-        self._save()
         return count
 
     # Stats

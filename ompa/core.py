@@ -241,6 +241,11 @@ class Ompa:
             file_path = tool_input.get("file_path") or tool_input.get("path")
             if file_path:
                 path = Path(file_path)
+                # Invalidate vault note caches so the next scan re-parses this
+                # file rather than returning a stale in-memory copy.
+                self.vault.invalidate_path(path)
+                if self.personal_vault is not None:
+                    self.personal_vault.invalidate_path(path)
                 self._auto_add_to_palace(file_path)
                 self._auto_update_kg(path)
                 self._auto_update_index(path)
@@ -527,8 +532,15 @@ class Ompa:
 
         Returns dict with counts for each system.
         """
+        # Bulk operation — drop the whole cache so we pick up any external
+        # file changes on disk.
+        self.vault.invalidate_cache()
+        if self.personal_vault is not None:
+            self.personal_vault.invalidate_cache()
         kg_count = self.kg.populate_from_vault(self.vault_path)
-        palace_count = self.palace.auto_build_from_vault(self.vault_path)
+        # Collapse the palace auto-build mutations into a single JSON write.
+        with self.palace.batch():
+            palace_count = self.palace.auto_build_from_vault(self.vault_path)
         index_count = self.rebuild_index() if self._enable_semantic else 0
 
         result = {
@@ -540,9 +552,10 @@ class Ompa:
         # Sync personal vault too if in dual mode
         if self.is_dual_vault:
             p_kg = self.personal_kg.populate_from_vault(self.dual_config.personal_path)
-            p_palace = self.personal_palace.auto_build_from_vault(
-                self.dual_config.personal_path
-            )
+            with self.personal_palace.batch():
+                p_palace = self.personal_palace.auto_build_from_vault(
+                    self.dual_config.personal_path
+                )
             result["personal_kg_triples"] = p_kg
             result["personal_palace_wings"] = p_palace
 
@@ -623,6 +636,7 @@ class Ompa:
         full_path = _safe_resolve(target_vault.vault_path, file_path)
         note = Note(path=full_path, frontmatter=frontmatter, content=content)
         note.save()
+        target_vault.invalidate_path(full_path)
 
         # Update KG + index
         target_kg = self.kg if target == VaultTarget.SHARED else self.personal_kg
@@ -696,6 +710,7 @@ class Ompa:
 
         note.path = target
         note.save()
+        self.vault.invalidate_path(target)
 
         # Update shared KG
         self.kg.populate_from_note(target, self.dual_config.shared_path)
@@ -745,6 +760,8 @@ class Ompa:
 
         note.path = target
         note.save()
+        if self.personal_vault is not None:
+            self.personal_vault.invalidate_path(target)
 
         # Update personal KG
         if self.personal_kg:

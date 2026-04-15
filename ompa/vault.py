@@ -149,6 +149,11 @@ class Vault:
         self.vault_path = Path(vault_path).resolve()
         self.config = VaultConfig(vault_path=self.vault_path)
         self._ensure_structure()
+        # Note cache: path -> (mtime, Note). Entries are reused across
+        # `list_notes` / `find_orphans` / `get_stats` / `search_by_name`
+        # as long as the on-disk mtime matches what we cached. Writes should
+        # call `invalidate_path` (or `invalidate_cache` for bulk operations).
+        self._note_cache: dict[Path, tuple[float, Note]] = {}
 
     def _ensure_structure(self) -> None:
         """Create vault folder structure if it doesn't exist."""
@@ -156,16 +161,53 @@ class Vault:
             folder_path = self.vault_path / folder
             folder_path.mkdir(parents=True, exist_ok=True)
 
+    def invalidate_cache(self) -> None:
+        """Drop the entire note cache. Call after bulk operations
+        (sync, rebuild-index, migration) where many notes change at once."""
+        self._note_cache.clear()
+
+    def invalidate_path(self, path: str | Path) -> None:
+        """Drop a single entry from the note cache. Call after writing
+        or editing a specific note so the next scan re-parses it."""
+        try:
+            resolved = Path(path).resolve()
+        except (OSError, ValueError):
+            return
+        self._note_cache.pop(resolved, None)
+
     def list_notes(self, exclude_patterns: list[str] = None) -> list[Note]:
-        """List all markdown notes in the vault."""
+        """List all markdown notes in the vault.
+
+        Uses an mtime-keyed cache: notes whose on-disk mtime hasn't changed
+        since the last scan are returned from memory rather than re-parsed.
+        """
         exclude_patterns = exclude_patterns or DEFAULT_EXCLUDE_PATTERNS
-        notes = []
+        notes: list[Note] = []
+        seen: set[Path] = set()
 
         for path in self.vault_path.rglob("*.md"):
             # Check exclusions
             if any(excl in str(path) for excl in exclude_patterns):
                 continue
-            notes.append(Note.from_file(path))
+            try:
+                mtime = path.stat().st_mtime
+            except OSError:
+                # File disappeared between rglob and stat — skip.
+                continue
+            seen.add(path)
+            cached = self._note_cache.get(path)
+            if cached is not None and cached[0] == mtime:
+                notes.append(cached[1])
+            else:
+                note = Note.from_file(path)
+                self._note_cache[path] = (mtime, note)
+                notes.append(note)
+
+        # Evict cache entries for paths that no longer exist or are now excluded.
+        if len(self._note_cache) > len(seen):
+            for stale in list(self._note_cache.keys()):
+                if stale not in seen:
+                    del self._note_cache[stale]
 
         return notes
 
@@ -268,6 +310,7 @@ class Vault:
             note = Note(path=path, content=content)
 
         note.save()
+        self.invalidate_path(path)
 
     def create_from_template(
         self, template_name: str, target_name: str, **kwargs
@@ -290,6 +333,7 @@ class Vault:
         target_path = _safe_resolve(self.vault_path, target_name)
         note = Note(path=target_path, frontmatter=template.frontmatter, content=content)
         note.save()
+        self.invalidate_path(target_path)
         return note
 
     def get_stats(self) -> dict:

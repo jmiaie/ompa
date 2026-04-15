@@ -5,6 +5,8 @@ Run: pytest tests/ -v
 
 import os
 import tempfile
+from pathlib import Path
+
 import pytest
 
 
@@ -128,6 +130,64 @@ class TestPalace:
             wing = p.get_wing("Orion")
             assert wing["type"] == "project"
             assert wing["keywords"] == ["analytics"]
+
+    def test_batch_defers_disk_writes(self):
+        """batch() must collapse N mutations into one JSON write."""
+        from unittest.mock import patch
+        from ompa import Palace
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            p = Palace(os.path.join(tmpdir, ".palace"))
+            # Patch the actual disk-write helper to count calls.
+            with patch.object(
+                p, "_save_now", wraps=p._save_now
+            ) as save_now:
+                with p.batch():
+                    for i in range(5):
+                        p.create_wing(f"wing-{i}")
+                        p.create_room(f"wing-{i}", "r")
+                        p.link_drawer(f"wing-{i}", "r", f"f{i}.md")
+                assert save_now.call_count == 1, (
+                    f"Expected 1 disk write during batch, got {save_now.call_count}"
+                )
+
+            # Verify data actually persisted.
+            p2 = Palace(os.path.join(tmpdir, ".palace"))
+            assert len(p2.list_wings()) == 5
+
+    def test_batch_flushes_on_exception(self):
+        """If the batch block raises, queued changes must still flush so
+        partial progress isn't silently lost."""
+        from ompa import Palace
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            p = Palace(os.path.join(tmpdir, ".palace"))
+            try:
+                with p.batch():
+                    p.create_wing("Orion")
+                    raise RuntimeError("boom")
+            except RuntimeError:
+                pass
+
+            # Fresh Palace must see Orion on disk.
+            p2 = Palace(os.path.join(tmpdir, ".palace"))
+            assert "Orion" in [w["name"] for w in p2.list_wings()]
+
+    def test_batch_is_reentrant(self):
+        """Nested batches only flush at the outermost exit."""
+        from unittest.mock import patch
+        from ompa import Palace
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            p = Palace(os.path.join(tmpdir, ".palace"))
+            with patch.object(p, "_save_now", wraps=p._save_now) as save_now:
+                with p.batch():
+                    p.create_wing("A")
+                    with p.batch():
+                        p.create_wing("B")
+                    # Inner exit must NOT have flushed yet.
+                    assert save_now.call_count == 0
+                assert save_now.call_count == 1
 
 
 class TestKnowledgeGraph:
@@ -411,6 +471,71 @@ class TestVault:
             results = vault.search_by_name("auth")
             assert len(results) >= 1
 
+    def test_list_notes_cache_reuses_parsed_note(self):
+        """Unchanged files should be served from the cache as the same Note
+        object across calls — this is the core P1.1 optimization."""
+        from ompa import Vault
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            vault = Vault(tmpdir)
+            vault.update_brain_note("cache-test", "hello world")
+            first = {n.path: n for n in vault.list_notes()}
+            second = {n.path: n for n in vault.list_notes()}
+            # Every path present in both scans must return the identical
+            # object — proving the cache returned the cached Note instead
+            # of re-parsing from disk.
+            shared = set(first) & set(second)
+            assert shared, "Expected at least one note to appear in both scans"
+            for path in shared:
+                assert first[path] is second[path]
+
+    def test_list_notes_cache_invalidates_on_mtime_change(self):
+        """When a file's mtime changes, the cache must re-parse it."""
+        import os
+        import time
+        from ompa import Vault
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            vault = Vault(tmpdir)
+            vault.update_brain_note("mtime-test", "original content")
+            target = vault.config.brain_folder / "mtime-test.md"
+            [initial] = [n for n in vault.list_notes() if n.path == target]
+            assert "original content" in initial.content
+
+            # Rewrite with a distinctly later mtime. Use os.utime to avoid
+            # depending on real time passing during the test.
+            target.write_text(
+                "---\ntitle: mtime-test\n---\nupdated content",
+                encoding="utf-8",
+            )
+            new_time = time.time() + 10
+            os.utime(target, (new_time, new_time))
+
+            [refreshed] = [n for n in vault.list_notes() if n.path == target]
+            assert "updated content" in refreshed.content
+            assert refreshed is not initial
+
+    def test_list_notes_cache_explicit_invalidation(self):
+        """invalidate_path / invalidate_cache drop cached entries."""
+        from ompa import Vault
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            vault = Vault(tmpdir)
+            vault.update_brain_note("invalidate-test", "content")
+            target = vault.config.brain_folder / "invalidate-test.md"
+
+            _ = vault.list_notes()
+            assert target in vault._note_cache
+
+            vault.invalidate_path(target)
+            assert target not in vault._note_cache
+
+            _ = vault.list_notes()
+            assert target in vault._note_cache
+
+            vault.invalidate_cache()
+            assert vault._note_cache == {}
+
 
 class TestHooks:
     """Test lifecycle hooks."""
@@ -450,6 +575,27 @@ class TestHooks:
             result = ao.stop()
             assert result.success
             assert "Wrap-Up" in result.output
+
+    def test_estimate_tokens_helper(self):
+        """P1.8: tokens_hint should use ~chars/4 approximation, not word count.
+
+        Prior bug: ``tokens_hint = len(output.split())`` was ~30–40% too low
+        because it ignored subword tokenization. The fixed estimator uses
+        the standard GPT/Claude heuristic of ~4 characters per token.
+        """
+        from ompa.hooks import _estimate_tokens
+
+        # Empty text → 0.
+        assert _estimate_tokens("") == 0
+        # Single-character → at least 1 (we never round to 0 for non-empty).
+        assert _estimate_tokens("a") == 1
+        # 80-char string → 20 tokens (80 // 4).
+        eighty = "word " * 16  # 80 chars
+        assert len(eighty) == 80
+        assert _estimate_tokens(eighty) == 20
+        # Word count would report 16 here — proving we diverged from the
+        # old behavior (and correctly, since GPT tokenizes "word" + " ").
+        assert _estimate_tokens(eighty) != len(eighty.split())
 
 
 class TestMCPServer:
@@ -570,6 +716,49 @@ class TestMCPServer:
             )
             # Should not crash; limit is silently capped to 100
             assert "results" in result or "error" not in result
+
+    def test_ompa_cache_reuses_instance_across_calls(self):
+        """Repeated tool calls against the same vault must return the same
+        cached Ompa instance so we don't reload the sentence-transformers
+        model and re-parse the semantic index on every MCP tool invocation."""
+        from ompa.mcp_server import _get_ompa, _clear_ompa_cache
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            _clear_ompa_cache()
+            first = _get_ompa(vault_path=tmpdir, enable_semantic=False)
+            second = _get_ompa(vault_path=tmpdir, enable_semantic=False)
+            assert first is second
+
+            # Different enable_semantic flag → different cache entry.
+            third = _get_ompa(vault_path=tmpdir, enable_semantic=True)
+            assert third is not first
+
+            # Different vault path → different cache entry.
+            with tempfile.TemporaryDirectory() as other:
+                fourth = _get_ompa(vault_path=other, enable_semantic=False)
+                assert fourth is not first
+
+            _clear_ompa_cache()
+            fifth = _get_ompa(vault_path=tmpdir, enable_semantic=False)
+            assert fifth is not first  # cache was cleared
+
+    def test_ompa_cache_dual_vault_keyed_by_both_paths(self):
+        from ompa.mcp_server import _get_ompa, _clear_ompa_cache
+
+        with tempfile.TemporaryDirectory() as shared, tempfile.TemporaryDirectory() as personal:
+            _clear_ompa_cache()
+            a = _get_ompa(
+                shared_vault_path=shared,
+                personal_vault_path=personal,
+                enable_semantic=False,
+            )
+            b = _get_ompa(
+                shared_vault_path=shared,
+                personal_vault_path=personal,
+                enable_semantic=False,
+            )
+            assert a is b
+            _clear_ompa_cache()
 
 
 class TestOmpa:
@@ -785,6 +974,71 @@ class TestKGPopulation:
             result = handle_call_tool("ao_sync", {"vault_path": tmpdir})
             assert result["success"] is True
             assert "kg_triples" in result
+
+    def test_repopulate_cleans_up_stale_wikilink_triples(self):
+        """P1.7: When a note is re-populated after removing a wikilink,
+        the old links_to triple must be deleted so the KG stays consistent
+        with the note on disk."""
+        from pathlib import Path as _Path
+        from ompa import KnowledgeGraph
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            vault_path = _Path(tmpdir)
+            note = vault_path / "work" / "active" / "Auth.md"
+            note.parent.mkdir(parents=True, exist_ok=True)
+            note.write_text(
+                "---\ndate: 2026-04-10\n---\nLinks to [[Design]] and [[Backup]].",
+                encoding="utf-8",
+            )
+
+            kg = KnowledgeGraph(db_path=os.path.join(tmpdir, "kg.sqlite3"))
+            kg.populate_from_note(note, vault_path)
+
+            initial = kg.query_relation("Auth", "links_to")
+            initial_targets = {t.object for t in initial}
+            assert "Design" in initial_targets
+            assert "Backup" in initial_targets
+
+            # Edit the note — drop the Backup link.
+            note.write_text(
+                "---\ndate: 2026-04-10\n---\nOnly links to [[Design]] now.",
+                encoding="utf-8",
+            )
+            kg.populate_from_note(note, vault_path)
+
+            after = {t.object for t in kg.query_relation("Auth", "links_to")}
+            assert "Design" in after
+            assert "Backup" not in after, (
+                "Stale links_to triple for the removed [[Backup]] wikilink "
+                "should have been cleaned up on re-populate"
+            )
+
+    def test_populate_from_vault_uses_single_transaction(self):
+        """P1.6: populate_from_vault should hit the database with a single
+        connection/commit rather than one per note."""
+        from unittest.mock import patch
+        from pathlib import Path as _Path
+        from ompa import KnowledgeGraph
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            vault_path = _Path(tmpdir)
+            active = vault_path / "work" / "active"
+            active.mkdir(parents=True, exist_ok=True)
+            for i in range(6):
+                (active / f"note-{i}.md").write_text(
+                    f"---\ndate: 2026-04-10\n---\nSee [[Target{i}]]",
+                    encoding="utf-8",
+                )
+
+            kg = KnowledgeGraph(db_path=os.path.join(tmpdir, "kg.sqlite3"))
+            with patch.object(kg, "_conn", wraps=kg._conn) as conn_spy:
+                kg.populate_from_vault(vault_path)
+            # One connection for all 6 notes (plus the cleanup/upsert) —
+            # not one per note.
+            assert conn_spy.call_count == 1, (
+                f"Expected populate_from_vault to use 1 connection, "
+                f"got {conn_spy.call_count}"
+            )
 
 
 class TestOrphanAndBrainFixes:
@@ -1381,6 +1635,241 @@ class TestSemanticIndex:
             count = idx.index_vault(vault)
             assert len(called) == 1  # _init_model was triggered
             assert count >= 1
+
+    # ------------------------------------------------------------------
+    # P1.2 — v2 binary storage format (chunks meta + .npy embedding matrix)
+    # ------------------------------------------------------------------
+
+    def _make_stub_index(self, tmpdir):
+        """Helper: build a SemanticIndex with a deterministic stub model that
+        avoids downloading sentence-transformers during tests.
+
+        The stub encodes each input string to a tiny 4-dim vector based on
+        character counts — enough for meaningful cosine similarity without
+        any external model dependency.
+        """
+        from ompa.semantic import SemanticIndex
+        from pathlib import Path
+        import numpy as np
+
+        class StubModel:
+            def encode(self, texts, convert_to_numpy=True, show_progress_bar=False):
+                # Accept a string or a list of strings.
+                single = isinstance(texts, str)
+                items = [texts] if single else list(texts)
+                out = np.zeros((len(items), 4), dtype=np.float32)
+                for i, t in enumerate(items):
+                    tl = t.lower()
+                    out[i, 0] = tl.count("a") + 0.1
+                    out[i, 1] = tl.count("e") + 0.1
+                    out[i, 2] = tl.count("o") + 0.1
+                    out[i, 3] = len(tl) % 7 + 0.1
+                if single:
+                    return out[0]
+                return out
+
+        idx = SemanticIndex(
+            index_path=Path(tmpdir) / "idx",
+            embedding_dim=4,
+        )
+        idx._model = StubModel()
+        idx._initialized = True
+        return idx
+
+    def test_v2_binary_format_roundtrip(self):
+        """After index_file + save_index, we should see meta.json + .npy on disk,
+        and load_index should rebuild the in-memory state identically."""
+        import numpy as np
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            vault = Path(tmpdir) / "vault"
+            vault.mkdir()
+            note = vault / "notes.md"
+            note.write_text(
+                "Alpha beta gamma " * 30 + "\n\n" + "delta epsilon zeta " * 30,
+                encoding="utf-8",
+            )
+
+            idx = self._make_stub_index(tmpdir)
+            idx.index_file(note)
+            idx.save_index()
+
+            meta_file = idx.index_path / "semantic_index.meta.json"
+            emb_file = idx.index_path / "semantic_index.embeddings.npy"
+            legacy_file = idx.index_path / "semantic_index.json"
+
+            assert meta_file.exists(), "v2 meta file should be written"
+            assert emb_file.exists(), "v2 embedding matrix should be written"
+            assert not legacy_file.exists(), "legacy JSON file should not exist"
+
+            original_chunks = list(idx.chunks)
+            original_emb = np.asarray(idx.embeddings, dtype=np.float32).copy()
+            assert original_emb.ndim == 2
+            assert original_emb.shape[0] == len(original_chunks)
+
+            # Reload into a fresh index and compare.
+            fresh = self._make_stub_index(tmpdir)
+            assert fresh.load_index() is True
+            assert fresh.chunks == original_chunks
+            np.testing.assert_allclose(
+                np.asarray(fresh.embeddings, dtype=np.float32),
+                original_emb,
+                rtol=1e-6,
+                atol=1e-6,
+            )
+
+    def test_legacy_json_format_is_migrated_on_load(self):
+        """Legacy single-JSON indexes (per-chunk embedding lists) must be
+        auto-migrated to the v2 split format on first load, and the old
+        file deleted so subsequent loads are fast."""
+        import json as _json
+        import numpy as np
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            idx = self._make_stub_index(tmpdir)
+            idx.index_path.mkdir(parents=True, exist_ok=True)
+
+            legacy_chunks = [
+                {
+                    "hash": "abc123",
+                    "path": str(Path(tmpdir) / "a.md"),
+                    "chunk_index": 0,
+                    "text": "hello world from a",
+                    "embedding": [0.1, 0.2, 0.3, 0.4],
+                },
+                {
+                    "hash": "def456",
+                    "path": str(Path(tmpdir) / "b.md"),
+                    "chunk_index": 0,
+                    "text": "another chunk from b",
+                    "embedding": [0.5, 0.6, 0.7, 0.8],
+                },
+            ]
+            legacy_path = idx.index_path / "semantic_index.json"
+            legacy_path.write_text(
+                _json.dumps(
+                    {"model": "stub", "embedding_dim": 4, "chunks": legacy_chunks}
+                ),
+                encoding="utf-8",
+            )
+
+            assert idx.load_index() is True
+            # Metadata stripped of per-chunk `embedding` field.
+            assert all("embedding" not in c for c in idx.chunks)
+            assert [c["hash"] for c in idx.chunks] == ["abc123", "def456"]
+            # Embeddings now live in a numpy matrix.
+            emb = np.asarray(idx.embeddings, dtype=np.float32)
+            assert emb.shape == (2, 4)
+            np.testing.assert_allclose(
+                emb[0], np.array([0.1, 0.2, 0.3, 0.4], dtype=np.float32), atol=1e-6
+            )
+            # Legacy file deleted, v2 files written.
+            assert not legacy_path.exists()
+            assert (idx.index_path / "semantic_index.meta.json").exists()
+            assert (idx.index_path / "semantic_index.embeddings.npy").exists()
+
+    def test_index_file_uses_batched_encode(self):
+        """A multi-chunk file should trigger a SINGLE batched encode call,
+        not one encode per chunk (P1.2 goal)."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            idx = self._make_stub_index(tmpdir)
+
+            call_count = {"n": 0, "batch_sizes": []}
+            original_encode = idx._model.encode
+
+            def spy_encode(texts, **kwargs):
+                call_count["n"] += 1
+                if isinstance(texts, list):
+                    call_count["batch_sizes"].append(len(texts))
+                else:
+                    call_count["batch_sizes"].append(1)
+                return original_encode(texts, **kwargs)
+
+            idx._model.encode = spy_encode
+
+            vault = Path(tmpdir) / "vault"
+            vault.mkdir()
+            # Force 3+ chunks by making a long note (chunk_size = 512 words).
+            big_note = vault / "big.md"
+            big_note.write_text(
+                ("word " * 600) + "\n" + ("other " * 600) + "\n" + ("more " * 600),
+                encoding="utf-8",
+            )
+            idx.index_file(big_note)
+
+            assert call_count["n"] == 1, (
+                f"Expected 1 batched encode call for the whole file, got "
+                f"{call_count['n']} (batches: {call_count['batch_sizes']})"
+            )
+            # All chunks were encoded together.
+            assert call_count["batch_sizes"][0] >= 2
+
+    # ------------------------------------------------------------------
+    # P1.3 — best-per-path dedup (up to `limit` distinct files)
+    # ------------------------------------------------------------------
+
+    def test_search_returns_up_to_limit_distinct_paths(self):
+        """If a single file contributes many top-scoring chunks, the search
+        must still surface other files up to `limit`, not be dominated by
+        one path (prior bug: sort-then-dedup could return <limit results)."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            idx = self._make_stub_index(tmpdir)
+
+            vault = Path(tmpdir) / "vault"
+            vault.mkdir()
+            # File A — 3 chunks, each long enough to survive the 20-char filter.
+            # Its chunks will happen to score high because they contain the
+            # query token "alpha".
+            (vault / "a.md").write_text(
+                ("alpha " * 520) + "\n" + ("alpha " * 520) + "\n" + ("alpha " * 520),
+                encoding="utf-8",
+            )
+            (vault / "b.md").write_text("alpha " * 100, encoding="utf-8")
+            (vault / "c.md").write_text("alpha " * 100, encoding="utf-8")
+
+            idx.index_file(vault / "a.md")
+            idx.index_file(vault / "b.md")
+            idx.index_file(vault / "c.md")
+
+            results = idx.search("alpha", limit=3, hybrid=True)
+            paths = [r.path for r in results]
+
+            # Each result must be a distinct path.
+            assert len(paths) == len(set(paths)), (
+                f"Expected distinct paths per result, got: {paths}"
+            )
+            # We should see all three files (not just a.md repeated).
+            assert len(results) == 3
+            assert {Path(p).name for p in paths} == {"a.md", "b.md", "c.md"}
+
+    def test_remove_file_rebuilds_embedding_matrix(self):
+        """Removing a file should drop exactly its rows from the embedding
+        matrix, leaving the remaining rows row-aligned with self.chunks."""
+        import numpy as np
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            idx = self._make_stub_index(tmpdir)
+
+            vault = Path(tmpdir) / "vault"
+            vault.mkdir()
+            a = vault / "a.md"
+            b = vault / "b.md"
+            a.write_text("alpha beta gamma " * 30, encoding="utf-8")
+            b.write_text("delta epsilon zeta " * 30, encoding="utf-8")
+
+            idx.index_file(a)
+            idx.index_file(b)
+            before_total = len(idx.chunks)
+            before_b = sum(1 for c in idx.chunks if c["path"] == str(b))
+            assert before_b >= 1
+
+            assert idx.remove_file(a) is True
+
+            assert all(c["path"] != str(a) for c in idx.chunks)
+            assert len(idx.chunks) == before_total - (before_total - before_b)
+            # Row-alignment invariant.
+            emb = np.asarray(idx.embeddings, dtype=np.float32)
+            assert emb.shape[0] == len(idx.chunks)
 
 
 class TestSearchFilter:
