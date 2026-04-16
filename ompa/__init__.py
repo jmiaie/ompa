@@ -15,7 +15,19 @@ Usage:
     ao.stop()
 """
 
-__version__ = "0.5.0"
+# Version is resolved from the installed package metadata (pyproject.toml is
+# the single source of truth). Falls back to "0.0.0+unknown" for editable
+# installs or source-tree imports where the distribution isn't registered.
+try:
+    from importlib.metadata import PackageNotFoundError, version as _pkg_version
+
+    try:
+        __version__ = _pkg_version("ompa")
+    except PackageNotFoundError:
+        __version__ = "0.0.0+unknown"
+    del _pkg_version, PackageNotFoundError
+except ImportError:  # pragma: no cover — importlib.metadata is stdlib ≥3.8
+    __version__ = "0.0.0+unknown"
 
 from .core import Ompa
 from .vault import Vault, Note, VaultConfig

@@ -5,14 +5,16 @@ Handles session_start, user_message, post_tool, pre_compact, and stop events.
 
 import json
 import logging
+import re
+import shutil
+import subprocess  # noqa: S404 — used only for `git log` with a validated path
 from datetime import datetime
 from dataclasses import dataclass
-from typing import Optional
 from pathlib import Path
+from typing import Optional, TYPE_CHECKING
 
 from .vault import Vault, Note
 from .classifier import MessageClassifier
-from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from .core import Ompa
@@ -106,9 +108,6 @@ class SessionStartHook(Hook):
             # Recent git changes
             lines.append("### Recent Changes (last 48h)")
             try:
-                import shutil
-                import subprocess  # noqa: S404 — subprocess needed for git log
-
                 git_path = shutil.which("git")
                 if git_path:
                     result = subprocess.run(  # noqa: S603
@@ -193,8 +192,6 @@ class SessionStartHook(Hook):
 
     def _extract_section(self, content: str, section: str) -> str:
         """Extract a section from markdown content."""
-        import re
-
         pattern = rf"## {section}(.*?)(?=## |$)"
         match = re.search(pattern, content, re.DOTALL | re.IGNORECASE)
         return match.group(1).strip() if match else ""

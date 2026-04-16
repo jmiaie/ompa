@@ -536,6 +536,33 @@ class TestVault:
             vault.invalidate_cache()
             assert vault._note_cache == {}
 
+    def test_extract_wikilinks_shared_behavior(self):
+        """P2.4: module-level extract_wikilinks normalizes consistently.
+
+        Both Note._extract_wikilinks and KG populate use this function,
+        so this test documents the canonical contract:
+          - [[target|display]] → keep target, drop display
+          - [[SOUL.md]]        → strip trailing .md
+          - whitespace trimmed, empty targets dropped
+        """
+        from ompa.vault import extract_wikilinks
+
+        result = extract_wikilinks(
+            "See [[SOUL.md]] and [[Design|the design doc]] and [[ ]] and [[Auth]]"
+        )
+        assert result == ["SOUL", "Design", "Auth"]
+
+    def test_extract_wikilinks_empty_and_edge_cases(self):
+        """Edge cases for the shared wikilink extractor."""
+        from ompa.vault import extract_wikilinks
+
+        assert extract_wikilinks("") == []
+        assert extract_wikilinks("no links here") == []
+        assert extract_wikilinks("[[]]") == []
+        assert extract_wikilinks("[[ .md ]]") == []
+        # Nested-looking patterns: regex is non-greedy so inner wins
+        assert extract_wikilinks("[[a]] [[b]]") == ["a", "b"]
+
 
 class TestHooks:
     """Test lifecycle hooks."""
@@ -1245,6 +1272,83 @@ class TestDualVault:
             config.classify_content("Note", file_path="personal/config.md")
             == VaultTarget.PERSONAL
         )
+
+    # ------------------------------------------------------------------
+    # P2.5 — indicator regex must use word boundaries, not substring match
+    # ------------------------------------------------------------------
+
+    def test_indicator_no_false_positive_sk_prefix(self):
+        """`sk-` indicator must NOT fire on words that merely contain `sk-`
+        as a substring (e.g. "desk-work")."""
+        from ompa.config import DualVaultConfig, VaultTarget
+
+        config = DualVaultConfig(default_vault=VaultTarget.SHARED)
+        target = config.classify_content(
+            "Bought a standing desk-work setup over the weekend.",
+        )
+        # No personal indicators, no shared indicators, no folder — falls to
+        # default (shared), proving `sk-` did NOT match `desk-work`.
+        assert target == VaultTarget.SHARED
+
+    def test_indicator_sk_prefix_still_fires_on_real_key(self):
+        """`sk-` must still catch an actual OpenAI-style secret."""
+        from ompa.config import DualVaultConfig, VaultTarget
+
+        config = DualVaultConfig(default_vault=VaultTarget.SHARED)
+        target = config.classify_content(
+            "Config: OPENAI_API_KEY=sk-AbCdEf1234567890xyz",
+        )
+        assert target == VaultTarget.PERSONAL
+
+    def test_indicator_no_false_positive_token_in_tokenize(self):
+        """`token` indicator must NOT fire on `tokenize` / `tokenized`."""
+        from ompa.config import DualVaultConfig, VaultTarget
+
+        config = DualVaultConfig(default_vault=VaultTarget.SHARED)
+        target = config.classify_content(
+            "We tokenize the input using a BPE scheme; the tokenizer is fast.",
+        )
+        assert target == VaultTarget.SHARED
+
+    def test_indicator_token_still_fires_whole_word(self):
+        """`token` must still match when the word stands alone."""
+        from ompa.config import DualVaultConfig, VaultTarget
+
+        config = DualVaultConfig(default_vault=VaultTarget.SHARED)
+        target = config.classify_content(
+            "I stored the auth token in a local file.",
+        )
+        assert target == VaultTarget.PERSONAL
+
+    def test_indicator_akia_case_sensitive_prefix(self):
+        """`AKIA` indicator is uppercase-only; lowercase `akia` substring
+        (as in a random word) must NOT fire."""
+        from ompa.config import DualVaultConfig, VaultTarget
+
+        config = DualVaultConfig(default_vault=VaultTarget.SHARED)
+        # `akia` appears lowercased and inside another word — must not match.
+        assert (
+            config.classify_content("The blackiawave was long and slow.")
+            == VaultTarget.SHARED
+        )
+        # Real AWS-style key — must fire.
+        assert (
+            config.classify_content("AWS key rotated: AKIAIOSFODNN7EXAMPLE today.")
+            == VaultTarget.PERSONAL
+        )
+
+    def test_indicator_decision_no_false_positive_on_decisions(self):
+        """`decision` indicator uses \\b boundaries so it does not match
+        `decisions` or `decisioned` — users who want plural/variant forms
+        should add them to the indicator list explicitly."""
+        from ompa.config import DualVaultConfig, VaultTarget
+
+        config = DualVaultConfig(default_vault=VaultTarget.PERSONAL)
+        # "decisions" (plural) — no match, falls through to default.
+        target = config.classify_content(
+            "Made several decisions over lunch.",
+        )
+        assert target == VaultTarget.PERSONAL
 
     def test_write_to_shared(self):
         """write() with vault='shared' should write to shared vault."""

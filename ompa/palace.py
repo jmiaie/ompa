@@ -356,7 +356,15 @@ class Palace:
     # Stats
 
     def stats(self) -> dict:
-        """Get palace statistics."""
+        """Get palace statistics.
+
+        Returns:
+            dict with keys:
+                wing_count (int): Number of top-level wings.
+                room_count (int): Total rooms across all wings.
+                drawer_count (int): Total file-reference drawers.
+                tunnel_count (int): Cross-wing tunnel links.
+        """
         wings = self._data.get("wings", {})
         total_rooms = sum(len(w.get("rooms", {})) for w in wings.values())
         total_drawers = sum(

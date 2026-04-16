@@ -17,10 +17,15 @@ Usage:
 """
 
 import json
+import logging
 import sys
 from pathlib import Path
 
-__version__ = "0.5.0"
+# Re-export the package version so MCP clients can probe it via the server
+# module. Sourced from package metadata so it can never drift from pyproject.
+from . import __version__  # noqa: F401 — public re-export for MCP clients
+
+logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
@@ -243,7 +248,7 @@ def ao_search(query: str, vault_path: str = ".", limit: int = 5) -> dict:
     }
 
 
-def ao_kg_query(entity: str, vault_path: str = ".", as_of: str = None) -> dict:
+def ao_kg_query(entity: str, vault_path: str = ".", as_of: str | None = None) -> dict:
     """Query the knowledge graph for an entity."""
     ao = _get_ompa(vault_path=vault_path, enable_semantic=False)
     triples = ao.kg.query_entity(entity, as_of=as_of)
@@ -266,8 +271,8 @@ def ao_kg_add(
     subject: str,
     predicate: str,
     object_: str,
-    valid_from: str = None,
-    source: str = None,
+    valid_from: str | None = None,
+    source: str | None = None,
     vault_path: str = ".",
 ) -> dict:
     """
@@ -696,8 +701,59 @@ def handle_list_tools():
     return {"tools": tools}
 
 
+# ---------------------------------------------------------------------------
+# Dispatch registry: tool name -> callable(vault_path, arguments) -> result.
+# Replaces the 18-arm if/elif chain with a data-driven lookup.  To add a
+# new tool: (1) define the handler function above, (2) add a TOOLS entry,
+# (3) add a _DISPATCH entry.
+# ---------------------------------------------------------------------------
+
+_DISPATCH = {
+    "ao_session_start": lambda vp, a: ao_session_start(vp),
+    "ao_classify": lambda vp, a: ao_classify(message=a["message"], vault_path=vp),
+    "ao_search": lambda vp, a: ao_search(
+        query=a["query"], vault_path=vp, limit=a.get("limit", 5)
+    ),
+    "ao_kg_query": lambda vp, a: ao_kg_query(
+        entity=a["entity"], vault_path=vp, as_of=a.get("as_of")
+    ),
+    "ao_kg_add": lambda vp, a: ao_kg_add(
+        subject=a["subject"],
+        predicate=a["predicate"],
+        object_=a["object"],
+        valid_from=a.get("valid_from"),
+        source=a.get("source"),
+        vault_path=vp,
+    ),
+    "ao_kg_stats": lambda vp, a: ao_kg_stats(vp),
+    "ao_palace_wings": lambda vp, a: ao_palace_wings(vp),
+    "ao_palace_rooms": lambda vp, a: ao_palace_rooms(wing=a["wing"], vault_path=vp),
+    "ao_palace_tunnel": lambda vp, a: ao_palace_tunnel(
+        wing_a=a["wing_a"],
+        wing_b=a["wing_b"],
+        room=a.get("room", "shared"),
+        vault_path=vp,
+    ),
+    "ao_validate": lambda vp, a: ao_validate(file_path=a["file_path"], vault_path=vp),
+    "ao_wrap_up": lambda vp, a: ao_wrap_up(vp),
+    "ao_status": lambda vp, a: ao_status(vp),
+    "ao_orphans": lambda vp, a: ao_orphans(vp),
+    "ao_kg_populate": lambda vp, a: ao_kg_populate(vp),
+    "ao_sync": lambda vp, a: ao_sync(vp),
+    "ao_write": lambda vp, a: ao_write(a),
+    "ao_export": lambda vp, a: ao_export(a),
+    "ao_import": lambda vp, a: ao_import(a),
+    "ao_init": lambda vp, a: ao_init(vp),
+}
+
+
 def handle_call_tool(name: str, arguments: dict) -> dict:
-    """Handle tool call request."""
+    """Handle tool call request.
+
+    Uses :data:`_DISPATCH` for routing instead of a long if/elif chain.
+    Full exceptions are logged server-side (stderr); the caller receives
+    a sanitized ``{error: ...}`` dict without internal stack details.
+    """
     if name not in TOOLS:
         return {"error": f"Unknown tool: {name}"}
 
@@ -719,81 +775,16 @@ def handle_call_tool(name: str, arguments: dict) -> dict:
         if "limit" in arguments:
             arguments = {**arguments, "limit": min(int(arguments["limit"]), 100)}
 
-        if name == "ao_session_start":
-            result = ao_session_start(vault_path)
-        elif name == "ao_classify":
-            result = ao_classify(
-                message=arguments["message"],
-                vault_path=vault_path,
-            )
-        elif name == "ao_search":
-            result = ao_search(
-                query=arguments["query"],
-                vault_path=vault_path,
-                limit=arguments.get("limit", 5),
-            )
-        elif name == "ao_kg_query":
-            result = ao_kg_query(
-                entity=arguments["entity"],
-                vault_path=vault_path,
-                as_of=arguments.get("as_of"),
-            )
-        elif name == "ao_kg_add":
-            result = ao_kg_add(
-                subject=arguments["subject"],
-                predicate=arguments["predicate"],
-                object_=arguments["object"],
-                valid_from=arguments.get("valid_from"),
-                source=arguments.get("source"),
-                vault_path=vault_path,
-            )
-        elif name == "ao_kg_stats":
-            result = ao_kg_stats(vault_path)
-        elif name == "ao_palace_wings":
-            result = ao_palace_wings(vault_path)
-        elif name == "ao_palace_rooms":
-            result = ao_palace_rooms(
-                wing=arguments["wing"],
-                vault_path=vault_path,
-            )
-        elif name == "ao_palace_tunnel":
-            result = ao_palace_tunnel(
-                wing_a=arguments["wing_a"],
-                wing_b=arguments["wing_b"],
-                room=arguments.get("room", "shared"),
-                vault_path=vault_path,
-            )
-        elif name == "ao_validate":
-            result = ao_validate(
-                file_path=arguments["file_path"],
-                vault_path=vault_path,
-            )
-        elif name == "ao_wrap_up":
-            result = ao_wrap_up(vault_path)
-        elif name == "ao_status":
-            result = ao_status(vault_path)
-        elif name == "ao_orphans":
-            result = ao_orphans(vault_path)
-        elif name == "ao_kg_populate":
-            result = ao_kg_populate(vault_path)
-        elif name == "ao_sync":
-            result = ao_sync(vault_path)
-        elif name == "ao_write":
-            result = ao_write(arguments)
-        elif name == "ao_export":
-            result = ao_export(arguments)
-        elif name == "ao_import":
-            result = ao_import(arguments)
-        elif name == "ao_init":
-            result = ao_init(vault_path)
-        else:
-            result = {"error": f"Unhandled tool: {name}"}
+        handler = _DISPATCH.get(name)
+        if handler is None:
+            return {"error": f"Unhandled tool: {name}"}
+        return handler(vault_path, arguments)
 
-        return result
     except KeyError as e:
         return {"error": f"Missing required argument: {e}"}
     except Exception as e:
-        return {"error": type(e).__name__}
+        logger.exception("Tool %r failed", name)
+        return {"error": f"{type(e).__name__}: tool execution failed"}
 
 
 # ---------------------------------------------------------------------------
@@ -869,13 +860,17 @@ def main():
                     break
 
         except Exception as e:
+            logger.exception("MCP request failed")
             req_id = None
             if request is not None:
                 req_id = request.get("id") if isinstance(request, dict) else None
             error_response = {
                 "jsonrpc": "2.0",
                 "id": req_id,
-                "error": {"code": -32603, "message": type(e).__name__},
+                "error": {
+                    "code": -32603,
+                    "message": f"{type(e).__name__}: request failed",
+                },
             }
             sys.stdout.write(json.dumps(error_response) + "\n")
             sys.stdout.flush()
