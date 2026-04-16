@@ -15,6 +15,34 @@ logger = logging.getLogger(__name__)
 # Shared exclude patterns for vault traversal
 DEFAULT_EXCLUDE_PATTERNS = [".git", ".claude", "thinking"]
 
+# Precompiled once at import. The KG layer reuses this via
+# :func:`extract_wikilinks` so we don't have two copies of the pattern
+# drifting apart.
+_WIKILINK_RE = re.compile(r"\[\[([^\]]+)\]\]")
+
+
+def extract_wikilinks(text: str) -> list[str]:
+    """Extract ``[[wikilinks]]`` from text and normalize each target.
+
+    Normalization:
+      * ``[[target|display]]`` — drop the display text, keep ``target``.
+      * ``[[target.md]]`` — drop a trailing ``.md`` extension (it gets
+        re-added by the resolver that turns the wikilink back into a Path).
+      * Leading/trailing whitespace stripped.
+      * Empty targets dropped.
+
+    Shared between :class:`Note` and :mod:`ompa.knowledge_graph` so link
+    parsing stays consistent across the codebase.
+    """
+    normalized: list[str] = []
+    for link in _WIKILINK_RE.findall(text):
+        target = link.split("|")[0].strip()
+        if target.lower().endswith(".md"):
+            target = target[:-3]
+        if target:
+            normalized.append(target)
+    return normalized
+
 
 def _safe_resolve(base: Path, untrusted: str) -> Path:
     """
@@ -33,12 +61,12 @@ def _safe_resolve(base: Path, untrusted: str) -> Path:
 @dataclass
 class VaultConfig:
     vault_path: Path
-    brain_folder: Path = None
-    work_folder: Path = None
-    org_folder: Path = None
-    perf_folder: Path = None
-    thinking_folder: Path = None
-    templates_folder: Path = None
+    brain_folder: Path | None = None
+    work_folder: Path | None = None
+    org_folder: Path | None = None
+    perf_folder: Path | None = None
+    thinking_folder: Path | None = None
+    templates_folder: Path | None = None
 
     def __post_init__(self):
         if self.brain_folder is None:
@@ -89,18 +117,12 @@ class Note:
 
     @staticmethod
     def _extract_wikilinks(text: str) -> list[str]:
-        """Extract [[wikilinks]] from text, normalizing targets."""
-        raw = re.findall(r"\[\[([^\]]+)\]\]", text)
-        normalized = []
-        for link in raw:
-            # Strip display text: [[target|display]] → target
-            target = link.split("|")[0].strip()
-            # Strip .md extension if present (will be re-added during resolution)
-            if target.lower().endswith(".md"):
-                target = target[:-3]
-            if target:
-                normalized.append(target)
-        return normalized
+        """Extract [[wikilinks]] from text, normalizing targets.
+
+        Delegates to the module-level :func:`extract_wikilinks` so the KG
+        layer and any other caller share one implementation.
+        """
+        return extract_wikilinks(text)
 
     def has_links(self) -> bool:
         """Check if note has any wikilinks."""
@@ -175,7 +197,7 @@ class Vault:
             return
         self._note_cache.pop(resolved, None)
 
-    def list_notes(self, exclude_patterns: list[str] = None) -> list[Note]:
+    def list_notes(self, exclude_patterns: list[str] | None = None) -> list[Note]:
         """List all markdown notes in the vault.
 
         Uses an mtime-keyed cache: notes whose on-disk mtime hasn't changed
@@ -337,7 +359,16 @@ class Vault:
         return note
 
     def get_stats(self) -> dict:
-        """Get vault statistics."""
+        """Get vault statistics.
+
+        Returns:
+            dict with keys:
+                total_notes (int): Markdown files in the vault.
+                orphans (int): Notes with no incoming wikilinks.
+                folder_counts (dict[str, int]): Note count per folder.
+                brain_notes (int): Notes in the ``brain/`` folder or
+                    with ``wing: brain`` in frontmatter.
+        """
         notes = self.list_notes()
         filename_index = self._build_filename_index(notes)
 
@@ -381,10 +412,15 @@ class Vault:
         }
 
     def validate_write(self, file_path: str) -> dict:
-        """
-        Validate a markdown file for frontmatter and wikilinks.
+        """Validate a markdown file for frontmatter and wikilinks.
+
         File must be within the vault directory.
-        Returns {valid: bool, warnings: list[str]}.
+
+        Returns:
+            dict with keys:
+                valid (bool): ``True`` if the note passes all checks.
+                warnings (list[str]): Human-readable issues found
+                    (missing frontmatter fields, no wikilinks, etc.).
         """
         try:
             path = _safe_resolve(self.vault_path, file_path)

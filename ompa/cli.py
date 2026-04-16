@@ -17,9 +17,9 @@ console = Console()
 
 
 def _make_ompa(
-    vault_path: Path = None,
-    shared_vault: Path = None,
-    personal_vault: Path = None,
+    vault_path: Path | None = None,
+    shared_vault: Path | None = None,
+    personal_vault: Path | None = None,
     isolation_mode: str = "strict",
     enable_semantic: bool = False,
 ) -> Ompa:
@@ -242,7 +242,7 @@ def tunnel(
 @app.command()
 def kg_query(
     entity: str,
-    as_of: str = None,
+    as_of: str | None = None,
     vault_path: Path = Path("."),
 ):
     """Query the knowledge graph."""

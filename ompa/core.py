@@ -7,6 +7,7 @@ Supports single-vault (legacy) and dual-vault (shared + personal) architecture.
 import logging
 import re
 import shutil
+from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
@@ -88,12 +89,12 @@ class Ompa:
 
     def __init__(
         self,
-        vault_path: str | Path = None,
+        vault_path: str | Path | None = None,
         agent_name: str = "agent",
         enable_semantic: bool = True,
         # Dual-vault parameters
-        shared_vault_path: str | Path = None,
-        personal_vault_path: str | Path = None,
+        shared_vault_path: str | Path | None = None,
+        personal_vault_path: str | Path | None = None,
         isolation_mode: str = "strict",
     ):
         self.agent_name = agent_name
@@ -348,9 +349,9 @@ class Ompa:
         query: str,
         limit: int = 5,
         hybrid: bool = True,
-        wing: str = None,
-        room: str = None,
-        vaults: list[str] = None,
+        wing: str | None = None,
+        room: str | None = None,
+        vaults: list[str] | None = None,
     ) -> list[SearchResult]:
         """
         Search the vault(s) semantically.
@@ -408,8 +409,8 @@ class Ompa:
         query: str,
         limit: int,
         hybrid: bool,
-        wing: str = None,
-        room: str = None,
+        wing: str | None = None,
+        room: str | None = None,
     ) -> list[SearchResult]:
         """Search a single vault."""
         if semantic is None:
@@ -467,7 +468,11 @@ class Ompa:
     # -------------------------------------------------------------------------
 
     def get_stats(self) -> dict:
-        """Get vault statistics."""
+        """Get vault statistics.
+
+        Delegates to :meth:`Vault.get_stats`; see that method for the
+        full return-type specification.
+        """
         return self.vault.get_stats()
 
     def find_orphans(self) -> list:
@@ -506,15 +511,15 @@ class Ompa:
         subject: str,
         predicate: str,
         object: str,
-        valid_from: str = None,
-        source: str = None,
+        valid_from: str | None = None,
+        source: str | None = None,
     ) -> None:
         """Add a fact to the knowledge graph."""
         self.kg.add_triple(
             subject, predicate, object, valid_from=valid_from, source=source
         )
 
-    def kg_query(self, entity: str, as_of: str = None) -> list:
+    def kg_query(self, entity: str, as_of: str | None = None) -> list:
         """Query the knowledge graph."""
         return self.kg.query_entity(entity, as_of=as_of)
 
@@ -527,10 +532,18 @@ class Ompa:
         return self.kg.populate_from_vault(self.vault_path)
 
     def sync(self) -> dict:
-        """
-        Full sync: rebuild KG from vault, rebuild search index, rebuild palace.
+        """Full sync: rebuild KG, search index, and palace from vault.
 
-        Returns dict with counts for each system.
+        Returns:
+            dict with keys:
+                kg_triples (int): Triples added to the shared KG.
+                palace_wings (int): Wings created/updated in the palace.
+                indexed_files (int): Files indexed for semantic search
+                    (0 when semantic is disabled).
+                personal_kg_triples (int): *(dual-vault only)* Triples
+                    added to the personal KG.
+                personal_palace_wings (int): *(dual-vault only)* Wings
+                    created/updated in the personal palace.
         """
         # Bulk operation — drop the whole cache so we pick up any external
         # file changes on disk.
@@ -569,9 +582,9 @@ class Ompa:
     def write(
         self,
         content: str,
-        file_path: str = None,
-        tags: list[str] = None,
-        vault: str = None,
+        file_path: str | None = None,
+        tags: list[str] | None = None,
+        vault: str | None = None,
     ) -> dict:
         """
         Write content to the appropriate vault.
@@ -625,8 +638,6 @@ class Ompa:
             file_path = f"{folder}{name}.md"
 
         # Write the note
-        from datetime import datetime
-
         frontmatter = {
             "date": datetime.now().strftime("%Y-%m-%d"),
             "tags": tags,

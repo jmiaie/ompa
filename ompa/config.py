@@ -5,12 +5,65 @@ Supports YAML config file at ~/.ompa/config.yaml or programmatic configuration.
 """
 
 import logging
+import re
 from dataclasses import dataclass, field
 from enum import Enum
+from functools import lru_cache
 from pathlib import Path
 from typing import Optional
 
 logger = logging.getLogger(__name__)
+
+
+@lru_cache(maxsize=512)
+def _compile_indicator(indicator: str) -> "re.Pattern[str]":
+    """Compile a classification indicator into a boundary-aware regex.
+
+    We previously did a naive substring match, which meant ``"token"`` fired
+    on ``"tokenize"`` and ``"sk-"`` fired on ``"desk-work"``. The indicator
+    strings themselves stay simple — matching shape is inferred from the
+    string so existing YAML configs keep working:
+
+    * ``@sigil`` / ``#sigil`` — not preceded by a word char, standalone end.
+    * ``sk-`` / trailing-hyphen credentials — treated as a **prefix** that
+      must be followed by at least one word char (so ``"sk-abcdef"`` matches
+      but ``"desk-"`` does not).
+    * Fully-uppercase tokens like ``AKIA`` — case-sensitive prefix that
+      must start on a word boundary and be followed by at least one word
+      character. Matches AWS-style keys ``AKIAXXXX…`` without catching the
+      literal word ``"AKIA"`` alone or a substring in mixed case.
+    * Plain words (``decision``, ``token``) — case-insensitive whole-word.
+
+    Compiled patterns are cached via ``lru_cache`` so ``classify_content``
+    doesn't pay re-compile cost on every call.
+    """
+    escaped = re.escape(indicator)
+
+    if indicator.startswith(("@", "#")):
+        # (?<!\w) prevents `team@shared` matching `@shared`; the trailing
+        # (?!\w) keeps `#shared` from matching `#sharedthing` — if users
+        # want to fire on the prefix they should add the longer form.
+        return re.compile(rf"(?<!\w){escaped}(?!\w)", re.IGNORECASE)
+
+    if indicator.endswith("-"):
+        # Credential-prefix indicator (e.g. "sk-", "ghp_", "xoxb-"): require
+        # at least one word char after, and a non-word char (or start-of-
+        # string) before — so "desk-work" is safe but "sk-abc" fires.
+        return re.compile(rf"(?<!\w){escaped}\w+", re.IGNORECASE)
+
+    if indicator.isupper() and indicator.isalpha():
+        # AWS-style key prefix: case-sensitive, word-boundary start, must
+        # be followed by at least one word char so a line just containing
+        # the literal four letters isn't flagged.
+        return re.compile(rf"\b{escaped}\w+")
+
+    # Default: whole-word, case-insensitive.
+    return re.compile(rf"\b{escaped}\b", re.IGNORECASE)
+
+
+def _indicator_matches(indicator: str, haystack: str) -> bool:
+    """True if the boundary-aware pattern for ``indicator`` matches ``haystack``."""
+    return _compile_indicator(indicator).search(haystack) is not None
 
 
 class IsolationMode(Enum):
@@ -79,7 +132,10 @@ class DualVaultConfig:
         return self.shared_path is not None and self.personal_path is not None
 
     def classify_content(
-        self, content: str, tags: list[str] = None, file_path: str = None
+        self,
+        content: str,
+        tags: list[str] | None = None,
+        file_path: str | None = None,
     ) -> VaultTarget:
         """
         Classify content as shared or personal.
@@ -92,21 +148,23 @@ class DualVaultConfig:
         5. Default vault
         """
         tags = tags or []
-        content_lower = content.lower()
-        tags_lower = [t.lower() for t in tags]
+        # We keep content (original case) so case-sensitive indicators like
+        # ``AKIA`` behave correctly; case-insensitive ones are handled by the
+        # regex flag in ``_compile_indicator``.
+        tag_blob = " ".join(tags)
 
         # 1. Personal indicators (check first — safety)
         for indicator in self.personal_indicators:
-            if indicator.lower() in content_lower:
+            if _indicator_matches(indicator, content):
                 return VaultTarget.PERSONAL
-            if indicator.lower() in tags_lower:
+            if _indicator_matches(indicator, tag_blob):
                 return VaultTarget.PERSONAL
 
         # 2. Shared indicators
         for indicator in self.shared_indicators:
-            if indicator.lower() in content_lower:
+            if _indicator_matches(indicator, content):
                 return VaultTarget.SHARED
-            if indicator.lower() in tags_lower:
+            if _indicator_matches(indicator, tag_blob):
                 return VaultTarget.SHARED
 
         # 3. Folder-based rules
