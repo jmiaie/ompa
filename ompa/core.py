@@ -545,11 +545,9 @@ class Ompa:
                 personal_palace_wings (int): *(dual-vault only)* Wings
                     created/updated in the personal palace.
         """
-        # Bulk operation — drop the whole cache so we pick up any external
-        # file changes on disk.
-        self.vault.invalidate_cache()
-        if self.personal_vault is not None:
-            self.personal_vault.invalidate_cache()
+        # Vault cache is mtime-keyed per-file, so external edits are picked up
+        # automatically on next access. No need to drop the whole cache here
+        # (doing so doubles the parse cost for the populate + auto_build pass).
         kg_count = self.kg.populate_from_vault(self.vault_path)
         # Collapse the palace auto-build mutations into a single JSON write.
         with self.palace.batch():

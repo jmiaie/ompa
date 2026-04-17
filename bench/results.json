@@ -1,0 +1,306 @@
+{
+  "config": {
+    "n_notes": 1000,
+    "semantic_n": 0,
+    "python": "3.14.4"
+  },
+  "generation_ms": 643.9576,
+  "vault": {
+    "list_notes_cold": {
+      "runs": 3,
+      "mean_ms": 239.3076,
+      "min_ms": 188.9979,
+      "max_ms": 277.5164,
+      "runs_ms": [
+        251.4085,
+        277.5164,
+        188.9979
+      ],
+      "result_summary": {
+        "type": "list",
+        "len": 1000
+      }
+    },
+    "list_notes_warm": {
+      "runs": 3,
+      "mean_ms": 20.3759,
+      "min_ms": 19.8936,
+      "max_ms": 21.1501,
+      "runs_ms": [
+        21.1501,
+        19.8936,
+        20.084
+      ],
+      "result_summary": {
+        "type": "list",
+        "len": 1000
+      }
+    },
+    "cache_speedup": 11.744639500586477,
+    "find_orphans_warm": {
+      "runs": 3,
+      "mean_ms": 24.3397,
+      "min_ms": 22.7293,
+      "max_ms": 27.2247,
+      "runs_ms": [
+        27.2247,
+        23.0651,
+        22.7293
+      ],
+      "result_summary": {
+        "type": "list",
+        "len": 59
+      }
+    },
+    "get_stats_warm": {
+      "runs": 3,
+      "mean_ms": 27.6929,
+      "min_ms": 27.4026,
+      "max_ms": 27.9692,
+      "runs_ms": [
+        27.4026,
+        27.9692,
+        27.7069
+      ],
+      "result_summary": {
+        "total_notes": 1000,
+        "orphans": 59,
+        "folder_counts": {
+          "brain": 300,
+          "active": 250,
+          "archive": 250,
+          "people": 200
+        },
+        "brain_notes": 300
+      }
+    }
+  },
+  "kg": {
+    "populate_from_vault": {
+      "runs": 3,
+      "mean_ms": 395.3538666666667,
+      "min_ms": 379.8041,
+      "max_ms": 403.9211,
+      "runs_ms": [
+        379.8041,
+        402.3364,
+        403.9211
+      ],
+      "result_summary": 11157
+    },
+    "kg_stats": {
+      "entity_count": 1184,
+      "triple_count": 7430,
+      "current_facts": 7430,
+      "expired_facts": 0,
+      "oldest_fact": "2025-01-10",
+      "newest_fact": "2026-04-15"
+    },
+    "query_entity": {
+      "runs": 3,
+      "mean_ms": 0.3919333333333333,
+      "min_ms": 0.3532,
+      "max_ms": 0.4656,
+      "runs_ms": [
+        0.4656,
+        0.3532,
+        0.357
+      ],
+      "result_summary": {
+        "type": "list",
+        "len": 8
+      }
+    },
+    "query_relation": {
+      "runs": 3,
+      "mean_ms": 3.1742,
+      "min_ms": 3.008,
+      "max_ms": 3.4356,
+      "runs_ms": [
+        3.4356,
+        3.008,
+        3.079
+      ],
+      "result_summary": {
+        "type": "list",
+        "len": 3
+      }
+    },
+    "timeline": {
+      "runs": 3,
+      "mean_ms": 0.3473666666666667,
+      "min_ms": 0.3124,
+      "max_ms": 0.4078,
+      "runs_ms": [
+        0.4078,
+        0.3219,
+        0.3124
+      ],
+      "result_summary": {
+        "type": "list",
+        "len": 8
+      }
+    }
+  },
+  "palace": {
+    "auto_build_no_batch": {
+      "runs": 3,
+      "mean_ms": 30.032933333333332,
+      "min_ms": 28.8735,
+      "max_ms": 30.6368,
+      "runs_ms": [
+        30.5885,
+        28.8735,
+        30.6368
+      ],
+      "result_summary": 750
+    },
+    "auto_build_with_batch": {
+      "runs": 3,
+      "mean_ms": 28.50636666666667,
+      "min_ms": 28.357,
+      "max_ms": 28.7484,
+      "runs_ms": [
+        28.7484,
+        28.4137,
+        28.357
+      ],
+      "result_summary": 750
+    },
+    "batch_speedup": 1.0535517796609177
+  },
+  "semantic": {
+    "using_stub": true,
+    "note_count_used": 1000,
+    "indexed_chunks": 1000,
+    "index_vault_ms": 221.44,
+    "search_queries": 20,
+    "search_p50_ms": 11.805,
+    "search_p95_ms": 12.3707,
+    "search_mean_ms": 11.65196,
+    "search_min_ms": 10.2594,
+    "search_max_ms": 12.529
+  },
+  "mcp": {
+    "get_ompa_miss": {
+      "runs": 3,
+      "mean_ms": 2.8616666666666664,
+      "min_ms": 2.0872,
+      "max_ms": 4.0909,
+      "runs_ms": [
+        4.0909,
+        2.4069,
+        2.0872
+      ],
+      "result_summary": "Ompa"
+    },
+    "get_ompa_hit": {
+      "runs": 3,
+      "mean_ms": 0.16386666666666666,
+      "min_ms": 0.1349,
+      "max_ms": 0.2111,
+      "runs_ms": [
+        0.2111,
+        0.1349,
+        0.1456
+      ],
+      "result_summary": "Ompa"
+    },
+    "cache_speedup": 17.463384865744505
+  },
+  "full_sync": {
+    "sync_no_semantic": {
+      "runs": 3,
+      "mean_ms": 3728.5423,
+      "min_ms": 3648.5201,
+      "max_ms": 3829.7213,
+      "runs_ms": [
+        3648.5201,
+        3707.3855,
+        3829.7213
+      ],
+      "result_summary": {
+        "kg_triples": 11157,
+        "palace_wings": 750,
+        "indexed_files": 0
+      }
+    }
+  },
+  "profiles": {
+    "cold_list_notes": [
+      "         234408 function calls (234407 primitive calls) in 0.313 seconds",
+      "",
+      "   Ordered by: cumulative time",
+      "   List reduced from 137 to 15 due to restriction <15>",
+      "",
+      "   ncalls  tottime  percall  cumtime  percall filename:lineno(function)",
+      "        1    0.001    0.001    0.313    0.313 C:\\Users\\jeffr\\Repos\\ompa\\bench\\bench_ompa.py:397(p_cold_list)",
+      "        1    0.006    0.006    0.311    0.311 C:\\Users\\jeffr\\Repos\\ompa\\ompa\\vault.py:200(list_notes)",
+      "     1000    0.005    0.000    0.240    0.000 C:\\Users\\jeffr\\Repos\\ompa\\ompa\\vault.py:93(from_file)",
+      "     1000    0.004    0.000    0.210    0.000 C:\\Users\\jeffr\\AppData\\Local\\Python\\pythoncore-3.14-64\\Lib\\site-packages\\frontmatter\\__init__.py:140(load)",
+      "     1000    0.003    0.000    0.102    0.000 C:\\Users\\jeffr\\AppData\\Local\\Python\\pythoncore-3.14-64\\Lib\\site-packages\\frontmatter\\__init__.py:168(loads)",
+      "     1000    0.003    0.000    0.095    0.000 C:\\Users\\jeffr\\AppData\\Local\\Python\\pythoncore-3.14-64\\Lib\\site-packages\\frontmatter\\__init__.py:48(parse)",
+      "     1000    0.003    0.000    0.086    0.000 C:\\Users\\jeffr\\AppData\\Local\\Python\\pythoncore-3.14-64\\Lib\\site-packages\\frontmatter\\default_handlers.py:255(load)",
+      "     1000    0.002    0.000    0.083    0.000 C:\\Users\\jeffr\\AppData\\Local\\Python\\pythoncore-3.14-64\\Lib\\site-packages\\yaml\\__init__.py:74(load)",
+      "     1000    0.020    0.000    0.075    0.000 C:\\Users\\jeffr\\AppData\\Local\\Python\\pythoncore-3.14-64\\Lib\\site-packages\\yaml\\constructor.py:47(get_single_data)",
+      "     1000    0.004    0.000    0.055    0.000 <frozen codecs>:886(open)",
+      "     1000    0.045    0.000    0.045    0.000 {built-in method _io.open}",
+      "     1000    0.002    0.000    0.040    0.000 C:\\Users\\jeffr\\AppData\\Local\\Python\\pythoncore-3.14-64\\Lib\\site-packages\\yaml\\constructor.py:54(construct_document)",
+      "     1000    0.001    0.000    0.036    0.000 <frozen codecs>:708(read)",
+      "     1000    0.003    0.000    0.035    0.000 <frozen codecs>:457(read)",
+      "     2000    0.029    0.000    0.029    0.000 {method 'read' of '_io.BufferedReader' objects}",
+      "",
+      ""
+    ],
+    "kg_populate_from_vault": [
+      "         543475 function calls (538074 primitive calls) in 0.555 seconds",
+      "",
+      "   Ordered by: cumulative time",
+      "   List reduced from 168 to 15 due to restriction <15>",
+      "",
+      "   ncalls  tottime  percall  cumtime  percall filename:lineno(function)",
+      "        1    0.001    0.001    0.555    0.555 C:\\Users\\jeffr\\Repos\\ompa\\bench\\bench_ompa.py:402(p_kg_pop)",
+      "        1    0.007    0.007    0.539    0.539 C:\\Users\\jeffr\\Repos\\ompa\\ompa\\knowledge_graph.py:491(populate_from_vault)",
+      "     1000    0.015    0.000    0.354    0.000 C:\\Users\\jeffr\\Repos\\ompa\\ompa\\knowledge_graph.py:310(_extract_note_triples)",
+      "     1000    0.005    0.000    0.225    0.000 C:\\Users\\jeffr\\AppData\\Local\\Python\\pythoncore-3.14-64\\Lib\\site-packages\\frontmatter\\__init__.py:140(load)",
+      "        1    0.015    0.015    0.148    0.148 C:\\Users\\jeffr\\Repos\\ompa\\ompa\\knowledge_graph.py:388(_bulk_upsert_triples)",
+      "     1000    0.003    0.000    0.110    0.000 C:\\Users\\jeffr\\AppData\\Local\\Python\\pythoncore-3.14-64\\Lib\\site-packages\\frontmatter\\__init__.py:168(loads)",
+      "     1000    0.003    0.000    0.103    0.000 C:\\Users\\jeffr\\AppData\\Local\\Python\\pythoncore-3.14-64\\Lib\\site-packages\\frontmatter\\__init__.py:48(parse)",
+      "     1000    0.003    0.000    0.093    0.000 C:\\Users\\jeffr\\AppData\\Local\\Python\\pythoncore-3.14-64\\Lib\\site-packages\\frontmatter\\default_handlers.py:255(load)",
+      "     1000    0.003    0.000    0.089    0.000 C:\\Users\\jeffr\\AppData\\Local\\Python\\pythoncore-3.14-64\\Lib\\site-packages\\yaml\\__init__.py:74(load)",
+      "     1000    0.021    0.000    0.080    0.000 C:\\Users\\jeffr\\AppData\\Local\\Python\\pythoncore-3.14-64\\Lib\\site-packages\\yaml\\constructor.py:47(get_single_data)",
+      "        2    0.069    0.035    0.069    0.035 {method 'executemany' of 'sqlite3.Connection' objects}",
+      "     1000    0.004    0.000    0.061    0.000 <frozen codecs>:886(open)",
+      "     1000    0.006    0.000    0.060    0.000 C:\\Users\\jeffr\\AppData\\Local\\Python\\pythoncore-3.14-64\\Lib\\pathlib\\__init__.py:476(relative_to)",
+      "     1000    0.049    0.000    0.050    0.000 {built-in method _io.open}",
+      "     1000    0.002    0.000    0.043    0.000 C:\\Users\\jeffr\\AppData\\Local\\Python\\pythoncore-3.14-64\\Lib\\site-packages\\yaml\\constructor.py:54(construct_document)",
+      "",
+      ""
+    ],
+    "palace_auto_build": [
+      "         313789 function calls (238973 primitive calls) in 0.107 seconds",
+      "",
+      "   Ordered by: cumulative time",
+      "   List reduced from 99 to 15 due to restriction <15>",
+      "",
+      "   ncalls  tottime  percall  cumtime  percall filename:lineno(function)",
+      "        1    0.000    0.000    0.107    0.107 C:\\Users\\jeffr\\Repos\\ompa\\bench\\bench_ompa.py:409(p_palace)",
+      "        2    0.000    0.000    0.058    0.029 C:\\Users\\jeffr\\AppData\\Local\\Python\\pythoncore-3.14-64\\Lib\\contextlib.py:145(__exit__)",
+      "        4    0.000    0.000    0.058    0.015 {built-in method builtins.next}",
+      "        4    0.000    0.000    0.058    0.015 C:\\Users\\jeffr\\Repos\\ompa\\ompa\\palace.py:89(batch)",
+      "        1    0.000    0.000    0.058    0.058 C:\\Users\\jeffr\\Repos\\ompa\\ompa\\palace.py:84(_save_now)",
+      "        1    0.007    0.007    0.058    0.058 C:\\Users\\jeffr\\AppData\\Local\\Python\\pythoncore-3.14-64\\Lib\\json\\__init__.py:120(dump)",
+      "        1    0.002    0.002    0.048    0.048 C:\\Users\\jeffr\\Repos\\ompa\\ompa\\palace.py:305(auto_build_from_vault)",
+      "    20268    0.004    0.000    0.032    0.000 C:\\Users\\jeffr\\AppData\\Local\\Python\\pythoncore-3.14-64\\Lib\\json\\encoder.py:426(_iterencode)",
+      "      750    0.003    0.000    0.032    0.000 C:\\Users\\jeffr\\AppData\\Local\\Python\\pythoncore-3.14-64\\Lib\\pathlib\\__init__.py:476(relative_to)",
+      "91184/20268    0.022    0.000    0.028    0.000 C:\\Users\\jeffr\\AppData\\Local\\Python\\pythoncore-3.14-64\\Lib\\json\\encoder.py:339(_iterencode_dict)",
+      "      750    0.002    0.000    0.021    0.000 <frozen _collections_abc>:1021(__contains__)",
+      "    20267    0.010    0.000    0.019    0.000 {method 'write' of '_io.TextIOWrapper' objects}",
+      "     2700    0.001    0.000    0.014    0.000 <frozen _collections_abc>:1011(__iter__)",
+      "     1950    0.002    0.000    0.013    0.000 C:\\Users\\jeffr\\AppData\\Local\\Python\\pythoncore-3.14-64\\Lib\\pathlib\\__init__.py:63(__getitem__)",
+      "     2700    0.002    0.000    0.012    0.000 C:\\Users\\jeffr\\AppData\\Local\\Python\\pythoncore-3.14-64\\Lib\\pathlib\\__init__.py:269(_from_parsed_parts)",
+      "",
+      ""
+    ]
+  }
+}

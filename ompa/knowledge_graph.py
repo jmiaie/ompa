@@ -18,9 +18,11 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
-import frontmatter as fm
-
-from .vault import DEFAULT_EXCLUDE_PATTERNS, extract_wikilinks
+from .vault import (
+    DEFAULT_EXCLUDE_PATTERNS,
+    _fast_parse_frontmatter,
+    extract_wikilinks,
+)
 from typing import Optional
 
 logger = logging.getLogger(__name__)
@@ -76,6 +78,11 @@ class KnowledgeGraph:
         """Get a database connection that auto-closes on exit."""
         conn = sqlite3.connect(self.db_path)
         conn.row_factory = sqlite3.Row
+        # WAL permits concurrent reads with a writer and cuts fsync cost on
+        # bulk populate passes. NORMAL is the usual WAL companion: still crash-
+        # safe, roughly 2-3× faster than FULL for write-heavy workloads.
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA synchronous=NORMAL")
         try:
             yield conn
             conn.commit()
@@ -111,6 +118,14 @@ class KnowledgeGraph:
                 CREATE INDEX IF NOT EXISTS idx_triples_subject ON triples(subject);
                 CREATE INDEX IF NOT EXISTS idx_triples_predicate ON triples(predicate);
                 CREATE INDEX IF NOT EXISTS idx_triples_object ON triples(object);
+                -- Composite index for query_relation (subject + predicate
+                -- filter). Closes the 8× gap vs query_entity.
+                CREATE INDEX IF NOT EXISTS idx_triples_subj_pred
+                    ON triples(subject, predicate);
+                CREATE INDEX IF NOT EXISTS idx_triples_pred_obj
+                    ON triples(predicate, object);
+                CREATE INDEX IF NOT EXISTS idx_triples_source
+                    ON triples(source_file);
             """)
 
     def _entity_id(self, name: str) -> str:
@@ -310,42 +325,52 @@ class KnowledgeGraph:
     def _extract_note_triples(
         self, note_path: Path, vault_path: Optional[Path] = None
     ) -> tuple[list[tuple], bool]:
-        """Parse a note and return (triples, has_description).
+        """Parse a note from disk and return (triples, has_description).
 
-        triples: list of ``(subject, predicate, object, valid_from, source)``
-        tuples that would be inserted. Does NOT touch the database.
-
-        has_description: whether the frontmatter ``description`` field is
-        populated (so callers can mint a note-typed entity row).
-
-        This is the read-only half of ``populate_from_note`` — shared with
-        ``populate_from_vault`` so bulk population parses the vault once and
-        commits once.
+        Thin wrapper around :meth:`_extract_triples_from_parsed` that handles
+        the disk read + frontmatter parse. Callers that already have parsed
+        content (e.g. a :class:`~ompa.vault.Note`) should call the parsed-form
+        helper directly to avoid a redundant parse.
         """
         if not note_path.exists() or note_path.suffix != ".md":
             return [], False
 
+        try:
+            text = note_path.read_text(encoding="utf-8")
+        except Exception as e:
+            logger.debug("Could not read %s: %s", note_path, e)
+            return [], False
+
+        metadata, content = _fast_parse_frontmatter(text)
+
+        return self._extract_triples_from_parsed(
+            note_path, content, metadata, vault_path=vault_path
+        )
+
+    def _extract_triples_from_parsed(
+        self,
+        note_path: Path,
+        content: str,
+        metadata: dict,
+        vault_path: Optional[Path] = None,
+        links: Optional[list[str]] = None,
+    ) -> tuple[list[tuple], bool]:
+        """Derive triples from already-parsed note content/metadata.
+
+        Shared by the single-note and bulk population paths. ``links`` may be
+        passed in to skip wikilink re-extraction when the caller already has
+        them (e.g. ``Note.links``).
+        """
         note_name = note_path.stem
         source = str(note_path)
-
-        try:
-            post = fm.load(note_path)
-            content = post.content
-            metadata = dict(post.metadata)
-        except Exception:
-            try:
-                content = note_path.read_text(encoding="utf-8")
-                metadata = {}
-            except Exception as e:
-                logger.debug("Could not read %s: %s", note_path, e)
-                return [], False
-
         triples: list[tuple] = []
 
         # 1. Wikilinks → links_to triples (shared extractor with the vault
         # layer so link-parsing semantics — display-text stripping, .md
         # suffix handling — stay identical everywhere).
-        for target in extract_wikilinks(content):
+        if links is None:
+            links = extract_wikilinks(content)
+        for target in links:
             triples.append((note_name, "links_to", target, None, source))
 
         # 2. Frontmatter tags → has_tag triples
@@ -510,16 +535,26 @@ class KnowledgeGraph:
         description_notes: list[str] = []  # note stems with valid descriptions
         source_files: list[str] = []
 
-        for md_file in vault_path.rglob("*.md"):
-            if any(excl in str(md_file) for excl in exclude_patterns):
-                continue
-            triples, has_description = self._extract_note_triples(md_file, vault_path)
+        # Reuse the Vault cache — list_notes() returns pre-parsed Note
+        # objects (frontmatter + wikilinks already extracted), so the KG
+        # population pass no longer re-parses every file.
+        from .vault import Vault
+
+        vault = Vault(vault_path)
+        for note in vault.list_notes(exclude_patterns=exclude_patterns):
+            triples, has_description = self._extract_triples_from_parsed(
+                note.path,
+                note.content,
+                note.frontmatter,
+                vault_path=vault_path,
+                links=note.links,
+            )
             if not triples and not has_description:
                 continue
             all_triples.extend(triples)
-            source_files.append(str(md_file))
+            source_files.append(str(note.path))
             if has_description:
-                description_notes.append(md_file.stem)
+                description_notes.append(note.path.stem)
 
         total = len(all_triples) + len(description_notes)
         if total == 0:
