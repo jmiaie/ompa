@@ -106,6 +106,13 @@ class Ompa:
             isolation_mode=IsolationMode(isolation_mode),
         )
 
+        # Typed attributes (set in branches below)
+        self.personal_vault: Vault | None = None
+        self.personal_palace: Palace | None = None
+        self.personal_kg: KnowledgeGraph | None = None
+        self._semantic: SemanticIndex | None = None
+        self._personal_semantic: SemanticIndex | None = None
+
         if shared_vault_path and personal_vault_path:
             # Dual-vault mode
             self.dual_config.shared_path = Path(shared_vault_path).expanduser()
@@ -139,16 +146,13 @@ class Ompa:
             self.kg = KnowledgeGraph(
                 db_path=str(self.vault_path / ".palace" / "knowledge_graph.sqlite3")
             )
-            self.personal_vault = None
-            self.personal_palace = None
-            self.personal_kg = None
+            # Single-vault: personal_* remain None (already declared above)
+            pass
 
         self.classifier = MessageClassifier()
         self.hooks = HookManager(self.vault_path, agent_name=self.agent_name)
 
-        # Semantic search (lazy-loaded)
-        self._semantic = None
-        self._personal_semantic = None
+        # Semantic search (lazy-loaded, declared above)
 
     @property
     def is_dual_vault(self) -> bool:
