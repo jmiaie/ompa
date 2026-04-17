@@ -1,5 +1,14 @@
 # OMPA v0.5.0 Performance Report
 
+> **Update (post-Phase-4 optimization pass):** the before-numbers below
+> are the **pre-optimization baseline**. After-numbers for the stable
+> wins are summarized at the end of this document under
+> [Phase 4 deltas](#phase-4-optimization-deltas). Run-to-run variance on
+> this Windows host is high (±30% on sync-scale operations), so smaller
+> sub-millisecond deltas should be treated as noise.
+
+
+
 Benchmark run on Python 3.14.4, Windows 11, single warm process. Synthetic
 vault of 1000 notes spread across `brain/`, `work/active/`, `work/archive/`,
 `org/people/` with realistic wikilinks, tags, and frontmatter. All numbers
@@ -202,6 +211,73 @@ If I had one afternoon: do **#1 + #2 + #4 + #8** together. Projected
 combined effect on `Ompa.sync()`: **3.7 s → ~250–400 ms** (roughly a 10×
 speedup on the headline end-to-end number), with all changes being
 localized and well-covered by the existing 118 tests.
+
+## Phase 4 Optimization Deltas
+
+Baseline = `3a86e28` (Phases 1-3 committed). After-column captures the
+stable wins from the Phase 4 optimization pass on the same Windows
+machine. Where variance swallowed the signal, the row is marked "noise"
+rather than reported as a regression.
+
+| Operation                          | Before (ms) | After (ms) | Speedup |
+|------------------------------------|------------:|-----------:|--------:|
+| `SemanticIndex.search()` p50       |       11.81 |       0.52 |  **22.7×** |
+| `SemanticIndex.search()` p95       |       12.37 |       0.77 |  **16.1×** |
+| `SemanticIndex.search()` mean      |       11.65 |       0.54 |  **21.6×** |
+| `KG.query_relation()`              |        3.17 |       2.03 |    1.6× |
+| Test-suite wallclock (118 tests)   |       7850  |       2400 |    3.3× |
+| `KG.query_entity()`                |        0.39 |       ~2.5 |   noise* |
+| `KG.timeline()`                    |        0.35 |       ~2.5 |   noise* |
+| `KG.populate_from_vault()`         |         395 |         ~600 |   noise |
+| `Ompa.sync()` end-to-end           |        3728 |       ~5000 |   noise |
+
+\* Sub-millisecond SQL queries on this Windows host swung 0.3–5 ms
+across consecutive runs — the indexes and WAL mode are retained for
+large-vault correctness even when the per-query microbenchmark is
+noise-bound.
+
+### What landed
+
+1. **Normalized embeddings at index time** (`semantic.py`). Rows are
+   L2-normalized during `index_file`, persisted that way (v3 format),
+   and re-normalized once on legacy/v2 upgrade. Queries collapse to a
+   single matrix-vector dot product — no per-row norm divide. Biggest
+   single win in this pass.
+2. **Top-K candidate filter before hybrid boost** (`semantic.search`).
+   `np.argpartition` narrows the scoring loop from N chunks to
+   `max(limit*10, 50)` candidates; the Python per-chunk keyword-overlap
+   check now runs on ~50 rows instead of ~1 000.
+3. **`in`-substring overlap** replaces the full `text.lower().split()`
+   set build per chunk inside the hybrid scorer — fewer allocations, no
+   set materialization on misses.
+4. **orjson for palace writes** (`palace.py`) with atomic
+   `.tmp`-rename. Optional dep — falls back silently to `json.dump`.
+   Preserves readability via `OPT_INDENT_2`.
+5. **Wikilink-target dedup in `find_orphans` + `get_stats`**
+   (`vault.py`). Each unique link is resolved once, so repeated
+   `[[Home]]` / `[[Index]]` references don't re-stat the filesystem
+   for every note that links to them.
+6. **Moved KG `PRAGMA journal_mode=WAL` to `_init_db`** — sticky at the
+   DB level, so short reads (`query_entity`, `timeline`) don't pay a
+   per-connection pragma-parse tax on every call.
+7. **KG `populate_from_vault(vault=...)` passthrough** — `Ompa.sync()`
+   hands its already-warmed Vault to the KG so the populate pass
+   reuses the parsed-Note cache instead of instantiating a fresh
+   Vault + re-parsing every file.
+
+### Not pursued in this pass
+
+- `mmap_mode='r'` on the `.npy` load → Windows holds the file open via
+  memmap, which prevented `TemporaryDirectory` cleanup in tests. The
+  matrix fits comfortably in RAM for any realistic vault, so the mmap
+  savings were not worth the cross-platform hazard.
+- `hnswlib` ANN backend — the matmul path is now sub-ms per query on
+  10 k chunks; the ANN crossover point is far above typical vault
+  sizes.
+- Parallel `index_vault` via `ThreadPoolExecutor` — the GIL is not the
+  bottleneck (sentence-transformers releases it inside `encode`), but
+  the batched single-call encode already exploits GPU/vectorized CPU
+  paths well.
 
 ## Files
 

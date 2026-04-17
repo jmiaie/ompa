@@ -54,6 +54,10 @@ class SemanticIndex:
     # Legacy all-in-one JSON (auto-migrated on load).
     LEGACY_FILE = "semantic_index.json"
 
+    # Bump when the on-disk embedding semantics change (e.g. v3 stores
+    # L2-normalized rows so queries skip the per-row norm divide).
+    META_VERSION = 3
+
     def __init__(
         self,
         index_path: Path,
@@ -180,6 +184,10 @@ class SemanticIndex:
                     show_progress_bar=False,
                 )
                 new_vecs = np.asarray(new_vecs, dtype=np.float32)
+                # L2-normalize at index time so query-time scoring is a
+                # single matrix-vector dot product (no per-row norm divide).
+                norms = np.linalg.norm(new_vecs, axis=1, keepdims=True)
+                np.divide(new_vecs, norms, out=new_vecs, where=norms > 0)
 
                 if new_embeddings is None:
                     combined_vecs = new_vecs
@@ -266,7 +274,8 @@ class SemanticIndex:
         meta = {
             "model": self.model_name,
             "embedding_dim": self.embedding_dim,
-            "version": 2,
+            "version": self.META_VERSION,
+            "normalized": True,
             "chunks": self.chunks,
         }
         with open(meta_file, "w", encoding="utf-8") as f:
@@ -286,7 +295,7 @@ class SemanticIndex:
         emb_file = self.index_path / self.EMB_FILE
         legacy_file = self.index_path / self.LEGACY_FILE
 
-        # Prefer v2 (meta + .npy) when present.
+        # Prefer v2/v3 (meta + .npy) when present.
         if meta_file.exists():
             try:
                 with open(meta_file, "r", encoding="utf-8") as f:
@@ -294,7 +303,25 @@ class SemanticIndex:
                 self.chunks = data.get("chunks", [])
                 if emb_file.exists() and self.chunks:
                     np = _np()
+                    # Plain load (no mmap) — mmap_mode keeps a file handle
+                    # open on Windows and prevents the directory from being
+                    # cleaned up (PermissionError on TemporaryDirectory).
+                    # For the typical vault the matrix fits comfortably in
+                    # RAM anyway.
                     self.embeddings = np.load(emb_file)
+                    # Upgrade pre-v3 indexes: normalize once and rewrite
+                    # so the hot query path stays divide-free.
+                    version = data.get("version", 2)
+                    if version < self.META_VERSION or not data.get("normalized", False):
+                        rows = np.asarray(self.embeddings, dtype=np.float32)
+                        norms = np.linalg.norm(rows, axis=1, keepdims=True)
+                        np.divide(rows, norms, out=rows, where=norms > 0)
+                        self.embeddings = rows
+                        self.save_index()
+                        logger.info(
+                            "Upgraded semantic index to v%d (normalized rows)",
+                            self.META_VERSION,
+                        )
                 else:
                     self.embeddings = None
                 return True
@@ -321,6 +348,16 @@ class SemanticIndex:
                     stripped_chunks.append(stripped)
                 self.chunks = stripped_chunks
                 self._rebuild_embeddings_from_rows(rows)
+                # Normalize once so queries skip the per-row norm divide.
+                if self.embeddings is not None:
+                    np = _np()
+                    norms = np.linalg.norm(self.embeddings, axis=1, keepdims=True)
+                    np.divide(
+                        self.embeddings,
+                        norms,
+                        out=self.embeddings,
+                        where=norms > 0,
+                    )
                 # Persist in the new format and remove the legacy file so
                 # subsequent loads skip the migration path.
                 self.save_index()
@@ -368,44 +405,53 @@ class SemanticIndex:
                 show_progress_bar=False,
             )
             query_vec = np.asarray(query_vec, dtype=np.float32)
-
-            # Cosine similarity = (A · q) / (|A_i| * |q|).
             q_norm = float(np.linalg.norm(query_vec))
             if q_norm == 0.0:
                 return self._keyword_search(query, limit)
-            chunk_norms = np.linalg.norm(self.embeddings, axis=1)
-            # Guard against zero-norm rows (shouldn't happen but protects
-            # against divide-by-zero if corrupted data slips in).
-            chunk_norms = np.where(chunk_norms == 0.0, 1.0, chunk_norms)
-            dots = self.embeddings @ query_vec
-            sims = dots / (chunk_norms * q_norm)
+            # Normalize the query only (rows were normalized at index
+            # time); cosine similarity collapses to a single dot product.
+            query_vec = query_vec / q_norm
+            sims = self.embeddings @ query_vec  # shape (N,)
 
-            # Optional keyword boost (hybrid mode).
+            # Narrow to top-K candidates before doing any Python-side
+            # hybrid work. The hybrid boost caps at +0.3, so any row whose
+            # pure semantic score can't catch the K-th best won't win. K
+            # is a generous multiple of limit to leave room for boosted
+            # outsiders without scanning every chunk.
+            n = sims.shape[0]
+            candidate_k = min(n, max(limit * 10, 50))
+            if candidate_k < n:
+                # argpartition is O(N) vs argsort's O(N log N).
+                top_idx = np.argpartition(-sims, candidate_k - 1)[:candidate_k]
+            else:
+                top_idx = np.arange(n)
+
             query_lower = query.lower()
             query_words = set(query_lower.split())
-            boosted_hits = 0
 
-            # Keep the best score seen per path; also remember which chunk
-            # produced it so the excerpt is from the winning chunk.
+            # (score, chunk_idx, had_keyword_overlap) — best per path.
             best_per_path: dict[str, tuple[float, int, bool]] = {}
-            # (score, chunk_idx, had_keyword_overlap)
-
-            for idx, chunk in enumerate(self.chunks):
+            qw_len = len(query_words)
+            for idx in top_idx:
+                chunk = self.chunks[int(idx)]
                 score = float(sims[idx])
                 had_overlap = False
-                if hybrid and query_words:
-                    chunk_words = set(chunk["text"].lower().split())
-                    overlap = query_words & chunk_words
+                if hybrid and qw_len:
+                    # `in` against a short query_words set is cheaper than
+                    # splitting+set-ing the full chunk text for every row.
+                    overlap = 0
+                    chunk_lower = chunk["text"].lower()
+                    for qw in query_words:
+                        if qw in chunk_lower:
+                            overlap += 1
                     if overlap:
                         had_overlap = True
-                        boosted_hits += 1
-                        score += len(overlap) / len(query_words) * 0.3
+                        score += overlap / qw_len * 0.3
 
                 existing = best_per_path.get(chunk["path"])
                 if existing is None or score > existing[0]:
-                    best_per_path[chunk["path"]] = (score, idx, had_overlap)
+                    best_per_path[chunk["path"]] = (score, int(idx), had_overlap)
 
-            # Sort the per-path bests and take the top ``limit``.
             ranked = sorted(
                 best_per_path.values(),
                 key=lambda v: v[0],

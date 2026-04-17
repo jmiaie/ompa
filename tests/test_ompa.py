@@ -139,17 +139,15 @@ class TestPalace:
         with tempfile.TemporaryDirectory() as tmpdir:
             p = Palace(os.path.join(tmpdir, ".palace"))
             # Patch the actual disk-write helper to count calls.
-            with patch.object(
-                p, "_save_now", wraps=p._save_now
-            ) as save_now:
+            with patch.object(p, "_save_now", wraps=p._save_now) as save_now:
                 with p.batch():
                     for i in range(5):
                         p.create_wing(f"wing-{i}")
                         p.create_room(f"wing-{i}", "r")
                         p.link_drawer(f"wing-{i}", "r", f"f{i}.md")
-                assert save_now.call_count == 1, (
-                    f"Expected 1 disk write during batch, got {save_now.call_count}"
-                )
+                assert (
+                    save_now.call_count == 1
+                ), f"Expected 1 disk write during batch, got {save_now.call_count}"
 
             # Verify data actually persisted.
             p2 = Palace(os.path.join(tmpdir, ".palace"))
@@ -675,9 +673,7 @@ class TestMCPServer:
     def test_vault_path_dotdot_rejected(self):
         from ompa.mcp_server import handle_call_tool
 
-        result = handle_call_tool(
-            "ao_status", {"vault_path": "../../../etc"}
-        )
+        result = handle_call_tool("ao_status", {"vault_path": "../../../etc"})
         assert "error" in result
         assert "Invalid" in result["error"]
 
@@ -699,9 +695,9 @@ class TestMCPServer:
         for bad in bad_paths:
             result = handle_call_tool("ao_status", {"vault_path": bad})
             assert "error" in result, f"Expected error for {bad!r}"
-            assert "Invalid" in result["error"], (
-                f"Expected 'Invalid' in error for {bad!r}: {result['error']}"
-            )
+            assert (
+                "Invalid" in result["error"]
+            ), f"Expected 'Invalid' in error for {bad!r}: {result['error']}"
 
     def test_vault_path_empty_rejected(self):
         from ompa.mcp_server import handle_call_tool
@@ -772,7 +768,10 @@ class TestMCPServer:
     def test_ompa_cache_dual_vault_keyed_by_both_paths(self):
         from ompa.mcp_server import _get_ompa, _clear_ompa_cache
 
-        with tempfile.TemporaryDirectory() as shared, tempfile.TemporaryDirectory() as personal:
+        with (
+            tempfile.TemporaryDirectory() as shared,
+            tempfile.TemporaryDirectory() as personal,
+        ):
             _clear_ompa_cache()
             a = _get_ompa(
                 shared_vault_path=shared,
@@ -1490,9 +1489,7 @@ class TestDualVault:
                 "stripe_live": ("sk_" "live_") + "A" * 20,
                 "stripe_restricted": ("rk_" "live_") + "A" * 20,
                 "jwt": (
-                    ("ey" "J") + "A" * 15 + "."
-                    + ("ey" "J") + "A" * 15 + "."
-                    + "A" * 20
+                    ("ey" "J") + "A" * 15 + "." + ("ey" "J") + "A" * 15 + "." + "A" * 20
                 ),
                 "azure": "AccountKey=" + "A" * 60,
                 "mongodb": "mongodb+srv://user:pw@cluster.example.net/db",
@@ -1861,11 +1858,18 @@ class TestSemanticIndex:
             # Metadata stripped of per-chunk `embedding` field.
             assert all("embedding" not in c for c in idx.chunks)
             assert [c["hash"] for c in idx.chunks] == ["abc123", "def456"]
-            # Embeddings now live in a numpy matrix.
+            # Embeddings now live in a numpy matrix. v3 normalizes rows
+            # at migration time so queries skip the per-row norm divide —
+            # compare the L2-normalized originals, not the raw values.
             emb = np.asarray(idx.embeddings, dtype=np.float32)
             assert emb.shape == (2, 4)
+            raw = np.array([0.1, 0.2, 0.3, 0.4], dtype=np.float32)
+            np.testing.assert_allclose(emb[0], raw / np.linalg.norm(raw), atol=1e-6)
+            # Every row is unit norm after migration.
             np.testing.assert_allclose(
-                emb[0], np.array([0.1, 0.2, 0.3, 0.4], dtype=np.float32), atol=1e-6
+                np.linalg.norm(emb, axis=1),
+                np.ones(2, dtype=np.float32),
+                atol=1e-6,
             )
             # Legacy file deleted, v2 files written.
             assert not legacy_path.exists()
@@ -1939,9 +1943,9 @@ class TestSemanticIndex:
             paths = [r.path for r in results]
 
             # Each result must be a distinct path.
-            assert len(paths) == len(set(paths)), (
-                f"Expected distinct paths per result, got: {paths}"
-            )
+            assert len(paths) == len(
+                set(paths)
+            ), f"Expected distinct paths per result, got: {paths}"
             # We should see all three files (not just a.md repeated).
             assert len(results) == 3
             assert {Path(p).name for p in paths} == {"a.md", "b.md", "c.md"}

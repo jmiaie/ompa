@@ -548,7 +548,9 @@ class Ompa:
         # Vault cache is mtime-keyed per-file, so external edits are picked up
         # automatically on next access. No need to drop the whole cache here
         # (doing so doubles the parse cost for the populate + auto_build pass).
-        kg_count = self.kg.populate_from_vault(self.vault_path)
+        # Pass the Ompa-owned Vault so KG population reuses the already-
+        # parsed Note objects instead of opening a fresh Vault + re-parsing.
+        kg_count = self.kg.populate_from_vault(self.vault_path, vault=self.vault)
         # Collapse the palace auto-build mutations into a single JSON write.
         with self.palace.batch():
             palace_count = self.palace.auto_build_from_vault(self.vault_path)
@@ -562,7 +564,9 @@ class Ompa:
 
         # Sync personal vault too if in dual mode
         if self.is_dual_vault:
-            p_kg = self.personal_kg.populate_from_vault(self.dual_config.personal_path)
+            p_kg = self.personal_kg.populate_from_vault(
+                self.dual_config.personal_path, vault=self.personal_vault
+            )
             with self.personal_palace.batch():
                 p_palace = self.personal_palace.auto_build_from_vault(
                     self.dual_config.personal_path

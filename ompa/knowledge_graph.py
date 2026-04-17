@@ -78,11 +78,9 @@ class KnowledgeGraph:
         """Get a database connection that auto-closes on exit."""
         conn = sqlite3.connect(self.db_path)
         conn.row_factory = sqlite3.Row
-        # WAL permits concurrent reads with a writer and cuts fsync cost on
-        # bulk populate passes. NORMAL is the usual WAL companion: still crash-
-        # safe, roughly 2-3× faster than FULL for write-heavy workloads.
-        conn.execute("PRAGMA journal_mode=WAL")
-        conn.execute("PRAGMA synchronous=NORMAL")
+        # journal_mode=WAL is sticky at the DB level (set once in _init_db);
+        # setting PRAGMAs on every connection was itself a per-query overhead
+        # that dominated short reads like query_entity/timeline.
         try:
             yield conn
             conn.commit()
@@ -95,6 +93,11 @@ class KnowledgeGraph:
     def _init_db(self) -> None:
         """Initialize the database schema."""
         with self._conn() as conn:
+            # Set sticky DB-level pragmas once. WAL + NORMAL-synchronous cut
+            # fsync cost on bulk populate passes; persists across connections
+            # so we don't re-pay the pragma parse on every query.
+            conn.execute("PRAGMA journal_mode=WAL")
+            conn.execute("PRAGMA synchronous=NORMAL")
             conn.executescript("""
                 CREATE TABLE IF NOT EXISTS entities (
                     id TEXT PRIMARY KEY,
@@ -514,7 +517,10 @@ class KnowledgeGraph:
         return len(triples) + (1 if has_description else 0)
 
     def populate_from_vault(
-        self, vault_path: Path, exclude_patterns: list[str] | None = None
+        self,
+        vault_path: Path,
+        exclude_patterns: list[str] | None = None,
+        vault: Optional["object"] = None,
     ) -> int:
         """
         Scan all vault notes and populate the knowledge graph in a single
@@ -535,12 +541,14 @@ class KnowledgeGraph:
         description_notes: list[str] = []  # note stems with valid descriptions
         source_files: list[str] = []
 
-        # Reuse the Vault cache — list_notes() returns pre-parsed Note
-        # objects (frontmatter + wikilinks already extracted), so the KG
-        # population pass no longer re-parses every file.
-        from .vault import Vault
+        # Reuse the caller's Vault cache when supplied — list_notes()
+        # returns pre-parsed Note objects (frontmatter + wikilinks already
+        # extracted), so the KG population pass no longer re-parses every
+        # file. Only fall back to a fresh Vault when called standalone.
+        if vault is None:
+            from .vault import Vault
 
-        vault = Vault(vault_path)
+            vault = Vault(vault_path)
         for note in vault.list_notes(exclude_patterns=exclude_patterns):
             triples, has_description = self._extract_triples_from_parsed(
                 note.path,

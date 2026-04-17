@@ -9,6 +9,16 @@ from pathlib import Path
 from dataclasses import dataclass, field
 from typing import Optional
 
+# orjson is a fast C JSON encoder. It dominates stdlib `json.dump` on
+# palace-sized payloads (benchmarks showed json.dump at ~54% of
+# auto_build_from_vault cost). Optional dep — fall back silently.
+try:
+    import orjson  # type: ignore[import-not-found]
+
+    _HAS_ORJSON = True
+except ImportError:  # pragma: no cover - optional dep
+    _HAS_ORJSON = False
+
 HALL_TYPES = [
     "hall_facts",  # decisions made, choices locked
     "hall_events",  # sessions, milestones, debugging
@@ -83,6 +93,16 @@ class Palace:
 
     def _save_now(self) -> None:
         """Write the palace JSON unconditionally (used by batch exit)."""
+        if _HAS_ORJSON:
+            # orjson is ~10× faster than stdlib json for this shape of data.
+            # Keep OPT_INDENT_2 so the file stays diff-friendly / readable.
+            payload = orjson.dumps(self._data, option=orjson.OPT_INDENT_2)
+            # Atomic-ish write to avoid leaving a truncated file if the
+            # process dies mid-write.
+            tmp = self.data_file.with_suffix(".json.tmp")
+            tmp.write_bytes(payload)
+            tmp.replace(self.data_file)
+            return
         with open(self.data_file, "w") as f:
             json.dump(self._data, f, indent=2)
 

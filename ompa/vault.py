@@ -342,13 +342,19 @@ class Vault:
         """Find notes with no incoming links from other notes."""
         all_notes = self.list_notes()
         filename_index = self._build_filename_index(all_notes)
-        linked_files = set()
 
+        # Collect unique link targets once — the same wikilink often appears
+        # across many notes, and each resolve can do a filesystem `.exists()`
+        # call. Deduping avoids O(links) disk stats during full-vault scans.
+        unique_links: set[str] = set()
         for note in all_notes:
-            for link in note.links:
-                resolved = self._resolve_wikilink(link, filename_index)
-                if resolved:
-                    linked_files.add(resolved)
+            unique_links.update(note.links)
+
+        linked_files: set[Path] = set()
+        for link in unique_links:
+            resolved = self._resolve_wikilink(link, filename_index)
+            if resolved:
+                linked_files.add(resolved)
 
         return [
             n
@@ -440,13 +446,18 @@ class Vault:
         notes = self.list_notes()
         filename_index = self._build_filename_index(notes)
 
-        # Build linked set using smart wikilink resolution
-        linked_files = set()
+        # Build linked set using smart wikilink resolution. Dedup targets
+        # first so each unique link is resolved once (avoids redundant
+        # filesystem `.exists()` calls for heavily-referenced notes).
+        unique_links: set[str] = set()
         for note in notes:
-            for link in note.links:
-                resolved = self._resolve_wikilink(link, filename_index)
-                if resolved:
-                    linked_files.add(resolved)
+            unique_links.update(note.links)
+
+        linked_files: set[Path] = set()
+        for link in unique_links:
+            resolved = self._resolve_wikilink(link, filename_index)
+            if resolved:
+                linked_files.add(resolved)
 
         orphan_count = sum(
             1
