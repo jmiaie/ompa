@@ -10,7 +10,6 @@ from dataclasses import dataclass, field
 from enum import Enum
 from functools import lru_cache
 from pathlib import Path
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -113,8 +112,8 @@ PERSONAL_FOLDERS = {"personal", "private", ".secrets"}
 class DualVaultConfig:
     """Configuration for dual-vault architecture."""
 
-    shared_path: Optional[Path] = None
-    personal_path: Optional[Path] = None
+    shared_path: Path | None = None
+    personal_path: Path | None = None
     isolation_mode: IsolationMode = IsolationMode.STRICT
     default_vault: VaultTarget = VaultTarget.PERSONAL
     prompt_on_ambiguous: bool = True
@@ -189,7 +188,7 @@ class DualVaultConfig:
         try:
             import yaml
 
-            with open(config_path, "r", encoding="utf-8") as f:
+            with open(config_path, encoding="utf-8") as f:
                 data = yaml.safe_load(f) or {}
 
             vaults = data.get("vaults", {})

@@ -10,11 +10,12 @@ The old format (<index_path>/semantic_index.json, all-in-one JSON with
 ``embedding`` lists inside each chunk) is auto-migrated on first ``load_index``.
 """
 
+import contextlib
+import hashlib
 import json
 import logging
-import hashlib
-from pathlib import Path
 from dataclasses import dataclass
+from pathlib import Path
 
 from .vault import DEFAULT_EXCLUDE_PATTERNS
 
@@ -298,7 +299,7 @@ class SemanticIndex:
         # Prefer v2/v3 (meta + .npy) when present.
         if meta_file.exists():
             try:
-                with open(meta_file, "r", encoding="utf-8") as f:
+                with open(meta_file, encoding="utf-8") as f:
                     data = json.load(f)
                 self.chunks = data.get("chunks", [])
                 if emb_file.exists() and self.chunks:
@@ -332,7 +333,7 @@ class SemanticIndex:
         # Legacy: single JSON with per-chunk embedding arrays.
         if legacy_file.exists():
             try:
-                with open(legacy_file, "r", encoding="utf-8") as f:
+                with open(legacy_file, encoding="utf-8") as f:
                     data = json.load(f)
                 raw_chunks = data.get("chunks", [])
                 rows = []
@@ -361,10 +362,8 @@ class SemanticIndex:
                 # Persist in the new format and remove the legacy file so
                 # subsequent loads skip the migration path.
                 self.save_index()
-                try:
+                with contextlib.suppress(OSError):
                     legacy_file.unlink()
-                except OSError:
-                    pass
                 logger.info(
                     "Migrated legacy semantic index (%d chunks) to v2 binary format",
                     len(self.chunks),
@@ -534,10 +533,8 @@ class SemanticIndex:
         for fname in (self.META_FILE, self.EMB_FILE, self.LEGACY_FILE):
             p = self.index_path / fname
             if p.exists():
-                try:
+                with contextlib.suppress(OSError):
                     p.unlink()
-                except OSError:
-                    pass
 
 
 def qmd_query(vault_path: str, query: str, limit: int = 5) -> list[SearchResult]:

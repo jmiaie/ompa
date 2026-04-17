@@ -7,14 +7,14 @@ import json
 import logging
 import re
 import shutil
-import subprocess  # noqa: S404 — used only for `git log` with a validated path
-from datetime import datetime
+import subprocess
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
-from typing import Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
-from .vault import Vault, Note
 from .classifier import MessageClassifier
+from .vault import Note, Vault
 
 if TYPE_CHECKING:
     from .core import Ompa
@@ -57,7 +57,7 @@ class HookResult:
     success: bool
     output: str = ""
     tokens_hint: int = 0
-    error: Optional[str] = None
+    error: str | None = None
 
 
 class Hook:
@@ -110,7 +110,7 @@ class SessionStartHook(Hook):
             try:
                 git_path = shutil.which("git")
                 if git_path:
-                    result = subprocess.run(  # noqa: S603
+                    result = subprocess.run(
                         [
                             git_path,
                             "log",

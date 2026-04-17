@@ -19,7 +19,8 @@ Usage:
 # the single source of truth). Falls back to "0.0.0+unknown" for editable
 # installs or source-tree imports where the distribution isn't registered.
 try:
-    from importlib.metadata import PackageNotFoundError, version as _pkg_version
+    from importlib.metadata import PackageNotFoundError
+    from importlib.metadata import version as _pkg_version
 
     try:
         __version__ = _pkg_version("ompa")
@@ -29,36 +30,36 @@ try:
 except ImportError:  # pragma: no cover — importlib.metadata is stdlib ≥3.8
     __version__ = "0.0.0+unknown"
 
-from .core import Ompa
-from .vault import Vault, Note, VaultConfig
-from .palace import Palace
-from .knowledge_graph import KnowledgeGraph
-from .classifier import MessageClassifier, Classification, MessageType
-from .hooks import HookManager, HookContext, HookResult, Hook
-from .semantic import SemanticIndex, SearchResult
+from .classifier import Classification, MessageClassifier, MessageType
 from .config import DualVaultConfig, IsolationMode, VaultTarget
+from .core import Ompa
+from .hooks import Hook, HookContext, HookManager, HookResult
+from .knowledge_graph import KnowledgeGraph
+from .palace import Palace
+from .semantic import SearchResult, SemanticIndex
+from .vault import Note, Vault, VaultConfig
 
 # Backward compatibility alias
 AgnosticObsidian = Ompa
 
 __all__ = [
-    "Ompa",
     "AgnosticObsidian",  # backward compat
-    "Vault",
-    "Note",
-    "VaultConfig",
-    "Palace",
+    "Classification",
+    "DualVaultConfig",
+    "Hook",
+    "HookContext",
+    "HookManager",
+    "HookResult",
+    "IsolationMode",
     "KnowledgeGraph",
     "MessageClassifier",
-    "Classification",
     "MessageType",
-    "HookManager",
-    "HookContext",
-    "HookResult",
-    "Hook",
-    "SemanticIndex",
+    "Note",
+    "Ompa",
+    "Palace",
     "SearchResult",
-    "DualVaultConfig",
-    "IsolationMode",
+    "SemanticIndex",
+    "Vault",
+    "VaultConfig",
     "VaultTarget",
 ]

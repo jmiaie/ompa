@@ -23,7 +23,7 @@ from pathlib import Path
 
 # Re-export the package version so MCP clients can probe it via the server
 # module. Sourced from package metadata so it can never drift from pyproject.
-from . import __version__  # noqa: F401 — public re-export for MCP clients
+from . import __version__
 
 logger = logging.getLogger(__name__)
 

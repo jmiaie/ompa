@@ -4,7 +4,6 @@ Run with: ao <command> or ao-mcp <command>
 """
 
 from pathlib import Path
-from typing import Optional
 
 import typer
 from rich.console import Console
@@ -37,8 +36,8 @@ def _make_ompa(
 @app.command()
 def init(
     vault_path: Path = Path("."),
-    shared_vault: Optional[Path] = typer.Option(None, help="Shared vault path"),
-    personal_vault: Optional[Path] = typer.Option(None, help="Personal vault path"),
+    shared_vault: Path | None = typer.Option(None, help="Shared vault path"),
+    personal_vault: Path | None = typer.Option(None, help="Personal vault path"),
 ):
     """Initialize vault + palace structure."""
     from ompa import Vault
@@ -124,11 +123,11 @@ def search(
     query: str,
     vault_path: Path = Path("."),
     limit: int = 5,
-    vault: Optional[str] = typer.Option(
+    vault: str | None = typer.Option(
         None, help="Which vault: shared, personal, or both"
     ),
-    shared_vault: Optional[Path] = typer.Option(None, help="Shared vault path"),
-    personal_vault: Optional[Path] = typer.Option(None, help="Personal vault path"),
+    shared_vault: Path | None = typer.Option(None, help="Shared vault path"),
+    personal_vault: Path | None = typer.Option(None, help="Personal vault path"),
 ):
     """Search the vault semantically."""
     ao = _make_ompa(vault_path, shared_vault, personal_vault, enable_semantic=True)
@@ -351,8 +350,8 @@ def kg_populate(
 @app.command()
 def sync(
     vault_path: Path = Path("."),
-    shared_vault: Optional[Path] = typer.Option(None, help="Shared vault path"),
-    personal_vault: Optional[Path] = typer.Option(None, help="Personal vault path"),
+    shared_vault: Path | None = typer.Option(None, help="Shared vault path"),
+    personal_vault: Path | None = typer.Option(None, help="Personal vault path"),
 ):
     """Full sync: rebuild KG, palace, and search index from vault."""
     ao = _make_ompa(vault_path, shared_vault, personal_vault, enable_semantic=True)
@@ -369,11 +368,11 @@ def sync(
 @app.command()
 def write_note(
     content: str,
-    vault: Optional[str] = typer.Option(None, help="Target vault: shared or personal"),
-    tags: Optional[str] = typer.Option(None, help="Comma-separated tags"),
-    file_path: Optional[str] = typer.Option(None, help="Target file path"),
-    shared_vault: Optional[Path] = typer.Option(None, help="Shared vault path"),
-    personal_vault: Optional[Path] = typer.Option(None, help="Personal vault path"),
+    vault: str | None = typer.Option(None, help="Target vault: shared or personal"),
+    tags: str | None = typer.Option(None, help="Comma-separated tags"),
+    file_path: str | None = typer.Option(None, help="Target file path"),
+    shared_vault: Path | None = typer.Option(None, help="Shared vault path"),
+    personal_vault: Path | None = typer.Option(None, help="Personal vault path"),
     vault_path: Path = Path("."),
 ):
     """Write content to the appropriate vault (auto-classifies in dual mode)."""

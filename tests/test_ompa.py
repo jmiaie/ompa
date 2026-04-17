@@ -134,6 +134,7 @@ class TestPalace:
     def test_batch_defers_disk_writes(self):
         """batch() must collapse N mutations into one JSON write."""
         from unittest.mock import patch
+
         from ompa import Palace
 
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -174,6 +175,7 @@ class TestPalace:
     def test_batch_is_reentrant(self):
         """Nested batches only flush at the outermost exit."""
         from unittest.mock import patch
+
         from ompa import Palace
 
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -435,8 +437,9 @@ class TestVault:
                 vault.create_from_template("../../etc/evil", "../../tmp/pwned.md")
 
     def test_note_save_utf8(self):
-        from ompa.vault import Note
         from pathlib import Path
+
+        from ompa.vault import Note
 
         with tempfile.TemporaryDirectory() as tmpdir:
             path = Path(tmpdir) / "unicode.md"
@@ -447,8 +450,9 @@ class TestVault:
 
     def test_safe_resolve_prefix_collision(self):
         """_safe_resolve should block prefix-collision bypasses like vault vs vault-evil."""
-        from ompa.vault import _safe_resolve
         from pathlib import Path
+
+        from ompa.vault import _safe_resolve
 
         with tempfile.TemporaryDirectory() as tmpdir:
             base = Path(tmpdir) / "vault"
@@ -491,6 +495,7 @@ class TestVault:
         """When a file's mtime changes, the cache must re-parse it."""
         import os
         import time
+
         from ompa import Vault
 
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -680,6 +685,7 @@ class TestMCPServer:
     def test_vault_path_system_roots_rejected(self):
         """Absolute paths into system directories must be rejected."""
         import sys
+
         from ompa.mcp_server import handle_call_tool
 
         if sys.platform == "win32":
@@ -709,6 +715,7 @@ class TestMCPServer:
     def test_shared_and_personal_vault_paths_validated(self):
         """Dual-vault paths must pass through the same validator."""
         import sys
+
         from ompa.mcp_server import handle_call_tool
 
         bad = "C:\\Windows" if sys.platform == "win32" else "/etc"
@@ -744,7 +751,7 @@ class TestMCPServer:
         """Repeated tool calls against the same vault must return the same
         cached Ompa instance so we don't reload the sentence-transformers
         model and re-parse the semantic index on every MCP tool invocation."""
-        from ompa.mcp_server import _get_ompa, _clear_ompa_cache
+        from ompa.mcp_server import _clear_ompa_cache, _get_ompa
 
         with tempfile.TemporaryDirectory() as tmpdir:
             _clear_ompa_cache()
@@ -766,7 +773,7 @@ class TestMCPServer:
             assert fifth is not first  # cache was cleared
 
     def test_ompa_cache_dual_vault_keyed_by_both_paths(self):
-        from ompa.mcp_server import _get_ompa, _clear_ompa_cache
+        from ompa.mcp_server import _clear_ompa_cache, _get_ompa
 
         with (
             tempfile.TemporaryDirectory() as shared,
@@ -796,7 +803,7 @@ class TestOmpa:
         with tempfile.TemporaryDirectory() as tmpdir:
             ao = Ompa(tmpdir, enable_semantic=False)
             result = ao.session_start()
-            assert result.success == True
+            assert result.success is True
 
     def test_classify(self):
         from ompa import Ompa
@@ -822,7 +829,7 @@ class TestOmpa:
         with tempfile.TemporaryDirectory() as tmpdir:
             ao = Ompa(tmpdir, enable_semantic=False)
             result = ao.stop()
-            assert result.success == True
+            assert result.success is True
 
     def test_backward_compat_alias(self):
         """Verify AgnosticObsidian still works as an alias."""
@@ -843,8 +850,9 @@ class TestKGPopulation:
 
     def test_populate_from_note_wikilinks(self):
         """Wikilinks should create links_to triples."""
-        from ompa import KnowledgeGraph
         from pathlib import Path
+
+        from ompa import KnowledgeGraph
 
         with tempfile.TemporaryDirectory() as tmpdir:
             kg = KnowledgeGraph(db_path=os.path.join(tmpdir, "kg.sqlite3"))
@@ -865,8 +873,9 @@ class TestKGPopulation:
 
     def test_populate_from_note_tags(self):
         """Frontmatter tags should create has_tag triples."""
-        from ompa import KnowledgeGraph
         from pathlib import Path
+
+        from ompa import KnowledgeGraph
 
         with tempfile.TemporaryDirectory() as tmpdir:
             kg = KnowledgeGraph(db_path=os.path.join(tmpdir, "kg.sqlite3"))
@@ -877,7 +886,7 @@ class TestKGPopulation:
                 "---\ndate: 2026-04-10\ntags: [auth, security]\n---\nContent here.",
                 encoding="utf-8",
             )
-            count = kg.populate_from_note(note_path, vault_path)
+            kg.populate_from_note(note_path, vault_path)
             triples = kg.query_entity("Tagged")
             tag_triples = [t for t in triples if t.predicate == "has_tag"]
             assert len(tag_triples) == 2
@@ -887,8 +896,9 @@ class TestKGPopulation:
 
     def test_populate_from_note_folders(self):
         """Notes should get in_folder triples from their directory."""
-        from ompa import KnowledgeGraph
         from pathlib import Path
+
+        from ompa import KnowledgeGraph
 
         with tempfile.TemporaryDirectory() as tmpdir:
             kg = KnowledgeGraph(db_path=os.path.join(tmpdir, "kg.sqlite3"))
@@ -899,7 +909,7 @@ class TestKGPopulation:
                 "---\ndate: 2026-04-10\n---\nAuth work note.",
                 encoding="utf-8",
             )
-            count = kg.populate_from_note(note_path, vault_path)
+            kg.populate_from_note(note_path, vault_path)
             triples = kg.query_entity("Auth")
             folder_triples = [t for t in triples if t.predicate == "in_folder"]
             assert len(folder_triples) == 1
@@ -907,8 +917,9 @@ class TestKGPopulation:
 
     def test_populate_from_vault(self):
         """populate_from_vault should scan all notes."""
-        from ompa import KnowledgeGraph
         from pathlib import Path
+
+        from ompa import KnowledgeGraph
 
         with tempfile.TemporaryDirectory() as tmpdir:
             kg = KnowledgeGraph(db_path=os.path.join(tmpdir, "kg.sqlite3"))
@@ -928,8 +939,9 @@ class TestKGPopulation:
 
     def test_session_start_auto_populates_kg(self):
         """session_start should auto-populate KG if empty."""
-        from ompa import Ompa
         from pathlib import Path
+
+        from ompa import Ompa
 
         with tempfile.TemporaryDirectory() as tmpdir:
             vault_path = Path(tmpdir)
@@ -947,8 +959,9 @@ class TestKGPopulation:
 
     def test_sync(self):
         """sync() should rebuild KG and palace."""
-        from ompa import Ompa
         from pathlib import Path
+
+        from ompa import Ompa
 
         with tempfile.TemporaryDirectory() as tmpdir:
             vault_path = Path(tmpdir)
@@ -977,8 +990,9 @@ class TestKGPopulation:
 
     def test_mcp_kg_populate(self):
         """MCP ao_kg_populate tool should work."""
-        from ompa.mcp_server import handle_call_tool
         from pathlib import Path
+
+        from ompa.mcp_server import handle_call_tool
 
         with tempfile.TemporaryDirectory() as tmpdir:
             vault_path = Path(tmpdir)
@@ -1006,6 +1020,7 @@ class TestKGPopulation:
         the old links_to triple must be deleted so the KG stays consistent
         with the note on disk."""
         from pathlib import Path as _Path
+
         from ompa import KnowledgeGraph
 
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -1042,8 +1057,9 @@ class TestKGPopulation:
     def test_populate_from_vault_uses_single_transaction(self):
         """P1.6: populate_from_vault should hit the database with a single
         connection/commit rather than one per note."""
-        from unittest.mock import patch
         from pathlib import Path as _Path
+        from unittest.mock import patch
+
         from ompa import KnowledgeGraph
 
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -1072,8 +1088,9 @@ class TestOrphanAndBrainFixes:
 
     def test_orphans_resolve_wikilinks_by_filename(self):
         """Wikilinks should resolve by filename even in subdirectories."""
-        from ompa import Vault
         from pathlib import Path
+
+        from ompa import Vault
 
         with tempfile.TemporaryDirectory() as tmpdir:
             vault = Vault(tmpdir)
@@ -1096,8 +1113,9 @@ class TestOrphanAndBrainFixes:
 
     def test_orphans_with_md_extension_in_wikilink(self):
         """Wikilinks like [[SOUL.md]] should resolve correctly."""
-        from ompa import Vault
         from pathlib import Path
+
+        from ompa import Vault
 
         with tempfile.TemporaryDirectory() as tmpdir:
             vault = Vault(tmpdir)
@@ -1118,8 +1136,9 @@ class TestOrphanAndBrainFixes:
 
     def test_brain_notes_count_by_frontmatter_wing(self):
         """Notes with wing=brain in frontmatter should count as brain notes."""
-        from ompa import Vault
         from pathlib import Path
+
+        from ompa import Vault
 
         with tempfile.TemporaryDirectory() as tmpdir:
             vault = Vault(tmpdir)
@@ -1143,8 +1162,9 @@ class TestOrphanAndBrainFixes:
 
     def test_brain_notes_count_in_brain_folder(self):
         """Notes in brain/ folder should always count."""
-        from ompa import Vault
         from pathlib import Path
+
+        from ompa import Vault
 
         with tempfile.TemporaryDirectory() as tmpdir:
             vault = Vault(tmpdir)
@@ -1163,8 +1183,9 @@ class TestOrphanAndBrainFixes:
 
     def test_orphan_stats_match_find_orphans(self):
         """get_stats() orphan count should match find_orphans() length."""
-        from ompa import Vault
         from pathlib import Path
+
+        from ompa import Vault
 
         with tempfile.TemporaryDirectory() as tmpdir:
             vault = Vault(tmpdir)
@@ -1351,8 +1372,9 @@ class TestDualVault:
 
     def test_write_to_shared(self):
         """write() with vault='shared' should write to shared vault."""
-        from ompa import Ompa
         from pathlib import Path
+
+        from ompa import Ompa
 
         with tempfile.TemporaryDirectory() as tmpdir:
             shared = Path(tmpdir) / "shared"
@@ -1372,8 +1394,9 @@ class TestDualVault:
 
     def test_write_to_personal(self):
         """write() with vault='personal' should write to personal vault."""
-        from ompa import Ompa
         from pathlib import Path
+
+        from ompa import Ompa
 
         with tempfile.TemporaryDirectory() as tmpdir:
             shared = Path(tmpdir) / "shared"
@@ -1393,8 +1416,9 @@ class TestDualVault:
 
     def test_write_auto_classify(self):
         """write() without vault= should auto-classify."""
-        from ompa import Ompa
         from pathlib import Path
+
+        from ompa import Ompa
 
         with tempfile.TemporaryDirectory() as tmpdir:
             shared = Path(tmpdir) / "shared"
@@ -1411,8 +1435,9 @@ class TestDualVault:
 
     def test_export_to_shared(self):
         """export_to_shared should copy note to shared vault."""
-        from ompa import Ompa
         from pathlib import Path
+
+        from ompa import Ompa
 
         with tempfile.TemporaryDirectory() as tmpdir:
             shared = Path(tmpdir) / "shared"
@@ -1436,8 +1461,9 @@ class TestDualVault:
 
     def test_export_sanitizes_content(self):
         """export_to_shared should redact credentials."""
-        from ompa import Ompa
         from pathlib import Path
+
+        from ompa import Ompa
 
         with tempfile.TemporaryDirectory() as tmpdir:
             shared = Path(tmpdir) / "shared"
@@ -1461,8 +1487,9 @@ class TestDualVault:
 
     def test_sanitize_content_covers_broad_secret_set(self):
         """P0.9: _sanitize_content must catch common cloud/service credentials."""
-        from ompa import Ompa
         from pathlib import Path
+
+        from ompa import Ompa
 
         with tempfile.TemporaryDirectory() as tmpdir:
             ao = Ompa(
@@ -1516,8 +1543,9 @@ class TestDualVault:
 
     def test_sanitize_content_preserves_safe_text(self):
         """Guard against over-redaction of ordinary words."""
-        from ompa import Ompa
         from pathlib import Path
+
+        from ompa import Ompa
 
         with tempfile.TemporaryDirectory() as tmpdir:
             ao = Ompa(
@@ -1537,8 +1565,9 @@ class TestDualVault:
 
     def test_import_to_personal(self):
         """import_to_personal should copy note to personal vault."""
-        from ompa import Ompa
         from pathlib import Path
+
+        from ompa import Ompa
 
         with tempfile.TemporaryDirectory() as tmpdir:
             shared = Path(tmpdir) / "shared"
@@ -1562,8 +1591,9 @@ class TestDualVault:
 
     def test_cross_vault_search(self):
         """search() with vaults=['shared','personal'] should search both."""
-        from ompa import Ompa
         from pathlib import Path
+
+        from ompa import Ompa
 
         with tempfile.TemporaryDirectory() as tmpdir:
             shared = Path(tmpdir) / "shared"
@@ -1592,8 +1622,9 @@ class TestDualVault:
 
     def test_isolation_strict_export_preview(self):
         """In strict mode, export with confirm=True should return preview."""
-        from ompa import Ompa
         from pathlib import Path
+
+        from ompa import Ompa
 
         with tempfile.TemporaryDirectory() as tmpdir:
             shared = Path(tmpdir) / "shared"
@@ -1636,8 +1667,9 @@ class TestDualVault:
 
     def test_export_to_shared_path_traversal_blocked(self):
         """export_to_shared() should reject note paths outside personal vault."""
-        from ompa import Ompa
         from pathlib import Path
+
+        from ompa import Ompa
 
         with tempfile.TemporaryDirectory() as tmpdir:
             shared = Path(tmpdir) / "shared"
@@ -1653,8 +1685,9 @@ class TestDualVault:
 
     def test_import_to_personal_path_traversal_blocked(self):
         """import_to_personal() should reject note paths outside shared vault."""
-        from ompa import Ompa
         from pathlib import Path
+
+        from ompa import Ompa
 
         with tempfile.TemporaryDirectory() as tmpdir:
             shared = Path(tmpdir) / "shared"
@@ -1679,8 +1712,9 @@ class TestDualVault:
 
     def test_dual_vault_sync(self):
         """sync() should sync both vaults in dual mode."""
-        from ompa import Ompa
         from pathlib import Path
+
+        from ompa import Ompa
 
         with tempfile.TemporaryDirectory() as tmpdir:
             shared = Path(tmpdir) / "shared"
@@ -1712,8 +1746,9 @@ class TestSemanticIndex:
 
     def test_index_vault_initializes_model(self):
         """index_vault should lazy-init the model if not yet initialized."""
-        from ompa.semantic import SemanticIndex
         from pathlib import Path
+
+        from ompa.semantic import SemanticIndex
 
         with tempfile.TemporaryDirectory() as tmpdir:
             idx = SemanticIndex(index_path=Path(tmpdir) / "idx")
@@ -1749,9 +1784,11 @@ class TestSemanticIndex:
         character counts — enough for meaningful cosine similarity without
         any external model dependency.
         """
-        from ompa.semantic import SemanticIndex
         from pathlib import Path
+
         import numpy as np
+
+        from ompa.semantic import SemanticIndex
 
         class StubModel:
             def encode(self, texts, convert_to_numpy=True, show_progress_bar=False):
@@ -1824,6 +1861,7 @@ class TestSemanticIndex:
         auto-migrated to the v2 split format on first load, and the old
         file deleted so subsequent loads are fast."""
         import json as _json
+
         import numpy as np
 
         with tempfile.TemporaryDirectory() as tmpdir:

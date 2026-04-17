@@ -5,9 +5,10 @@ Handles note organization, templates, wikilinks, and frontmatter validation.
 
 import logging
 import re
-from pathlib import Path
 from dataclasses import dataclass, field
-from typing import Optional
+from pathlib import Path
+from typing import ClassVar
+
 import frontmatter
 import yaml
 
@@ -208,7 +209,7 @@ class Vault:
     """Manages the OMPA vault structure."""
 
     # Folder structure
-    STRUCTURE = {
+    STRUCTURE: ClassVar[dict[str, list[str]]] = {
         "brain": [
             "Memories.md",
             "Key Decisions.md",
@@ -314,7 +315,7 @@ class Vault:
 
     def _resolve_wikilink(
         self, link: str, filename_index: dict[str, Path]
-    ) -> Optional[Path]:
+    ) -> Path | None:
         """Resolve a wikilink to a file path using multiple strategies."""
         link_lower = link.lower()
 
@@ -368,7 +369,7 @@ class Vault:
         query_lower = query.lower()
         return [n for n in self.list_notes() if query_lower in n.path.stem.lower()]
 
-    def get_brain_note(self, name: str) -> Optional[Note]:
+    def get_brain_note(self, name: str) -> Note | None:
         """Get a brain note by name. Name is sanitized to prevent path traversal."""
         # Reject names with path separators or parent-dir references
         if "/" in name or "\\" in name or ".." in name:
@@ -379,8 +380,8 @@ class Vault:
         # Ensure we stay within brain folder
         try:
             path.relative_to(self.config.brain_folder.resolve())
-        except ValueError:
-            raise ValueError(f"Invalid brain note name: {name!r}")
+        except ValueError as e:
+            raise ValueError(f"Invalid brain note name: {name!r}") from e
         if path.exists():
             return Note.from_file(path)
         return None
@@ -395,8 +396,8 @@ class Vault:
         path = path.resolve()
         try:
             path.relative_to(self.config.brain_folder.resolve())
-        except ValueError:
-            raise ValueError(f"Invalid brain note name: {name!r}")
+        except ValueError as e:
+            raise ValueError(f"Invalid brain note name: {name!r}") from e
         path.parent.mkdir(parents=True, exist_ok=True)
 
         if append and path.exists():
@@ -473,9 +474,7 @@ class Vault:
             folder_counts[folder] = folder_counts.get(folder, 0) + 1
 
             # Count brain notes: in brain/ folder OR wing=brain in frontmatter
-            if "brain" in note.path.parts:
-                brain_count += 1
-            elif note.frontmatter.get("wing", "").lower() == "brain":
+            if "brain" in note.path.parts or note.frontmatter.get("wing", "").lower() == "brain":
                 brain_count += 1
 
         # Also count brain folder files not yet in notes list (e.g., empty ones)

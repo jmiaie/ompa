@@ -17,13 +17,13 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+from typing import Optional
 
 from .vault import (
     DEFAULT_EXCLUDE_PATTERNS,
     _fast_parse_frontmatter,
     extract_wikilinks,
 )
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -48,10 +48,10 @@ class Triple:
     subject: str
     predicate: str
     object: str
-    valid_from: Optional[str] = None
-    valid_to: Optional[str] = None
+    valid_from: str | None = None
+    valid_to: str | None = None
     confidence: float = 1.0
-    source_file: Optional[str] = None
+    source_file: str | None = None
 
 
 def _row_to_triple(row: sqlite3.Row) -> Triple:
@@ -326,7 +326,7 @@ class KnowledgeGraph:
     # -------------------------------------------------------------------------
 
     def _extract_note_triples(
-        self, note_path: Path, vault_path: Optional[Path] = None
+        self, note_path: Path, vault_path: Path | None = None
     ) -> tuple[list[tuple], bool]:
         """Parse a note from disk and return (triples, has_description).
 
@@ -355,8 +355,8 @@ class KnowledgeGraph:
         note_path: Path,
         content: str,
         metadata: dict,
-        vault_path: Optional[Path] = None,
-        links: Optional[list[str]] = None,
+        vault_path: Path | None = None,
+        links: list[str] | None = None,
     ) -> tuple[list[tuple], bool]:
         """Derive triples from already-parsed note content/metadata.
 

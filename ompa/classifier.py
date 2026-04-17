@@ -5,8 +5,9 @@ Also classifies content for dual-vault routing (shared vs personal).
 """
 
 import re
-from enum import Enum
 from dataclasses import dataclass
+from enum import Enum
+from typing import ClassVar
 
 
 class MessageType(Enum):
@@ -43,7 +44,7 @@ class MessageClassifier:
     """
 
     # Regex patterns for classification
-    PATTERNS = {
+    PATTERNS: ClassVar[dict[MessageType, list[str]]] = {
         MessageType.DECISION: [
             r"\b(decided|decision|we chose|going with|settled on|agreed to)\b",
             r"\b(defer|postpone|push to|revisit)\b.*\b(Q\d|quarter|sprint)\b",
@@ -117,7 +118,7 @@ class MessageClassifier:
     }
 
     # Routing hints per message type
-    ROUTING_HINTS = {
+    ROUTING_HINTS: ClassVar[dict[MessageType, list[str]]] = {
         MessageType.DECISION: [
             "This is a decision. Record it in brain/Key Decisions.md",
             "Update relevant project notes with the decision",
@@ -181,7 +182,7 @@ class MessageClassifier:
     }
 
     # Suggested folder locations
-    FOLDER_MAP = {
+    FOLDER_MAP: ClassVar[dict[MessageType, str]] = {
         MessageType.DECISION: "work/active/",
         MessageType.INCIDENT: "work/incidents/",
         MessageType.WIN: "perf/brag/",
@@ -274,7 +275,7 @@ class MessageClassifier:
         return f"[{classification.message_type.value.upper()}] {classification.suggested_action}"
 
     # Shared-vault message types (team-visible content)
-    SHARED_TYPES = {
+    SHARED_TYPES: ClassVar[set[MessageType]] = {
         MessageType.DECISION,
         MessageType.MEETING,
         MessageType.PROJECT_UPDATE,
@@ -287,7 +288,7 @@ class MessageClassifier:
     }
 
     # Personal-vault message types (agent-private content)
-    PERSONAL_TYPES = {
+    PERSONAL_TYPES: ClassVar[set[MessageType]] = {
         MessageType.BRAIN_DUMP,
     }
 

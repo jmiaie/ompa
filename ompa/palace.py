@@ -5,9 +5,8 @@ Inspired by MemPalace. Manages the structured metadata that accelerates retrieva
 
 import json
 from contextlib import contextmanager
-from pathlib import Path
 from dataclasses import dataclass, field
-from typing import Optional
+from pathlib import Path
 
 # orjson is a fast C JSON encoder. It dominates stdlib `json.dump` on
 # palace-sized payloads (benchmarks showed json.dump at ~54% of
@@ -162,7 +161,7 @@ class Palace:
             for w in self._data.get("wings", {}).values()
         ]
 
-    def get_wing(self, name: str) -> Optional[dict]:
+    def get_wing(self, name: str) -> dict | None:
         """Get a wing by name."""
         return self._data.get("wings", {}).get(name)
 
@@ -197,7 +196,7 @@ class Palace:
             return []
         return list(wing_data.get("rooms", {}).keys())
 
-    def get_room(self, wing: str, room_name: str) -> Optional[dict]:
+    def get_room(self, wing: str, room_name: str) -> dict | None:
         """Get a room."""
         wing_data = self._data.get("wings", {}).get(wing)
         if not wing_data:
@@ -240,7 +239,7 @@ class Palace:
         ] = content
         self._save()
 
-    def get_hall(self, wing: str, room: str, hall_type: str) -> Optional[str]:
+    def get_hall(self, wing: str, room: str, hall_type: str) -> str | None:
         """Get hall content."""
         room_data = self.get_room(wing, room)
         if not room_data:
