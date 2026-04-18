@@ -379,8 +379,15 @@ def ao_write(arguments: dict) -> dict:
     """Write content to the appropriate vault (auto-classifies in dual mode)."""
     ao = _make_ompa(arguments, enable_semantic=False)
     content = arguments.get("content", "")
+    # Accept tags as either a list (native MCP JSON) or a comma-separated
+    # string (convenience for CLI-style callers). Strip + drop empties either way.
     tags_raw = arguments.get("tags", "")
-    tags = [t.strip() for t in tags_raw.split(",") if t.strip()] if tags_raw else []
+    if isinstance(tags_raw, list):
+        tags = [str(t).strip() for t in tags_raw if str(t).strip()]
+    elif tags_raw:
+        tags = [t.strip() for t in str(tags_raw).split(",") if t.strip()]
+    else:
+        tags = []
     result = ao.write(
         content,
         file_path=arguments.get("file_path"),
