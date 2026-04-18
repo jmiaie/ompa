@@ -98,7 +98,6 @@ class Ompa:
     ):
         self.agent_name = agent_name
         self._enable_semantic = enable_semantic
-        self._session_started = False
         self._last_classification: Classification | None = None
 
         # Dual-vault config
@@ -147,7 +146,6 @@ class Ompa:
                 db_path=str(self.vault_path / ".palace" / "knowledge_graph.sqlite3")
             )
             # Single-vault: personal_* remain None (already declared above)
-            pass
 
         self.classifier = MessageClassifier()
         self.hooks = HookManager(self.vault_path, agent_name=self.agent_name)
@@ -219,9 +217,7 @@ class Ompa:
             except Exception as e:
                 logger.debug("Semantic index build skipped: %s", e)
 
-        result = self.hooks.run_session_start(self)
-        self._session_started = True
-        return result
+        return self.hooks.run_session_start(self)
 
     def handle_message(self, message: str) -> HookResult:
         """
@@ -262,9 +258,7 @@ class Ompa:
 
     def stop(self) -> HookResult:
         """Run stop hook (wrap-up checklist)."""
-        result = self.hooks.run_stop(self)
-        self._session_started = False
-        return result
+        return self.hooks.run_stop(self)
 
     def wrap_up(self) -> HookResult:
         """Alias for stop()."""
