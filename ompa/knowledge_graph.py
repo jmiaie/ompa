@@ -16,6 +16,7 @@ import sqlite3
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime
+from functools import lru_cache
 from pathlib import Path
 from typing import Optional
 
@@ -24,6 +25,19 @@ from .vault import (
     _fast_parse_frontmatter,
     extract_wikilinks,
 )
+
+
+# Module-level ID helpers — memoized because populate_from_vault hashes
+# the same subject/predicate/object strings repeatedly across notes.
+@lru_cache(maxsize=4096)
+def _entity_id_cached(name: str) -> str:
+    return hashlib.sha256(name.encode()).hexdigest()[:16]
+
+
+@lru_cache(maxsize=8192)
+def _triple_id_cached(subject: str, predicate: str, obj: str) -> str:
+    key = f"{subject}|{predicate}|{obj}"
+    return hashlib.sha256(key.encode()).hexdigest()[:16]
 
 logger = logging.getLogger(__name__)
 
@@ -133,12 +147,11 @@ class KnowledgeGraph:
 
     def _entity_id(self, name: str) -> str:
         """Generate a stable ID for an entity."""
-        return hashlib.sha256(name.encode()).hexdigest()[:16]
+        return _entity_id_cached(name)
 
     def _triple_id(self, subject: str, predicate: str, obj: str) -> str:
         """Generate a stable ID for a triple."""
-        key = f"{subject}|{predicate}|{obj}"
-        return hashlib.sha256(key.encode()).hexdigest()[:16]
+        return _triple_id_cached(subject, predicate, obj)
 
     def _now(self) -> str:
         return datetime.now().strftime("%Y-%m-%d")

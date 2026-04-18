@@ -199,6 +199,19 @@ class MessageClassifier:
         MessageType.STANDUP: "brain/",
     }
 
+    # Compiled patterns — built lazily on first classify() so subclasses
+    # or runtime edits to PATTERNS still take effect if done before use.
+    _COMPILED: ClassVar[dict[MessageType, list[re.Pattern[str]]] | None] = None
+
+    @classmethod
+    def _compiled(cls) -> dict[MessageType, list[re.Pattern[str]]]:
+        if cls._COMPILED is None:
+            cls._COMPILED = {
+                t: [re.compile(p, re.IGNORECASE) for p in ps]
+                for t, ps in cls.PATTERNS.items()
+            }
+        return cls._COMPILED
+
     def classify(self, message: str) -> Classification:
         """
         Classify a user message and return routing guidance.
@@ -212,11 +225,8 @@ class MessageClassifier:
         message_lower = message.lower()
         scores = {}
 
-        for msg_type, patterns in self.PATTERNS.items():
-            score = 0
-            for pattern in patterns:
-                if re.search(pattern, message_lower, re.IGNORECASE):
-                    score += 1
+        for msg_type, patterns in self._compiled().items():
+            score = sum(1 for p in patterns if p.search(message_lower))
             if score > 0:
                 scores[msg_type] = score
 
