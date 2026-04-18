@@ -102,6 +102,24 @@ filterwarnings = [
     "ignore:codecs.open\\(\\) is deprecated:DeprecationWarning:frontmatter",
 ]
 
+[tool.coverage.run]
+source = ["ompa"]
+branch = true
+omit = [
+    "ompa/__main__.py",
+    "ompa/cli.py",  # Typer CLI covered by smoke tests, not unit tests
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+]
+show_missing = true
+skip_covered = false
+
 [tool.mypy]
 python_version = "3.10"
 # Gradual typing. Baseline passes; tighten by flipping flags as modules
