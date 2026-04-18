@@ -37,6 +37,20 @@ This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `mcp_server.py` no longer hardcode version strings.
 - Docstring polish on all public `stats()`, `get_stats()`, `sync()`, and
   `validate_write()` methods with explicit return-type documentation.
+- Expanded ruff ruleset (`I`/`B`/`UP`/`SIM`/`RUF`/`C4`/`PIE`) with targeted
+  per-file ignores. All ~114 resulting violations fixed: `ClassVar`
+  annotations on class-level collections, `contextlib.suppress` for
+  ignorable errors, `raise ... from e` chains, `is True` identity checks.
+- `pytest-cov` wired in with branch coverage — 70% baseline across `ompa/`
+  (CLI + `__main__` excluded).
+- 13 `Note.save → Note.from_file` round-trip invariance tests covering
+  unicode, wikilink normalization, body fence-lookalikes, and idempotence.
+- `lru_cache` on `KnowledgeGraph._entity_id` / `_triple_id` helpers — bulk
+  ingest no longer re-hashes the same subject/predicate/object strings.
+- Precompiled classifier regex patterns cached per class.
+- Mypy baseline config in `pyproject.toml` for gradual tightening.
+- `tests/test_ompa.py` (2097 lines, 11 classes) split into nine per-module
+  test files matching the package layout.
 
 ### Changed
 - `search()` filter no longer silently falls back to unfiltered results when a

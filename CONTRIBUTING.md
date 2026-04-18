@@ -25,8 +25,11 @@ numpy and sentence-transformers for semantic search tests.
 ## Running Tests
 
 ```bash
-# Full suite (118 tests)
+# Full suite (131 tests)
 pytest tests/ -v
+
+# With branch coverage
+pytest tests/ --cov
 
 # Single test class
 pytest tests/test_ompa.py::TestVault -v
