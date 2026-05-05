@@ -8,7 +8,7 @@ import logging
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Optional, TYPE_CHECKING
+from typing import Any, Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from .core import Ompa
@@ -82,7 +82,7 @@ class DualVaultConfig:
         return self.shared_path is not None and self.personal_path is not None
 
     def classify_content(
-        self, content: str, tags: list[str] = None, file_path: str = None
+        self, content: str, tags: Optional[list[str]] = None, file_path: Optional[str] = None
     ) -> VaultTarget:
         """
         Classify content as shared or personal.
@@ -168,8 +168,23 @@ class DualVaultConfig:
             logger.warning("PyYAML not installed; cannot save config")
             return
 
-        data = {
-            "vaults": {},
+        vaults: dict[str, Any] = {}
+        if self.shared_path:
+            vaults["shared"] = {
+                "path": str(self.shared_path),
+                "access": "read-write",
+                "auto_classify": True,
+            }
+        if self.personal_path:
+            vaults["personal"] = {
+                "path": str(self.personal_path),
+                "access": "read-write",
+                "auto_classify": True,
+                "never_sync_to_shared": True,
+            }
+
+        data: dict[str, Any] = {
+            "vaults": vaults,
             "isolation": {
                 "mode": self.isolation_mode.value,
                 "default_vault": self.default_vault.value,
@@ -181,29 +196,15 @@ class DualVaultConfig:
             },
         }
 
-        if self.shared_path:
-            data["vaults"]["shared"] = {
-                "path": str(self.shared_path),
-                "access": "read-write",
-                "auto_classify": True,
-            }
-        if self.personal_path:
-            data["vaults"]["personal"] = {
-                "path": str(self.personal_path),
-                "access": "read-write",
-                "auto_classify": True,
-                "never_sync_to_shared": True,
-            }
-
         config_path.parent.mkdir(parents=True, exist_ok=True)
         with open(config_path, "w", encoding="utf-8") as f:
             yaml.dump(data, f, default_flow_style=False, sort_keys=False)
 
 
 def make_ompa(
-    vault_path: str | Path = None,
-    shared_vault_path: str | Path = None,
-    personal_vault_path: str | Path = None,
+    vault_path: Optional[str | Path] = None,
+    shared_vault_path: Optional[str | Path] = None,
+    personal_vault_path: Optional[str | Path] = None,
     isolation_mode: str = "strict",
     enable_semantic: bool = False,
 ) -> "Ompa":

@@ -46,12 +46,12 @@ class Ompa:
 
     def __init__(
         self,
-        vault_path: str | Path = None,
+        vault_path: Optional[str | Path] = None,
         agent_name: str = "agent",
         enable_semantic: bool = True,
         # Dual-vault parameters
-        shared_vault_path: str | Path = None,
-        personal_vault_path: str | Path = None,
+        shared_vault_path: Optional[str | Path] = None,
+        personal_vault_path: Optional[str | Path] = None,
         isolation_mode: str = "strict",
     ):
         self.agent_name = agent_name
