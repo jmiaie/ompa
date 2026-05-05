@@ -162,7 +162,6 @@ class Vault:
         notes = []
 
         for path in self.vault_path.rglob("*.md"):
-            # Check exclusions
             if any(excl in str(path) for excl in exclude_patterns):
                 continue
             notes.append(Note.from_file(path))
@@ -173,10 +172,8 @@ class Vault:
         """Build a case-insensitive filename → path index for wikilink resolution."""
         index = {}
         for note in notes:
-            # Index by stem (without .md) — case-insensitive
             key = note.path.stem.lower()
             index[key] = note.path
-            # Also index by full filename
             index[note.path.name.lower()] = note.path
         return index
 
@@ -186,17 +183,14 @@ class Vault:
         """Resolve a wikilink to a file path using multiple strategies."""
         link_lower = link.lower()
 
-        # 1. Direct filename match (case-insensitive)
         if link_lower in filename_index:
             return filename_index[link_lower]
 
-        # 2. Try with .md extension stripped
         if link_lower.endswith(".md"):
             stem = link_lower[:-3]
             if stem in filename_index:
                 return filename_index[stem]
 
-        # 3. Try exact path from vault root
         direct = self.vault_path / link
         if direct.exists():
             return direct
@@ -295,7 +289,6 @@ class Vault:
         notes = self.list_notes()
         filename_index = self._build_filename_index(notes)
 
-        # Build linked set using smart wikilink resolution
         linked_files = set()
         for note in notes:
             for link in note.links:

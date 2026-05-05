@@ -34,12 +34,10 @@ class SemanticIndex:
         self,
         index_path: Path,
         model_name: str = "all-MiniLM-L6-v2",
-        embedding_dim: int = 384,
     ):
         self.index_path = Path(index_path)
         self.index_path.mkdir(parents=True, exist_ok=True)
         self.model_name = model_name
-        self.embedding_dim = embedding_dim
         self.embeddings = None
         self.chunks = []
         self._initialized = False
@@ -83,12 +81,10 @@ class SemanticIndex:
             return
 
         try:
-            # Remove existing chunks for this file (incremental update)
             path_str = str(path)
             self.chunks = [c for c in self.chunks if c["path"] != path_str]
 
             content = path.read_text(encoding="utf-8")
-            # Split into chunks (512 tokens each)
             chunk_size = 512
             words = content.split()
 
@@ -130,17 +126,6 @@ class SemanticIndex:
         except Exception as e:
             logger.warning("Incremental index update failed for %s: %s", path, e)
             return False
-
-    def remove_file(self, path: Path) -> bool:
-        """Remove a file from the index (e.g., after deletion)."""
-        path_str = str(Path(path))
-        before = len(self.chunks)
-        self.chunks = [c for c in self.chunks if c["path"] != path_str]
-        removed = before - len(self.chunks)
-        if removed > 0:
-            self.save_index()
-            logger.debug("Removed %d chunks for %s", removed, path)
-        return removed > 0
 
     def index_vault(self, vault_path: Path, exclude_patterns: list = None) -> int:
         """Index all markdown files in a vault."""
@@ -250,7 +235,6 @@ class SemanticIndex:
                     )
                 )
 
-            # Sort by score and dedupe by path
             best_results.sort(key=lambda r: r.score, reverse=True)
 
             seen_paths = set()
@@ -273,7 +257,6 @@ class SemanticIndex:
         query_lower = query.lower()
         results = []
 
-        # Search through indexed chunks first
         if self.chunks:
             for chunk in self.chunks:
                 if query_lower in chunk["text"].lower():
@@ -289,7 +272,7 @@ class SemanticIndex:
                         break
             return results
 
-        # Fallback: scan the vault directory
+        # No indexed chunks — scan the vault directory directly
         vault_path = self.index_path.parent.parent  # .palace/semantic_index -> vault
         if vault_path.exists():
             for md_file in vault_path.rglob("*.md"):
@@ -323,12 +306,3 @@ class SemanticIndex:
             index_file.unlink()
 
 
-def qmd_query(vault_path: str, query: str, limit: int = 5) -> list[SearchResult]:
-    """
-    Convenience function for QMD-style queries.
-    Mimics the qmd CLI behavior.
-    """
-    index_path = Path(vault_path) / ".palace" / "semantic_index"
-    index = SemanticIndex(index_path)
-    index.load_index()
-    return index.search(query, limit)

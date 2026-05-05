@@ -50,7 +50,7 @@ def _row_to_triple(row: sqlite3.Row) -> Triple:
 
 
 class KnowledgeGraph:
-    def __init__(self, db_path: str = None):
+    def __init__(self, db_path: Optional[str] = None):
         self.db_path = Path(db_path or DEFAULT_KG_PATH).expanduser()
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._init_db()
@@ -122,7 +122,7 @@ class KnowledgeGraph:
                 (entity_id, name, entity_type),
             )
 
-    def query_entity(self, name: str, as_of: str = None) -> list[Triple]:
+    def query_entity(self, name: str, as_of: Optional[str] = None) -> list[Triple]:
         """
         Query all current triples for an entity.
 
@@ -166,10 +166,10 @@ class KnowledgeGraph:
         subject: str,
         predicate: str,
         object: str,
-        valid_from: str = None,
-        valid_to: str = None,
+        valid_from: Optional[str] = None,
+        valid_to: Optional[str] = None,
         confidence: float = 1.0,
-        source: str = None,
+        source: Optional[str] = None,
     ) -> None:
         """
         Add a fact triple to the knowledge graph.
@@ -215,7 +215,7 @@ class KnowledgeGraph:
             )
 
     def invalidate(
-        self, subject: str, predicate: str, obj: str, ended: str = None
+        self, subject: str, predicate: str, obj: str, ended: Optional[str] = None
     ) -> None:
         """
         Invalidate a triple by setting its valid_to date.
@@ -233,7 +233,7 @@ class KnowledgeGraph:
     # Timeline
     # -------------------------------------------------------------------------
 
-    def timeline(self, entity: str) -> list[dict]:
+    def timeline(self, entity: str) -> list[dict[str, object]]:
         """
         Get the chronological story of an entity.
         Returns all triples ordered by valid_from with direction indicators.
@@ -275,7 +275,7 @@ class KnowledgeGraph:
     # Auto-population from vault
     # -------------------------------------------------------------------------
 
-    def populate_from_note(self, note_path: Path, vault_path: Path = None) -> int:
+    def populate_from_note(self, note_path: Path, vault_path: Optional[Path] = None) -> int:
         """
         Extract and store triples from a single vault note.
 
@@ -309,7 +309,6 @@ class KnowledgeGraph:
                 logger.debug("Could not read %s: %s", note_path, read_err)
                 return 0
 
-        # 1. Wikilinks → links_to triples
         wikilinks = re.findall(r"\[\[([^\]]+)\]\]", content)
         for link in wikilinks:
             # Strip display text from piped links: [[target|display]]
@@ -318,7 +317,6 @@ class KnowledgeGraph:
                 self.add_triple(note_name, "links_to", target, source=source)
                 count += 1
 
-        # 2. Frontmatter tags → has_tag triples
         tags = metadata.get("tags", [])
         if isinstance(tags, str):
             tags = [t.strip() for t in tags.split(",") if t.strip()]
@@ -328,16 +326,14 @@ class KnowledgeGraph:
                     self.add_triple(note_name, "has_tag", tag.strip(), source=source)
                     count += 1
 
-        # 3. Folder membership
         if vault_path:
             try:
                 rel = note_path.relative_to(vault_path)
                 parts = rel.parts
                 if len(parts) > 1:
-                    folder = parts[0]  # top-level: brain, work, org, perf
+                    folder = parts[0]
                     self.add_triple(note_name, "in_folder", folder, source=source)
                     count += 1
-                    # Sub-folder (e.g., work/active, org/people)
                     if len(parts) > 2:
                         subfolder = f"{parts[0]}/{parts[1]}"
                         self.add_triple(
@@ -347,7 +343,6 @@ class KnowledgeGraph:
             except ValueError:
                 pass
 
-        # 4. Frontmatter date → created_on
         date_val = metadata.get("date")
         if date_val:
             date_str = str(date_val)[:10]  # YYYY-MM-DD
@@ -360,7 +355,6 @@ class KnowledgeGraph:
             )
             count += 1
 
-        # 5. Frontmatter description → has_description (for search context)
         desc = metadata.get("description")
         if desc and isinstance(desc, str) and len(desc) > 10:
             self.add_entity(note_name, entity_type="note")
@@ -369,7 +363,7 @@ class KnowledgeGraph:
         return count
 
     def populate_from_vault(
-        self, vault_path: Path, exclude_patterns: list = None
+        self, vault_path: Path, exclude_patterns: Optional[list[str]] = None
     ) -> int:
         """
         Scan all vault notes and populate the knowledge graph.
@@ -400,7 +394,7 @@ class KnowledgeGraph:
     # Statistics
     # -------------------------------------------------------------------------
 
-    def stats(self) -> dict:
+    def stats(self) -> dict[str, object]:
         """Get knowledge graph statistics."""
         with self._conn() as conn:
             entity_count = conn.execute("SELECT COUNT(*) FROM entities").fetchone()[0]
