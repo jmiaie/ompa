@@ -1228,8 +1228,8 @@ class TestSemanticIndex:
             assert result["personal_kg_triples"] > 0
 
 
-class TestSemanticIndex:
-    """Test semantic index behavior."""
+class TestSemanticIndexInit:
+    """Test semantic index lazy-init behavior (instance-level monkeypatching variant)."""
 
     def test_index_vault_initializes_model(self):
         """index_vault should lazy-init the model if not yet initialized."""

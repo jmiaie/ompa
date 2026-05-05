@@ -156,7 +156,7 @@ class Vault:
             folder_path = self.vault_path / folder
             folder_path.mkdir(parents=True, exist_ok=True)
 
-    def list_notes(self, exclude_patterns: list[str] = None) -> list[Note]:
+    def list_notes(self, exclude_patterns: Optional[list[str]] = None) -> list[Note]:
         """List all markdown notes in the vault."""
         exclude_patterns = exclude_patterns or DEFAULT_EXCLUDE_PATTERNS
         notes = []
