@@ -300,12 +300,13 @@ class KnowledgeGraph:
             post = fm.load(note_path)
             content = post.content
             metadata = dict(post.metadata)
-        except Exception:
+        except Exception as e:
+            logger.debug("Frontmatter parse failed for %s: %s", note_path, e)
             try:
                 content = note_path.read_text(encoding="utf-8")
                 metadata = {}
-            except Exception as e:
-                logger.debug("Could not read %s: %s", note_path, e)
+            except Exception as read_err:
+                logger.debug("Could not read %s: %s", note_path, read_err)
                 return 0
 
         # 1. Wikilinks → links_to triples

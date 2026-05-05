@@ -619,7 +619,7 @@ def handle_call_tool(name: str, arguments: dict) -> dict:
     except KeyError as e:
         return {"error": f"Missing required argument: {e}"}
     except Exception as e:
-        return {"error": type(e).__name__}
+        return {"error": f"{type(e).__name__}: {e}"}
 
 
 # ---------------------------------------------------------------------------
@@ -701,7 +701,7 @@ def main():
             error_response = {
                 "jsonrpc": "2.0",
                 "id": req_id,
-                "error": {"code": -32603, "message": type(e).__name__},
+                "error": {"code": -32603, "message": f"{type(e).__name__}: {e}"},
             }
             sys.stdout.write(json.dumps(error_response) + "\n")
             sys.stdout.flush()

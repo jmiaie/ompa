@@ -290,7 +290,7 @@ class Vault:
         note.save()
         return note
 
-    def get_stats(self) -> dict:
+    def get_stats(self) -> dict[str, object]:
         """Get vault statistics."""
         notes = self.list_notes()
         filename_index = self._build_filename_index(notes)
@@ -310,7 +310,7 @@ class Vault:
             and n.path.name not in ["Home.md", "README.md"]
         )
 
-        folder_counts = {}
+        folder_counts: dict[str, int] = {}
         brain_count = 0
         for note in notes:
             folder = note.path.parent.name or "root"
@@ -319,8 +319,10 @@ class Vault:
             # Count brain notes: in brain/ folder OR wing=brain in frontmatter
             if "brain" in note.path.parts:
                 brain_count += 1
-            elif note.frontmatter.get("wing", "").lower() == "brain":
-                brain_count += 1
+            else:
+                wing_val = note.frontmatter.get("wing", "")
+                if isinstance(wing_val, str) and wing_val.lower() == "brain":
+                    brain_count += 1
 
         # Also count brain folder files not yet in notes list (e.g., empty ones)
         if self.config.brain_folder.exists():
@@ -334,7 +336,7 @@ class Vault:
             "brain_notes": brain_count,
         }
 
-    def validate_write(self, file_path: str) -> dict:
+    def validate_write(self, file_path: str) -> dict[str, object]:
         """
         Validate a markdown file for frontmatter and wikilinks.
         File must be within the vault directory.
