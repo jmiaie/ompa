@@ -12,7 +12,7 @@ from typing import Optional
 
 from .vault import Vault, Note, _safe_resolve
 from .palace import Palace
-from .knowledge_graph import KnowledgeGraph
+from .knowledge_graph import KnowledgeGraph, Triple
 from .hooks import HookManager, HookResult
 from .classifier import MessageClassifier, Classification
 from .semantic import SemanticIndex, SearchResult
@@ -396,11 +396,12 @@ class Ompa:
 
     def rebuild_index(self) -> int:
         """Rebuild the semantic index."""
-        if self.semantic is None:
+        semantic = self.semantic
+        if semantic is None:
             return 0
-        self._semantic.clear()
-        count = self._semantic.index_vault(self.vault_path)
-        self._semantic.save_index()
+        semantic.clear()
+        count = semantic.index_vault(self.vault_path)
+        semantic.save_index()
         return count
 
     # -------------------------------------------------------------------------
@@ -674,6 +675,8 @@ class Ompa:
         """
         if not self.is_dual_vault:
             return {"success": False, "error": "Not in dual-vault mode"}
+        assert self.dual_config.shared_path is not None
+        assert self.dual_config.personal_path is not None
 
         # Validate paths upfront to prevent traversal
         try:
@@ -753,9 +756,11 @@ class Ompa:
         notes = self.vault.list_notes()
         for note in notes:
             if classification_rules == "auto":
+                raw_tags = note.frontmatter.get("tags", [])
+                tags_list: list[str] = [str(t) for t in raw_tags] if isinstance(raw_tags, list) else []
                 target = self.dual_config.classify_content(
                     note.content,
-                    tags=list(note.frontmatter.get("tags", [])),
+                    tags=tags_list,
                     file_path=str(note.path),
                 )
             else:
