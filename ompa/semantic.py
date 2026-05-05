@@ -8,6 +8,7 @@ import logging
 import hashlib
 from pathlib import Path
 from dataclasses import dataclass
+from typing import Any, Optional
 
 from .vault import DEFAULT_EXCLUDE_PATTERNS
 
@@ -38,10 +39,10 @@ class SemanticIndex:
         self.index_path = Path(index_path)
         self.index_path.mkdir(parents=True, exist_ok=True)
         self.model_name = model_name
-        self.embeddings = None
-        self.chunks = []
+        self.embeddings: Optional[Any] = None
+        self.chunks: list[dict[str, Any]] = []
         self._initialized = False
-        self._model = None
+        self._model: Optional[Any] = None
 
     @property
     def model(self):
@@ -127,7 +128,7 @@ class SemanticIndex:
             logger.warning("Incremental index update failed for %s: %s", path, e)
             return False
 
-    def index_vault(self, vault_path: Path, exclude_patterns: list = None) -> int:
+    def index_vault(self, vault_path: Path, exclude_patterns: Optional[list[str]] = None) -> int:
         """Index all markdown files in a vault."""
         exclude_patterns = exclude_patterns or DEFAULT_EXCLUDE_PATTERNS
         count = 0
@@ -203,11 +204,9 @@ class SemanticIndex:
             best_results = []
 
             for chunk in self.chunks:
-                # Semantic similarity
                 chunk_embedding = chunk["embedding"]
                 similarity = util.cos_sim(query_embedding, chunk_embedding)[0][0].item()
 
-                # Keyword boost
                 keyword_boost = 0.0
                 if hybrid:
                     query_lower = query.lower()

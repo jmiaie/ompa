@@ -233,7 +233,7 @@ class KnowledgeGraph:
     # Timeline
     # -------------------------------------------------------------------------
 
-    def timeline(self, entity: str) -> list[dict[str, object]]:
+    def timeline(self, entity: str) -> list[dict]:
         """
         Get the chronological story of an entity.
         Returns all triples ordered by valid_from with direction indicators.
@@ -275,6 +275,68 @@ class KnowledgeGraph:
     # Auto-population from vault
     # -------------------------------------------------------------------------
 
+    def _extract_wikilink_triples(
+        self, note_name: str, content: str, source: str
+    ) -> int:
+        """Extract [[wikilinks]] from content and store as links_to triples."""
+        count = 0
+        for link in re.findall(r"\[\[([^\]]+)\]\]", content):
+            target = link.split("|")[0].strip()  # strip [[target|display]] aliases
+            if target:
+                self.add_triple(note_name, "links_to", target, source=source)
+                count += 1
+        return count
+
+    def _extract_tag_triples(
+        self, note_name: str, metadata: dict, source: str
+    ) -> int:
+        """Extract frontmatter tags and store as has_tag triples."""
+        count = 0
+        tags = metadata.get("tags", [])
+        if isinstance(tags, str):
+            tags = [t.strip() for t in tags.split(",") if t.strip()]
+        if isinstance(tags, list):
+            for tag in tags:
+                if isinstance(tag, str) and tag.strip():
+                    self.add_triple(note_name, "has_tag", tag.strip(), source=source)
+                    count += 1
+        return count
+
+    def _extract_folder_triples(
+        self, note_name: str, note_path: Path, vault_path: Path, source: str
+    ) -> int:
+        """Extract folder membership and store as in_folder/in_subfolder triples."""
+        count = 0
+        try:
+            parts = note_path.relative_to(vault_path).parts
+            if len(parts) > 1:
+                self.add_triple(note_name, "in_folder", parts[0], source=source)
+                count += 1
+                if len(parts) > 2:
+                    self.add_triple(
+                        note_name,
+                        "in_subfolder",
+                        f"{parts[0]}/{parts[1]}",
+                        source=source,
+                    )
+                    count += 1
+        except ValueError:
+            pass
+        return count
+
+    def _extract_date_triple(
+        self, note_name: str, metadata: dict, source: str
+    ) -> int:
+        """Extract frontmatter date and store as a created_on triple."""
+        date_val = metadata.get("date")
+        if date_val:
+            date_str = str(date_val)[:10]  # YYYY-MM-DD
+            self.add_triple(
+                note_name, "created_on", date_str, valid_from=date_str, source=source
+            )
+            return 1
+        return 0
+
     def populate_from_note(self, note_path: Path, vault_path: Optional[Path] = None) -> int:
         """
         Extract and store triples from a single vault note.
@@ -290,7 +352,6 @@ class KnowledgeGraph:
         if not note_path.exists() or note_path.suffix != ".md":
             return 0
 
-        count = 0
         note_name = note_path.stem
         source = str(note_path)
 
@@ -309,52 +370,15 @@ class KnowledgeGraph:
                 logger.debug("Could not read %s: %s", note_path, read_err)
                 return 0
 
-        wikilinks = re.findall(r"\[\[([^\]]+)\]\]", content)
-        for link in wikilinks:
-            # Strip display text from piped links: [[target|display]]
-            target = link.split("|")[0].strip()
-            if target:
-                self.add_triple(note_name, "links_to", target, source=source)
-                count += 1
-
-        tags = metadata.get("tags", [])
-        if isinstance(tags, str):
-            tags = [t.strip() for t in tags.split(",") if t.strip()]
-        if isinstance(tags, list):
-            for tag in tags:
-                if isinstance(tag, str) and tag.strip():
-                    self.add_triple(note_name, "has_tag", tag.strip(), source=source)
-                    count += 1
-
+        count = self._extract_wikilink_triples(note_name, content, source)
+        count += self._extract_tag_triples(note_name, metadata, source)
         if vault_path:
-            try:
-                rel = note_path.relative_to(vault_path)
-                parts = rel.parts
-                if len(parts) > 1:
-                    folder = parts[0]
-                    self.add_triple(note_name, "in_folder", folder, source=source)
-                    count += 1
-                    if len(parts) > 2:
-                        subfolder = f"{parts[0]}/{parts[1]}"
-                        self.add_triple(
-                            note_name, "in_subfolder", subfolder, source=source
-                        )
-                        count += 1
-            except ValueError:
-                pass
-
-        date_val = metadata.get("date")
-        if date_val:
-            date_str = str(date_val)[:10]  # YYYY-MM-DD
-            self.add_triple(
-                note_name,
-                "created_on",
-                date_str,
-                valid_from=date_str,
-                source=source,
+            count += self._extract_folder_triples(
+                note_name, note_path, vault_path, source
             )
-            count += 1
+        count += self._extract_date_triple(note_name, metadata, source)
 
+        # Frontmatter description → register as a named entity (aids search context)
         desc = metadata.get("description")
         if desc and isinstance(desc, str) and len(desc) > 10:
             self.add_entity(note_name, entity_type="note")
@@ -363,7 +387,7 @@ class KnowledgeGraph:
         return count
 
     def populate_from_vault(
-        self, vault_path: Path, exclude_patterns: Optional[list[str]] = None
+        self, vault_path: Path, exclude_patterns: Optional[list] = None
     ) -> int:
         """
         Scan all vault notes and populate the knowledge graph.
@@ -394,7 +418,7 @@ class KnowledgeGraph:
     # Statistics
     # -------------------------------------------------------------------------
 
-    def stats(self) -> dict[str, object]:
+    def stats(self) -> dict:
         """Get knowledge graph statistics."""
         with self._conn() as conn:
             entity_count = conn.execute("SELECT COUNT(*) FROM entities").fetchone()[0]

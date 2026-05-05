@@ -194,7 +194,6 @@ class Ompa:
         """
         result = self.hooks.run_post_tool(tool_name, tool_input, self)
 
-        # Auto-update on file writes
         if tool_name in ("write", "edit", "create_file"):
             file_path = tool_input.get("file_path") or tool_input.get("path")
             if file_path:
@@ -532,7 +531,6 @@ class Ompa:
         """
         tags = tags or []
 
-        # Determine target vault
         if not self.is_dual_vault:
             target = VaultTarget.SHARED
             target_vault = self.vault
@@ -542,13 +540,12 @@ class Ompa:
                 self.vault if target == VaultTarget.SHARED else self.personal_vault
             )
         elif self.dual_config.isolation_mode == IsolationMode.MANUAL:
-            # In manual mode, default to personal (safe default)
+            # Manual mode always requires an explicit vault= argument; fall back to personal
             target = self.dual_config.default_vault
             target_vault = (
                 self.vault if target == VaultTarget.SHARED else self.personal_vault
             )
         else:
-            # Auto-classify
             target = self.dual_config.classify_content(
                 content, tags=tags, file_path=file_path
             )
@@ -556,17 +553,13 @@ class Ompa:
                 self.vault if target == VaultTarget.SHARED else self.personal_vault
             )
 
-        # Build file path if not provided
         if not file_path:
-            # Use classifier to determine folder
             classification = self.classifier.classify(content[:200])
             folder = classification.suggested_folder
-            # Sanitize content for filename
             words = re.sub(r"[^\w\s]", "", content[:40]).split()
             name = "-".join(words[:5]) if words else "note"
             file_path = f"{folder}{name}.md"
 
-        # Write the note
         from datetime import datetime
 
         frontmatter = {
@@ -579,7 +572,6 @@ class Ompa:
         note = Note(path=full_path, frontmatter=frontmatter, content=content)
         note.save()
 
-        # Update KG + index
         target_kg = self.kg if target == VaultTarget.SHARED else self.personal_kg
         if target_kg:
             target_kg.populate_from_note(full_path, target_vault.vault_path)
