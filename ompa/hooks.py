@@ -89,35 +89,7 @@ class SessionStartHook(Hook):
 
             # Recent git changes
             lines.append("### Recent Changes (last 48h)")
-            try:
-                import shutil
-                import subprocess  # noqa: S404 — subprocess needed for git log
-
-                git_path = shutil.which("git")
-                if git_path:
-                    result = subprocess.run(  # noqa: S603
-                        [
-                            git_path,
-                            "log",
-                            "--oneline",
-                            "--since=48 hours ago",
-                            "--no-merges",
-                        ],
-                        cwd=context.vault_path,
-                        capture_output=True,
-                        text=True,
-                        timeout=5,
-                    )
-                    if result.returncode == 0 and result.stdout.strip():
-                        for line in result.stdout.strip().split("\n")[:10]:
-                            lines.append(f"- {line}")
-                    else:
-                        lines.append("(no recent git history)")
-                else:
-                    lines.append("(git not available)")
-            except Exception as e:
-                logger.debug("Git log failed: %s", e)
-                lines.append("(git not available)")
+            lines.extend(self._recent_git_changes(context.vault_path))
             lines.append("")
 
             # Active work
@@ -175,8 +147,31 @@ class SessionStartHook(Hook):
             logger.error("SessionStartHook failed: %s", e, exc_info=True)
             return HookResult(hook_name=self.name, success=False, error=str(e))
 
+    def _recent_git_changes(self, vault_path: Path) -> list[str]:
+        """Return bullet lines for git commits in the last 48 hours, or a fallback."""
+        import shutil
+        import subprocess  # noqa: S404 — subprocess needed for git log
+
+        try:
+            git_path = shutil.which("git")
+            if not git_path:
+                return ["(git not available)"]
+            result = subprocess.run(  # noqa: S603
+                [git_path, "log", "--oneline", "--since=48 hours ago", "--no-merges"],
+                cwd=vault_path,
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                return [f"- {line}" for line in result.stdout.strip().split("\n")[:10]]
+            return ["(no recent git history)"]
+        except Exception as e:
+            logger.debug("Git log failed: %s", e)
+            return ["(git not available)"]
+
     def _extract_section(self, content: str, section: str) -> str:
-        """Extract a section from markdown content."""
+        """Extract a named ## section from markdown content."""
         import re
 
         pattern = rf"## {section}(.*?)(?=## |$)"

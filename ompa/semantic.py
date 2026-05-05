@@ -235,21 +235,25 @@ class SemanticIndex:
                 )
 
             best_results.sort(key=lambda r: r.score, reverse=True)
-
-            seen_paths = set()
-            unique_results = []
-            for result in best_results:
-                if result.path not in seen_paths:
-                    seen_paths.add(result.path)
-                    unique_results.append(result)
-                    if len(unique_results) >= limit:
-                        break
-
-            return unique_results
+            return self._dedupe_by_path(best_results, limit)
 
         except Exception as e:
             logger.warning("Search error: %s", e)
             return self._keyword_search(query, limit)
+
+    def _dedupe_by_path(
+        self, results: list[SearchResult], limit: int
+    ) -> list[SearchResult]:
+        """Return up to *limit* results, keeping the highest-scored entry per path."""
+        seen: set[str] = set()
+        unique: list[SearchResult] = []
+        for result in results:
+            if result.path not in seen:
+                seen.add(result.path)
+                unique.append(result)
+                if len(unique) >= limit:
+                    break
+        return unique
 
     def _keyword_search(self, query: str, limit: int) -> list[SearchResult]:
         """Fallback keyword search using pure Python (no subprocess)."""

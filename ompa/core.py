@@ -80,9 +80,9 @@ class Ompa:
             )
 
             # Personal vault systems
-            self.personal_vault = Vault(self.dual_config.personal_path)
-            self.personal_palace = Palace(self.dual_config.personal_path / ".palace")
-            self.personal_kg = KnowledgeGraph(
+            self.personal_vault: Optional[Vault] = Vault(self.dual_config.personal_path)
+            self.personal_palace: Optional[Palace] = Palace(self.dual_config.personal_path / ".palace")
+            self.personal_kg: Optional[KnowledgeGraph] = KnowledgeGraph(
                 db_path=str(
                     self.dual_config.personal_path
                     / ".palace"
@@ -97,16 +97,16 @@ class Ompa:
             self.kg = KnowledgeGraph(
                 db_path=str(self.vault_path / ".palace" / "knowledge_graph.sqlite3")
             )
-            self.personal_vault = None
-            self.personal_palace = None
-            self.personal_kg = None
+            self.personal_vault: Optional[Vault] = None
+            self.personal_palace: Optional[Palace] = None
+            self.personal_kg: Optional[KnowledgeGraph] = None
 
         self.classifier = MessageClassifier()
         self.hooks = HookManager(self.vault_path, agent_name=self.agent_name)
 
         # Semantic search (lazy-loaded)
-        self._semantic = None
-        self._personal_semantic = None
+        self._semantic: Optional[SemanticIndex] = None
+        self._personal_semantic: Optional[SemanticIndex] = None
 
     @property
     def is_dual_vault(self) -> bool:
@@ -300,9 +300,9 @@ class Ompa:
         query: str,
         limit: int = 5,
         hybrid: bool = True,
-        wing: str = None,
-        room: str = None,
-        vaults: list[str] = None,
+        wing: Optional[str] = None,
+        room: Optional[str] = None,
+        vaults: Optional[list[str]] = None,
     ) -> list[SearchResult]:
         """
         Search the vault(s) semantically.
@@ -360,8 +360,8 @@ class Ompa:
         query: str,
         limit: int,
         hybrid: bool,
-        wing: str = None,
-        room: str = None,
+        wing: Optional[str] = None,
+        room: Optional[str] = None,
     ) -> list[SearchResult]:
         """Search a single vault."""
         if semantic is None:
@@ -419,7 +419,7 @@ class Ompa:
         """Get vault statistics."""
         return self.vault.get_stats()
 
-    def find_orphans(self) -> list:
+    def find_orphans(self) -> list[Note]:
         """Find notes with no wikilinks."""
         return self.vault.find_orphans()
 
@@ -434,7 +434,7 @@ class Ompa:
             self._auto_update_index(brain_path)
             self._auto_add_to_palace(str(brain_path))
 
-    def get_brain_note(self, name: str) -> Optional[object]:
+    def get_brain_note(self, name: str) -> Optional[Note]:
         """Get a brain note by name."""
         return self.vault.get_brain_note(name)
 
@@ -455,19 +455,19 @@ class Ompa:
         subject: str,
         predicate: str,
         object: str,
-        valid_from: str = None,
-        source: str = None,
+        valid_from: Optional[str] = None,
+        source: Optional[str] = None,
     ) -> None:
         """Add a fact to the knowledge graph."""
         self.kg.add_triple(
             subject, predicate, object, valid_from=valid_from, source=source
         )
 
-    def kg_query(self, entity: str, as_of: str = None) -> list:
+    def kg_query(self, entity: str, as_of: Optional[str] = None) -> list[Triple]:
         """Query the knowledge graph."""
         return self.kg.query_entity(entity, as_of=as_of)
 
-    def kg_timeline(self, entity: str) -> list:
+    def kg_timeline(self, entity: str) -> list[dict[str, object]]:
         """Get entity timeline."""
         return self.kg.timeline(entity)
 
@@ -492,7 +492,7 @@ class Ompa:
         }
 
         # Sync personal vault too if in dual mode
-        if self.is_dual_vault:
+        if self.is_dual_vault and self.personal_kg and self.personal_palace and self.dual_config.personal_path:
             p_kg = self.personal_kg.populate_from_vault(self.dual_config.personal_path)
             p_palace = self.personal_palace.auto_build_from_vault(
                 self.dual_config.personal_path
