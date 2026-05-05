@@ -98,21 +98,19 @@ class DualVaultConfig:
         content_lower = content.lower()
         tags_lower = [t.lower() for t in tags]
 
-        # 1. Personal indicators (check first — safety)
+        # Personal indicators checked first — leaked credentials must never reach shared
         for indicator in self.personal_indicators:
             if indicator.lower() in content_lower:
                 return VaultTarget.PERSONAL
             if indicator.lower() in tags_lower:
                 return VaultTarget.PERSONAL
 
-        # 2. Shared indicators
         for indicator in self.shared_indicators:
             if indicator.lower() in content_lower:
                 return VaultTarget.SHARED
             if indicator.lower() in tags_lower:
                 return VaultTarget.SHARED
 
-        # 3. Folder-based rules
         if file_path:
             path_parts = set(Path(file_path).parts)
             if path_parts & PERSONAL_FOLDERS:
@@ -120,7 +118,6 @@ class DualVaultConfig:
             if path_parts & SHARED_FOLDERS:
                 return VaultTarget.SHARED
 
-        # 4. Default
         return self.default_vault
 
     @classmethod

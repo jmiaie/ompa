@@ -406,7 +406,6 @@ class HookManager:
         self.session_id = datetime.now().strftime("%Y%m%d_%H%M%S")
         self.timestamp = datetime.now()
 
-        # Register default hooks
         self.hooks = {
             "session_start": SessionStartHook(),
             "user_message": UserMessageHook(),
