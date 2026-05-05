@@ -64,6 +64,11 @@ class Ompa:
             isolation_mode=IsolationMode(isolation_mode),
         )
 
+        # These are set in one of the two branches below
+        self.personal_vault: Optional[Vault]
+        self.personal_palace: Optional[Palace]
+        self.personal_kg: Optional[KnowledgeGraph]
+
         if shared_vault_path and personal_vault_path:
             # Dual-vault mode
             self.dual_config.shared_path = Path(shared_vault_path).expanduser()
@@ -80,9 +85,9 @@ class Ompa:
             )
 
             # Personal vault systems
-            self.personal_vault: Optional[Vault] = Vault(self.dual_config.personal_path)
-            self.personal_palace: Optional[Palace] = Palace(self.dual_config.personal_path / ".palace")
-            self.personal_kg: Optional[KnowledgeGraph] = KnowledgeGraph(
+            self.personal_vault = Vault(self.dual_config.personal_path)
+            self.personal_palace = Palace(self.dual_config.personal_path / ".palace")
+            self.personal_kg = KnowledgeGraph(
                 db_path=str(
                     self.dual_config.personal_path
                     / ".palace"
@@ -97,9 +102,9 @@ class Ompa:
             self.kg = KnowledgeGraph(
                 db_path=str(self.vault_path / ".palace" / "knowledge_graph.sqlite3")
             )
-            self.personal_vault: Optional[Vault] = None
-            self.personal_palace: Optional[Palace] = None
-            self.personal_kg: Optional[KnowledgeGraph] = None
+            self.personal_vault = None
+            self.personal_palace = None
+            self.personal_kg = None
 
         self.classifier = MessageClassifier()
         self.hooks = HookManager(self.vault_path, agent_name=self.agent_name)
@@ -532,26 +537,27 @@ class Ompa:
         """
         tags = tags or []
 
+        target_vault: Vault
         if not self.is_dual_vault:
             target = VaultTarget.SHARED
             target_vault = self.vault
         elif vault:
             target = VaultTarget(vault)
             target_vault = (
-                self.vault if target == VaultTarget.SHARED else self.personal_vault
+                self.vault if target == VaultTarget.SHARED else (self.personal_vault or self.vault)
             )
         elif self.dual_config.isolation_mode == IsolationMode.MANUAL:
             # Manual mode always requires an explicit vault= argument; fall back to personal
             target = self.dual_config.default_vault
             target_vault = (
-                self.vault if target == VaultTarget.SHARED else self.personal_vault
+                self.vault if target == VaultTarget.SHARED else (self.personal_vault or self.vault)
             )
         else:
             target = self.dual_config.classify_content(
                 content, tags=tags, file_path=file_path
             )
             target_vault = (
-                self.vault if target == VaultTarget.SHARED else self.personal_vault
+                self.vault if target == VaultTarget.SHARED else (self.personal_vault or self.vault)
             )
 
         if not file_path:
