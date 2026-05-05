@@ -510,10 +510,10 @@ class Ompa:
     def write(
         self,
         content: str,
-        file_path: str = None,
-        tags: list[str] = None,
-        vault: str = None,
-    ) -> dict:
+        file_path: Optional[str] = None,
+        tags: Optional[list[str]] = None,
+        vault: Optional[str] = None,
+    ) -> dict[str, str]:
         """
         Write content to the appropriate vault.
 
@@ -562,14 +562,14 @@ class Ompa:
 
         from datetime import datetime
 
-        frontmatter = {
+        note_frontmatter: dict[str, object] = {
             "date": datetime.now().strftime("%Y-%m-%d"),
             "tags": tags,
             "vault": target.value,
         }
 
         full_path = _safe_resolve(target_vault.vault_path, file_path)
-        note = Note(path=full_path, frontmatter=frontmatter, content=content)
+        note = Note(path=full_path, frontmatter=note_frontmatter, content=content)
         note.save()
 
         target_kg = self.kg if target == VaultTarget.SHARED else self.personal_kg
