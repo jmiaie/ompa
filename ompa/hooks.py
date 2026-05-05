@@ -96,8 +96,8 @@ class SessionStartHook(Hook):
             lines.append("### Active Work")
             active_notes = list(vault.config.work_folder.glob("active/*.md"))
             if active_notes:
-                for note in active_notes[:5]:
-                    lines.append(f"- {note.stem}")
+                for active_path in active_notes[:5]:
+                    lines.append(f"- {active_path.stem}")
             else:
                 lines.append("(no active work notes)")
             lines.append("")
@@ -114,7 +114,8 @@ class SessionStartHook(Hook):
             if context.memory and context.memory.kg:
                 try:
                     kg_stats = context.memory.kg.stats()
-                    if kg_stats["triple_count"] > 0:
+                    triple_count = kg_stats.get("triple_count", 0)
+                    if isinstance(triple_count, int) and triple_count > 0:
                         lines.append("### Knowledge Graph")
                         lines.append(f"- Entities: {kg_stats['entity_count']}")
                         lines.append(f"- Current facts: {kg_stats['current_facts']}")
@@ -376,7 +377,8 @@ class StopHook(Hook):
                         f"**KG:** {kg_stats['entity_count']} entities, "
                         f"{kg_stats['current_facts']} current facts"
                     )
-                    if kg_stats["triple_count"] == 0:
+                    triple_count = kg_stats.get("triple_count", 0)
+                    if triple_count == 0:
                         lines.append(
                             "**WARNING:** KG is empty — run `ao kg-populate` or `ao sync`"
                         )
