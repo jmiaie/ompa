@@ -302,15 +302,15 @@ class KnowledgeGraph:
             post = fm.load(note_path)
             content = post.content
             metadata = dict(post.metadata)
-        except Exception:
+        except Exception as e:
+            logger.debug("Frontmatter parse failed for %s: %s", note_path, e)
             try:
                 content = note_path.read_text(encoding="utf-8")
                 metadata = {}
-            except Exception as e:
+            except OSError as e:
                 logger.debug("Could not read %s: %s", note_path, e)
                 return 0
 
-        # 1. Wikilinks → links_to triples
         wikilinks = re.findall(r"\[\[([^\]]+)\]\]", content)
         for link in wikilinks:
             # Strip display text from piped links: [[target|display]]
@@ -319,7 +319,6 @@ class KnowledgeGraph:
                 self.add_triple(note_name, "links_to", target, source=source)
                 count += 1
 
-        # 2. Frontmatter tags → has_tag triples
         tags = metadata.get("tags", [])
         if isinstance(tags, str):
             tags = [t.strip() for t in tags.split(",") if t.strip()]
@@ -329,7 +328,6 @@ class KnowledgeGraph:
                     self.add_triple(note_name, "has_tag", tag.strip(), source=source)
                     count += 1
 
-        # 3. Folder membership
         if vault_path:
             try:
                 rel = note_path.relative_to(vault_path)
@@ -348,7 +346,6 @@ class KnowledgeGraph:
             except ValueError:
                 pass
 
-        # 4. Frontmatter date → created_on
         date_val = metadata.get("date")
         if date_val:
             date_str = str(date_val)[:10]  # YYYY-MM-DD
@@ -361,7 +358,7 @@ class KnowledgeGraph:
             )
             count += 1
 
-        # 5. Frontmatter description → has_description (for search context)
+        # Register entity when a description exists so it surfaces in entity queries
         desc = metadata.get("description")
         if desc and isinstance(desc, str) and len(desc) > 10:
             self.add_entity(note_name, entity_type="note")

@@ -49,7 +49,6 @@ Documentation = "https://github.com/jmiaie/ompa#readme"
 [project.scripts]
 ao = "ompa.cli:main"
 ao-mcp = "ompa.mcp_server:main"
-ao-mcp = "ompa.mcp_server:main"
 
 [build-system]
 requires = ["setuptools>=61.0"]

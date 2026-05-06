@@ -1044,8 +1044,8 @@ class TestDualVault:
             assert "Invalid note_path" in result["error"]
 
 
-class TestSemanticIndex:
-    """Test semantic index lazy initialization behavior."""
+class TestDualVaultAndSemanticFeatures:
+    """Test dual-vault operations, cross-vault search, and semantic index behavior."""
 
     def test_index_vault_initializes_model(self, monkeypatch):
         """index_vault() should initialize the model before indexing."""
@@ -1228,8 +1228,8 @@ class TestSemanticIndex:
             assert result["personal_kg_triples"] > 0
 
 
-class TestSemanticIndex:
-    """Test semantic index behavior."""
+class TestSemanticIndexLazyInit:
+    """Test semantic index lazy initialization (instance-level monkeypatching)."""
 
     def test_index_vault_initializes_model(self):
         """index_vault should lazy-init the model if not yet initialized."""
