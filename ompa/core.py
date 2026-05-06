@@ -12,7 +12,7 @@ from typing import Optional
 
 from .vault import Vault, Note, _safe_resolve
 from .palace import Palace
-from .knowledge_graph import KnowledgeGraph
+from .knowledge_graph import KnowledgeGraph, Triple
 from .hooks import HookManager, HookResult
 from .classifier import MessageClassifier, Classification
 from .semantic import SemanticIndex, SearchResult
@@ -385,7 +385,7 @@ class Ompa:
     # Validation
     # -------------------------------------------------------------------------
 
-    def validate_write(self, file_path: str) -> dict:
+    def validate_write(self, file_path: str) -> dict[str, object]:
         """Validate a markdown file for frontmatter and wikilinks."""
         return self.vault.validate_write(file_path)
 
@@ -432,19 +432,19 @@ class Ompa:
         subject: str,
         predicate: str,
         object: str,
-        valid_from: str = None,
-        source: str = None,
+        valid_from: Optional[str] = None,
+        source: Optional[str] = None,
     ) -> None:
         """Add a fact to the knowledge graph."""
         self.kg.add_triple(
             subject, predicate, object, valid_from=valid_from, source=source
         )
 
-    def kg_query(self, entity: str, as_of: str = None) -> list:
+    def kg_query(self, entity: str, as_of: Optional[str] = None) -> list[Triple]:
         """Query the knowledge graph."""
         return self.kg.query_entity(entity, as_of=as_of)
 
-    def kg_timeline(self, entity: str) -> list:
+    def kg_timeline(self, entity: str) -> list[dict[str, Optional[str]]]:
         """Get entity timeline."""
         return self.kg.timeline(entity)
 
@@ -452,7 +452,7 @@ class Ompa:
         """Populate KG from all vault notes (wikilinks, tags, folders)."""
         return self.kg.populate_from_vault(self.vault_path)
 
-    def sync(self) -> dict:
+    def sync(self) -> dict[str, int]:
         """
         Full sync: rebuild KG from vault, rebuild search index, rebuild palace.
 
