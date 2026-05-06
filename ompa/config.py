@@ -209,7 +209,7 @@ def make_ompa(
     personal_vault_path: str | Path = None,
     isolation_mode: str = "strict",
     enable_semantic: bool = False,
-) -> Ompa:
+) -> "Ompa":
     """
     Create an Ompa instance, supporting both single and dual vault modes.
 

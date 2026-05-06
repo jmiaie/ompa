@@ -20,6 +20,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
+from .vault import DEFAULT_EXCLUDE_PATTERNS
+
 logger = logging.getLogger(__name__)
 
 DEFAULT_KG_PATH = "~/.ompa/knowledge_graph.sqlite3"
@@ -380,8 +382,6 @@ class KnowledgeGraph:
         Returns:
             Total number of triples added.
         """
-        from .vault import DEFAULT_EXCLUDE_PATTERNS
-
         exclude_patterns = exclude_patterns or DEFAULT_EXCLUDE_PATTERNS
         total = 0
         vault_path = Path(vault_path)
