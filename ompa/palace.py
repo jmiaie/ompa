@@ -178,43 +178,6 @@ class Palace:
             or (t.get("wing_a") == wing_b and t.get("wing_b") == wing_a)
         ]
 
-    def find_tunnels_by_room(self, room: str) -> list[dict[str, Any]]:
-        """Find all tunnels that pass through a room."""
-        tunnels: list[dict[str, Any]] = self._data.get("tunnels", [])
-        return [t for t in tunnels if t.get("room") == room]
-
-    # Traversal
-
-    def traverse(self, wing: str, room: str) -> dict[str, Any]:
-        """Walk the palace from a room across all connected wings via tunnels."""
-        tunnels = self.find_tunnels_by_room(room)
-        connected: list[dict[str, Any]] = []
-        for tunnel in tunnels:
-            other_wing = (
-                tunnel["wing_b"] if tunnel["wing_a"] == wing else tunnel["wing_a"]
-            )
-            connected_room = self.get_room(other_wing, room)
-            if connected_room:
-                connected.append(
-                    {
-                        "wing": other_wing,
-                        "room": room,
-                        "room_data": connected_room,
-                        "hall": (
-                            tunnel["hall_b"]
-                            if tunnel["wing_a"] == wing
-                            else tunnel["hall_a"]
-                        ),
-                    }
-                )
-        return {
-            "wing": wing,
-            "room": room,
-            "room_data": self.get_room(wing, room),
-            "tunnels": tunnels,
-            "connected": connected,
-        }
-
     # Auto-build from vault
 
     def auto_build_from_vault(self, vault_path: Path) -> int:
