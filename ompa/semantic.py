@@ -81,13 +81,13 @@ class SemanticIndex:
             return
 
         try:
-            # Remove existing chunks for this file (incremental update)
+            # Evict stale chunks for this file before re-indexing so we don't
+            # accumulate duplicates when a file is edited multiple times
             path_str = str(path)
             self.chunks = [c for c in self.chunks if c["path"] != path_str]
 
             content = path.read_text(encoding="utf-8")
-            # Split into chunks (512 tokens each)
-            chunk_size = 512
+            chunk_size = 512  # ~512 tokens per chunk
             words = content.split()
 
             for i in range(0, len(words), chunk_size):
@@ -235,9 +235,10 @@ class SemanticIndex:
                     )
                 )
 
-            # Sort by score and dedupe by path
             best_results.sort(key=lambda r: r.score, reverse=True)
 
+            # Return the single best chunk per file to avoid flooding results
+            # with multiple chunks from one large note
             seen_paths = set()
             unique_results = []
             for result in best_results:
@@ -258,7 +259,6 @@ class SemanticIndex:
         query_lower = query.lower()
         results = []
 
-        # Search through indexed chunks first
         if self.chunks:
             for chunk in self.chunks:
                 if query_lower in chunk["text"].lower():
@@ -274,7 +274,7 @@ class SemanticIndex:
                         break
             return results
 
-        # Fallback: scan the vault directory
+        # No in-memory index yet — scan the vault directory directly
         vault_path = self.index_path.parent.parent  # .palace/semantic_index -> vault
         if vault_path.exists():
             for md_file in vault_path.rglob("*.md"):

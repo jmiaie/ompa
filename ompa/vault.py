@@ -9,6 +9,7 @@ from pathlib import Path
 from dataclasses import dataclass, field
 from typing import Optional
 import frontmatter
+import yaml
 
 logger = logging.getLogger(__name__)
 
@@ -77,7 +78,7 @@ class Note:
                 content=content,
                 links=cls._extract_wikilinks(content),
             )
-        except (OSError, UnicodeDecodeError, ValueError) as e:
+        except (OSError, UnicodeDecodeError, ValueError, yaml.YAMLError) as e:
             logger.debug("Frontmatter parse failed for %s: %s", path, e)
             try:
                 text = path.read_text(encoding="utf-8")

@@ -53,6 +53,11 @@ class Hook:
         raise NotImplementedError
 
 
+def _vault_from_context(context: "HookContext") -> Vault:
+    """Return the vault from context.memory if available, or create a fresh one."""
+    return context.memory.vault if context.memory else Vault(context.vault_path)
+
+
 class SessionStartHook(Hook):
     """
     Runs at session start. Loads context:
@@ -65,13 +70,10 @@ class SessionStartHook(Hook):
 
     def __init__(self, token_budget: int = 2000):
         super().__init__("session_start", token_budget)
-        self.classifier = MessageClassifier()
 
     def execute(self, context: HookContext, **kwargs) -> HookResult:
         try:
-            vault = (
-                context.memory.vault if context.memory else Vault(context.vault_path)
-            )
+            vault = _vault_from_context(context)
             lines = []
             lines.append("## Session Context")
             lines.append(f"**Date:** {context.timestamp.strftime('%Y-%m-%d (%A)')}")
@@ -354,9 +356,7 @@ class StopHook(Hook):
 
     def execute(self, context: HookContext, **kwargs) -> HookResult:
         try:
-            vault = (
-                context.memory.vault if context.memory else Vault(context.vault_path)
-            )
+            vault = _vault_from_context(context)
             lines = []
             lines.append("## Wrap-Up Checklist")
             lines.append("")

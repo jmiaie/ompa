@@ -193,7 +193,6 @@ class Ompa:
         """
         result = self.hooks.run_post_tool(tool_name, tool_input, self)
 
-        # Auto-update on file writes
         if tool_name in ("write", "edit", "create_file"):
             file_path = tool_input.get("file_path") or tool_input.get("path")
             if file_path:
@@ -225,7 +224,6 @@ class Ompa:
             return
 
         try:
-            # Determine wing and room from path
             parts = path.parts
             if "brain" in parts:
                 wing = "brain"
@@ -407,7 +405,6 @@ class Ompa:
         """Update a brain note and sync to KG + search index."""
         self.vault.update_brain_note(note_name, content, append)
 
-        # Sync brain note to KG and search index
         brain_path = self.vault.config.brain_folder / f"{note_name}.md"
         if brain_path.exists():
             self._auto_update_kg(brain_path)
@@ -471,7 +468,6 @@ class Ompa:
             "indexed_files": index_count,
         }
 
-        # Sync personal vault too if in dual mode
         if self.is_dual_vault:
             p_kg = self.personal_kg.populate_from_vault(self.dual_config.personal_path)
             p_palace = self.personal_palace.auto_build_from_vault(
@@ -511,7 +507,6 @@ class Ompa:
         """
         tags = tags or []
 
-        # Determine target vault
         if not self.is_dual_vault:
             target = VaultTarget.SHARED
             target_vault = self.vault
@@ -535,7 +530,6 @@ class Ompa:
                 self.vault if target == VaultTarget.SHARED else self.personal_vault
             )
 
-        # Build file path if not provided
         if not file_path:
             # Use classifier to determine folder
             classification = self.classifier.classify(content[:200])
@@ -558,7 +552,6 @@ class Ompa:
         note = Note(path=full_path, frontmatter=frontmatter, content=content)
         note.save()
 
-        # Update KG + index
         target_kg = self.kg if target == VaultTarget.SHARED else self.personal_kg
         if target_kg:
             target_kg.populate_from_note(full_path, target_vault.vault_path)
@@ -624,14 +617,12 @@ class Ompa:
         if sanitize:
             note.content = self._sanitize_content(note.content)
 
-        # Update frontmatter for shared vault
         note.frontmatter["vault"] = "shared"
         note.frontmatter.pop("@private", None)
 
         note.path = target
         note.save()
 
-        # Update shared KG
         self.kg.populate_from_note(target, self.dual_config.shared_path)
 
         logger.info("Exported %s to shared vault", note_path)
@@ -680,7 +671,6 @@ class Ompa:
         note.path = target
         note.save()
 
-        # Update personal KG
         if self.personal_kg:
             self.personal_kg.populate_from_note(target, self.dual_config.personal_path)
 
@@ -693,11 +683,9 @@ class Ompa:
 
     def _sanitize_content(self, content: str) -> str:
         """Remove sensitive markers and credentials from content."""
-        # Remove personal tags
         content = re.sub(r"@private\b", "", content)
         content = re.sub(r"#personal\b", "", content)
 
-        # Redact credential-like patterns
         content = re.sub(r"(sk-[a-zA-Z0-9]{20,})", "[REDACTED]", content)
         content = re.sub(r"(AKIA[A-Z0-9]{16})", "[REDACTED]", content)
         content = re.sub(

@@ -168,9 +168,9 @@ class Palace:
         )
         self._save()
 
-    def find_tunnels(self, wing_a: str, wing_b: str) -> list[dict]:
+    def find_tunnels(self, wing_a: str, wing_b: str) -> list[dict[str, Any]]:
         """Find all tunnels between two wings."""
-        tunnels = self._data.get("tunnels", [])
+        tunnels: list[dict[str, Any]] = self._data.get("tunnels", [])
         return [
             t
             for t in tunnels
@@ -178,28 +178,24 @@ class Palace:
             or (t.get("wing_a") == wing_b and t.get("wing_b") == wing_a)
         ]
 
-    def find_tunnels_by_room(self, room: str) -> list[dict]:
+    def find_tunnels_by_room(self, room: str) -> list[dict[str, Any]]:
         """Find all tunnels that pass through a room."""
-        return [t for t in self._data.get("tunnels", []) if t.get("room") == room]
+        tunnels: list[dict[str, Any]] = self._data.get("tunnels", [])
+        return [t for t in tunnels if t.get("room") == room]
 
     # Traversal
 
-    def traverse(self, wing: str, room: str) -> dict:
+    def traverse(self, wing: str, room: str) -> dict[str, Any]:
         """Walk the palace from a room across all connected wings via tunnels."""
-        result = {
-            "wing": wing,
-            "room": room,
-            "room_data": self.get_room(wing, room),
-            "tunnels": self.find_tunnels_by_room(room),
-            "connected": [],
-        }
-        for tunnel in result["tunnels"]:
+        tunnels = self.find_tunnels_by_room(room)
+        connected: list[dict[str, Any]] = []
+        for tunnel in tunnels:
             other_wing = (
                 tunnel["wing_b"] if tunnel["wing_a"] == wing else tunnel["wing_a"]
             )
             connected_room = self.get_room(other_wing, room)
             if connected_room:
-                result["connected"].append(
+                connected.append(
                     {
                         "wing": other_wing,
                         "room": room,
@@ -211,7 +207,13 @@ class Palace:
                         ),
                     }
                 )
-        return result
+        return {
+            "wing": wing,
+            "room": room,
+            "room_data": self.get_room(wing, room),
+            "tunnels": tunnels,
+            "connected": connected,
+        }
 
     # Auto-build from vault
 

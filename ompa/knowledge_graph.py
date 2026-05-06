@@ -20,6 +20,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
+import yaml
+
 from .vault import DEFAULT_EXCLUDE_PATTERNS
 
 logger = logging.getLogger(__name__)
@@ -312,7 +314,7 @@ class KnowledgeGraph:
             import frontmatter as fm
             post = fm.load(note_path)
             return post.content, dict(post.metadata)
-        except (OSError, UnicodeDecodeError, ValueError) as e:
+        except (OSError, UnicodeDecodeError, ValueError, yaml.YAMLError) as e:
             logger.debug("Frontmatter parse failed for %s: %s", note_path, e)
             try:
                 return note_path.read_text(encoding="utf-8"), {}
