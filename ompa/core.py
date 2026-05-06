@@ -486,10 +486,10 @@ class Ompa:
     def write(
         self,
         content: str,
-        file_path: str = None,
-        tags: list[str] = None,
-        vault: str = None,
-    ) -> dict:
+        file_path: Optional[str] = None,
+        tags: Optional[list[str]] = None,
+        vault: Optional[str] = None,
+    ) -> dict[str, str]:
         """
         Write content to the appropriate vault.
 
