@@ -186,7 +186,7 @@ class Ompa:
             self._last_classification = self.classifier.classify(message)
         return result
 
-    def post_tool(self, tool_name: str, tool_input: dict) -> HookResult:
+    def post_tool(self, tool_name: str, tool_input: dict[str, object]) -> HookResult:
         """
         Run post-tool hook after tool use.
         Validates writes, auto-adds to palace, updates KG + search index.
