@@ -33,12 +33,12 @@ def _safe_resolve(base: Path, untrusted: str) -> Path:
 @dataclass
 class VaultConfig:
     vault_path: Path
-    brain_folder: Path = None
-    work_folder: Path = None
-    org_folder: Path = None
-    perf_folder: Path = None
-    thinking_folder: Path = None
-    templates_folder: Path = None
+    brain_folder: Optional[Path] = None
+    work_folder: Optional[Path] = None
+    org_folder: Optional[Path] = None
+    perf_folder: Optional[Path] = None
+    thinking_folder: Optional[Path] = None
+    templates_folder: Optional[Path] = None
 
     def __post_init__(self):
         if self.brain_folder is None:
@@ -77,13 +77,13 @@ class Note:
                 content=content,
                 links=cls._extract_wikilinks(content),
             )
-        except Exception as e:
+        except (OSError, UnicodeDecodeError, ValueError) as e:
             # Fallback: read raw content if frontmatter parsing fails
             logger.debug("Frontmatter parse failed for %s: %s", path, e)
             try:
                 text = path.read_text(encoding="utf-8")
                 return cls(path=path, content=text, links=cls._extract_wikilinks(text))
-            except Exception as e:
+            except (OSError, UnicodeDecodeError) as e:
                 logger.debug("Could not read %s: %s", path, e)
                 return cls(path=path)
 
@@ -95,7 +95,8 @@ class Note:
         for link in raw:
             # Strip display text: [[target|display]] → target
             target = link.split("|")[0].strip()
-            # Strip .md extension if present (will be re-added during resolution)
+            # Wikilinks are typically written without extension; strip it so
+            # resolution can match against stems regardless of how the link was typed
             if target.lower().endswith(".md"):
                 target = target[:-3]
             if target:
@@ -156,13 +157,12 @@ class Vault:
             folder_path = self.vault_path / folder
             folder_path.mkdir(parents=True, exist_ok=True)
 
-    def list_notes(self, exclude_patterns: list[str] = None) -> list[Note]:
+    def list_notes(self, exclude_patterns: Optional[list[str]] = None) -> list[Note]:
         """List all markdown notes in the vault."""
         exclude_patterns = exclude_patterns or DEFAULT_EXCLUDE_PATTERNS
         notes = []
 
         for path in self.vault_path.rglob("*.md"):
-            # Check exclusions
             if any(excl in str(path) for excl in exclude_patterns):
                 continue
             notes.append(Note.from_file(path))
@@ -173,10 +173,9 @@ class Vault:
         """Build a case-insensitive filename → path index for wikilink resolution."""
         index = {}
         for note in notes:
-            # Index by stem (without .md) — case-insensitive
+            # Both stem and full name allow resolution against differently-typed wikilinks
             key = note.path.stem.lower()
             index[key] = note.path
-            # Also index by full filename
             index[note.path.name.lower()] = note.path
         return index
 
@@ -288,7 +287,7 @@ class Vault:
         note.save()
         return note
 
-    def get_stats(self) -> dict:
+    def get_stats(self) -> dict[str, object]:
         """Get vault statistics."""
         notes = self.list_notes()
         filename_index = self._build_filename_index(notes)
@@ -308,7 +307,7 @@ class Vault:
             and n.path.name not in ["Home.md", "README.md"]
         )
 
-        folder_counts = {}
+        folder_counts: dict[str, int] = {}
         brain_count = 0
         for note in notes:
             folder = note.path.parent.name or "root"
@@ -317,7 +316,7 @@ class Vault:
             # Count brain notes: in brain/ folder OR wing=brain in frontmatter
             if "brain" in note.path.parts:
                 brain_count += 1
-            elif note.frontmatter.get("wing", "").lower() == "brain":
+            elif str(note.frontmatter.get("wing", "")).lower() == "brain":
                 brain_count += 1
 
         # Also count brain folder files not yet in notes list (e.g., empty ones)
@@ -332,7 +331,7 @@ class Vault:
             "brain_notes": brain_count,
         }
 
-    def validate_write(self, file_path: str) -> dict:
+    def validate_write(self, file_path: str) -> dict[str, object]:
         """
         Validate a markdown file for frontmatter and wikilinks.
         File must be within the vault directory.
