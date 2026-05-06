@@ -8,6 +8,7 @@ import logging
 import hashlib
 from pathlib import Path
 from dataclasses import dataclass
+from typing import Any, Optional
 
 from .vault import DEFAULT_EXCLUDE_PATTERNS
 
@@ -40,13 +41,13 @@ class SemanticIndex:
         self.index_path.mkdir(parents=True, exist_ok=True)
         self.model_name = model_name
         self.embedding_dim = embedding_dim
-        self.embeddings = None
-        self.chunks = []
+        self.embeddings: Optional[Any] = None
+        self.chunks: list[dict[str, Any]] = []
         self._initialized = False
-        self._model = None
+        self._model: Optional[Any] = None
 
     @property
-    def model(self):
+    def model(self) -> Optional[Any]:
         """Lazy-load the model on first access."""
         if self._model is None:
             self._init_model()
@@ -129,7 +130,7 @@ class SemanticIndex:
             logger.warning("Incremental index update failed for %s: %s", path, e)
             return False
 
-    def index_vault(self, vault_path: Path, exclude_patterns: list = None) -> int:
+    def index_vault(self, vault_path: Path, exclude_patterns: Optional[list[str]] = None) -> int:
         """Index all markdown files in a vault."""
         exclude_patterns = exclude_patterns or DEFAULT_EXCLUDE_PATTERNS
         count = 0
@@ -149,13 +150,8 @@ class SemanticIndex:
         """Save the index to disk."""
         index_file = self.index_path / "semantic_index.json"
 
-        serializable = {
-            "model": self.model_name,
-            "chunks": [{**c, "embedding": c["embedding"]} for c in self.chunks],
-        }
-
         with open(index_file, "w", encoding="utf-8") as f:
-            json.dump(serializable, f)
+            json.dump({"model": self.model_name, "chunks": self.chunks}, f)
 
     def load_index(self) -> bool:
         """Load the index from disk."""

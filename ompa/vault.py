@@ -389,7 +389,7 @@ class Vault:
                 )
                 valid = False
 
-        except Exception as e:
+        except (OSError, UnicodeDecodeError) as e:
             warnings.append(f"Error reading file: {type(e).__name__}")
             valid = False
 

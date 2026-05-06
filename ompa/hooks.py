@@ -3,16 +3,17 @@ Lifecycle hooks for OMPA.
 Handles session_start, user_message, post_tool, pre_compact, and stop events.
 """
 
+from __future__ import annotations
+
 import json
 import logging
 from datetime import datetime
 from dataclasses import dataclass
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 from pathlib import Path
 
 from .vault import Vault, Note
 from .classifier import MessageClassifier
-from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from .core import Ompa
@@ -28,7 +29,7 @@ class HookContext:
     session_id: str
     timestamp: datetime
     agent_name: str = "agent"
-    memory: Optional["Ompa"] = None
+    memory: Optional[Ompa] = None
 
 
 @dataclass

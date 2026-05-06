@@ -4,13 +4,17 @@ OMPA Configuration — Dual-vault settings and content classification rules.
 Supports YAML config file at ~/.ompa/config.yaml or programmatic configuration.
 """
 
+from __future__ import annotations
+
 import logging
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 if TYPE_CHECKING:
+    # Ompa is only needed for type annotations; the real import happens
+    # inside make_ompa() at call time to avoid the config<->core cycle.
     from .core import Ompa
 
 logger = logging.getLogger(__name__)
@@ -169,7 +173,7 @@ def make_ompa(
     personal_vault_path: str | Path = None,
     isolation_mode: str = "strict",
     enable_semantic: bool = False,
-) -> "Ompa":
+) -> Ompa:
     """
     Create an Ompa instance, supporting both single and dual vault modes.
 
@@ -186,7 +190,7 @@ def make_ompa(
     Returns:
         Ompa instance configured for the selected mode
     """
-    from .core import Ompa  # Import here to avoid circular imports
+    from .core import Ompa  # deferred: core imports config at module level; config must not import core at module level
 
     if shared_vault_path and personal_vault_path:
         # Dual-vault mode
