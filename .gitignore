@@ -38,3 +38,6 @@ htmlcov/
 
 # Node (for JS/TS projects if any)
 node_modules/
+
+# Claude Code internal state
+.claude/

@@ -542,14 +542,14 @@ class Ompa:
         # Write the note
         from datetime import datetime
 
-        frontmatter = {
+        note_frontmatter: dict[str, object] = {
             "date": datetime.now().strftime("%Y-%m-%d"),
             "tags": tags,
             "vault": target.value,
         }
 
         full_path = _safe_resolve(target_vault.vault_path, file_path)
-        note = Note(path=full_path, frontmatter=frontmatter, content=content)
+        note = Note(path=full_path, frontmatter=note_frontmatter, content=content)
         note.save()
 
         target_kg = self.kg if target == VaultTarget.SHARED else self.personal_kg
@@ -567,7 +567,7 @@ class Ompa:
         note_path: str,
         confirm: bool = True,
         sanitize: bool = True,
-    ) -> dict:
+    ) -> dict[str, object]:
         """
         Export a note from personal vault to shared vault.
 
@@ -637,7 +637,7 @@ class Ompa:
         self,
         note_path: str,
         link_back: bool = True,
-    ) -> dict:
+    ) -> dict[str, object]:
         """
         Import a note from shared vault to personal vault.
 
