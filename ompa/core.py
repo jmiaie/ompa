@@ -46,12 +46,12 @@ class Ompa:
 
     def __init__(
         self,
-        vault_path: str | Path = None,
+        vault_path: Optional[str | Path] = None,
         agent_name: str = "agent",
         enable_semantic: bool = True,
         # Dual-vault parameters
-        shared_vault_path: str | Path = None,
-        personal_vault_path: str | Path = None,
+        shared_vault_path: Optional[str | Path] = None,
+        personal_vault_path: Optional[str | Path] = None,
         isolation_mode: str = "strict",
     ):
         self.agent_name = agent_name
@@ -96,9 +96,9 @@ class Ompa:
             self.kg = KnowledgeGraph(
                 db_path=str(self.vault_path / ".palace" / "knowledge_graph.sqlite3")
             )
-            self.personal_vault = None
-            self.personal_palace = None
-            self.personal_kg = None
+            self.personal_vault: Optional[Vault] = None
+            self.personal_palace: Optional[Palace] = None
+            self.personal_kg: Optional[KnowledgeGraph] = None
 
         self.classifier = MessageClassifier()
         self.hooks = HookManager(self.vault_path, agent_name=self.agent_name)
