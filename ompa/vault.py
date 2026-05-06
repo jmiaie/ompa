@@ -78,7 +78,6 @@ class Note:
                 links=cls._extract_wikilinks(content),
             )
         except (OSError, UnicodeDecodeError, ValueError) as e:
-            # Fallback: read raw content if frontmatter parsing fails
             logger.debug("Frontmatter parse failed for %s: %s", path, e)
             try:
                 text = path.read_text(encoding="utf-8")
@@ -205,18 +204,21 @@ class Vault:
 
         return None
 
-    def find_orphans(self) -> list[Note]:
-        """Find notes with no incoming links from other notes."""
-        all_notes = self.list_notes()
-        filename_index = self._build_filename_index(all_notes)
+    def _compute_linked_files(self, notes: list[Note]) -> set:
+        """Return the set of file paths that are targets of at least one wikilink."""
+        filename_index = self._build_filename_index(notes)
         linked_files = set()
-
-        for note in all_notes:
+        for note in notes:
             for link in note.links:
                 resolved = self._resolve_wikilink(link, filename_index)
                 if resolved:
                     linked_files.add(resolved)
+        return linked_files
 
+    def find_orphans(self) -> list[Note]:
+        """Find notes with no incoming links from other notes."""
+        all_notes = self.list_notes()
+        linked_files = self._compute_linked_files(all_notes)
         return [
             n
             for n in all_notes
@@ -290,15 +292,7 @@ class Vault:
     def get_stats(self) -> dict[str, object]:
         """Get vault statistics."""
         notes = self.list_notes()
-        filename_index = self._build_filename_index(notes)
-
-        # Build linked set using smart wikilink resolution
-        linked_files = set()
-        for note in notes:
-            for link in note.links:
-                resolved = self._resolve_wikilink(link, filename_index)
-                if resolved:
-                    linked_files.add(resolved)
+        linked_files = self._compute_linked_files(notes)
 
         orphan_count = sum(
             1

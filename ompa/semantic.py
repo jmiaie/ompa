@@ -77,9 +77,7 @@ class SemanticIndex:
         if not path.exists():
             return
 
-        if not self._initialized:
-            self._init_model()
-        if self._model is None:
+        if self.model is None:
             return
 
         try:
@@ -131,25 +129,12 @@ class SemanticIndex:
             logger.warning("Incremental index update failed for %s: %s", path, e)
             return False
 
-    def remove_file(self, path: Path) -> bool:
-        """Remove a file from the index (e.g., after deletion)."""
-        path_str = str(Path(path))
-        before = len(self.chunks)
-        self.chunks = [c for c in self.chunks if c["path"] != path_str]
-        removed = before - len(self.chunks)
-        if removed > 0:
-            self.save_index()
-            logger.debug("Removed %d chunks for %s", removed, path)
-        return removed > 0
-
     def index_vault(self, vault_path: Path, exclude_patterns: list = None) -> int:
         """Index all markdown files in a vault."""
         exclude_patterns = exclude_patterns or DEFAULT_EXCLUDE_PATTERNS
         count = 0
 
-        if not self._initialized:
-            self._init_model()
-        if self._model is None:
+        if self.model is None:
             return 0
 
         for path in vault_path.rglob("*.md"):

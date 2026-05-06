@@ -52,7 +52,7 @@ def _row_to_triple(row: sqlite3.Row) -> Triple:
 
 
 class KnowledgeGraph:
-    def __init__(self, db_path: str = None):
+    def __init__(self, db_path: Optional[str] = None):
         self.db_path = Path(db_path or DEFAULT_KG_PATH).expanduser()
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._init_db()
@@ -124,7 +124,7 @@ class KnowledgeGraph:
                 (entity_id, name, entity_type),
             )
 
-    def query_entity(self, name: str, as_of: str = None) -> list[Triple]:
+    def query_entity(self, name: str, as_of: Optional[str] = None) -> list[Triple]:
         """
         Query all current triples for an entity.
 
@@ -168,10 +168,10 @@ class KnowledgeGraph:
         subject: str,
         predicate: str,
         object: str,
-        valid_from: str = None,
-        valid_to: str = None,
+        valid_from: Optional[str] = None,
+        valid_to: Optional[str] = None,
         confidence: float = 1.0,
-        source: str = None,
+        source: Optional[str] = None,
     ) -> None:
         """
         Add a fact triple to the knowledge graph.
@@ -217,7 +217,7 @@ class KnowledgeGraph:
             )
 
     def invalidate(
-        self, subject: str, predicate: str, obj: str, ended: str = None
+        self, subject: str, predicate: str, obj: str, ended: Optional[str] = None
     ) -> None:
         """
         Invalidate a triple by setting its valid_to date.
@@ -235,7 +235,7 @@ class KnowledgeGraph:
     # Timeline
     # -------------------------------------------------------------------------
 
-    def timeline(self, entity: str) -> list[dict]:
+    def timeline(self, entity: str) -> list[dict[str, Optional[str]]]:
         """
         Get the chronological story of an entity.
         Returns all triples ordered by valid_from with direction indicators.
@@ -277,7 +277,7 @@ class KnowledgeGraph:
     # Auto-population from vault
     # -------------------------------------------------------------------------
 
-    def populate_from_note(self, note_path: Path, vault_path: Path = None) -> int:
+    def populate_from_note(self, note_path: Path, vault_path: Optional[Path] = None) -> int:
         """
         Extract and store triples from a single vault note.
 
@@ -292,82 +292,102 @@ class KnowledgeGraph:
         if not note_path.exists() or note_path.suffix != ".md":
             return 0
 
-        count = 0
         note_name = note_path.stem
         source = str(note_path)
+        content, metadata = self._load_note_content(note_path)
+        if content is None:
+            return 0
 
+        count = 0
+        count += self._extract_wikilink_triples(note_name, content, source)
+        count += self._extract_tag_triples(note_name, metadata, source)
+        count += self._extract_folder_triples(note_name, note_path, vault_path, source)
+        count += self._extract_date_triple(note_name, metadata, source)
+        count += self._register_described_entity(note_name, metadata)
+        return count
+
+    def _load_note_content(self, note_path: Path):
+        """Load note text and frontmatter. Returns (content, metadata) or (None, None) on error."""
         try:
             import frontmatter as fm
-
             post = fm.load(note_path)
-            content = post.content
-            metadata = dict(post.metadata)
-        except Exception as e:
+            return post.content, dict(post.metadata)
+        except (OSError, UnicodeDecodeError, ValueError) as e:
             logger.debug("Frontmatter parse failed for %s: %s", note_path, e)
             try:
-                content = note_path.read_text(encoding="utf-8")
-                metadata = {}
+                return note_path.read_text(encoding="utf-8"), {}
             except OSError as e:
                 logger.debug("Could not read %s: %s", note_path, e)
-                return 0
+                return None, None
 
-        wikilinks = re.findall(r"\[\[([^\]]+)\]\]", content)
-        for link in wikilinks:
+    def _extract_wikilink_triples(self, note_name: str, content: str, source: str) -> int:
+        """Add links_to triples for all wikilinks in content. Returns count added."""
+        count = 0
+        for link in re.findall(r"\[\[([^\]]+)\]\]", content):
             # Strip display text from piped links: [[target|display]]
             target = link.split("|")[0].strip()
             if target:
                 self.add_triple(note_name, "links_to", target, source=source)
                 count += 1
+        return count
 
+    def _extract_tag_triples(self, note_name: str, metadata: dict, source: str) -> int:
+        """Add has_tag triples for all frontmatter tags. Returns count added."""
         tags = metadata.get("tags", [])
         if isinstance(tags, str):
             tags = [t.strip() for t in tags.split(",") if t.strip()]
+        count = 0
         if isinstance(tags, list):
             for tag in tags:
                 if isinstance(tag, str) and tag.strip():
                     self.add_triple(note_name, "has_tag", tag.strip(), source=source)
                     count += 1
+        return count
 
-        if vault_path:
-            try:
-                rel = note_path.relative_to(vault_path)
-                parts = rel.parts
-                if len(parts) > 1:
-                    folder = parts[0]  # top-level: brain, work, org, perf
-                    self.add_triple(note_name, "in_folder", folder, source=source)
+    def _extract_folder_triples(
+        self, note_name: str, note_path: Path, vault_path: Optional[Path], source: str
+    ) -> int:
+        """Add in_folder / in_subfolder triples based on path. Returns count added."""
+        if not vault_path:
+            return 0
+        count = 0
+        try:
+            rel = note_path.relative_to(vault_path)
+            parts = rel.parts
+            if len(parts) > 1:
+                self.add_triple(note_name, "in_folder", parts[0], source=source)
+                count += 1
+                # Sub-folder (e.g., work/active, org/people)
+                if len(parts) > 2:
+                    subfolder = f"{parts[0]}/{parts[1]}"
+                    self.add_triple(note_name, "in_subfolder", subfolder, source=source)
                     count += 1
-                    # Sub-folder (e.g., work/active, org/people)
-                    if len(parts) > 2:
-                        subfolder = f"{parts[0]}/{parts[1]}"
-                        self.add_triple(
-                            note_name, "in_subfolder", subfolder, source=source
-                        )
-                        count += 1
-            except ValueError:
-                pass
+        except ValueError:
+            # note_path is outside vault_path — skip folder triple extraction
+            logger.debug("Note %s is outside vault_path %s", note_path, vault_path)
+        return count
 
+    def _extract_date_triple(self, note_name: str, metadata: dict, source: str) -> int:
+        """Add created_on triple from frontmatter date field. Returns 1 if added."""
         date_val = metadata.get("date")
         if date_val:
             date_str = str(date_val)[:10]  # YYYY-MM-DD
             self.add_triple(
-                note_name,
-                "created_on",
-                date_str,
-                valid_from=date_str,
-                source=source,
+                note_name, "created_on", date_str, valid_from=date_str, source=source
             )
-            count += 1
+            return 1
+        return 0
 
-        # Register entity when a description exists so it surfaces in entity queries
+    def _register_described_entity(self, note_name: str, metadata: dict) -> int:
+        """Register entity when note has a non-trivial description. Returns 1 if registered."""
         desc = metadata.get("description")
         if desc and isinstance(desc, str) and len(desc) > 10:
             self.add_entity(note_name, entity_type="note")
-            count += 1
-
-        return count
+            return 1
+        return 0
 
     def populate_from_vault(
-        self, vault_path: Path, exclude_patterns: list = None
+        self, vault_path: Path, exclude_patterns: Optional[list[str]] = None
     ) -> int:
         """
         Scan all vault notes and populate the knowledge graph.
@@ -396,7 +416,7 @@ class KnowledgeGraph:
     # Statistics
     # -------------------------------------------------------------------------
 
-    def stats(self) -> dict:
+    def stats(self) -> dict[str, object]:
         """Get knowledge graph statistics."""
         with self._conn() as conn:
             entity_count = conn.execute("SELECT COUNT(*) FROM entities").fetchone()[0]

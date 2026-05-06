@@ -5,7 +5,7 @@ Inspired by MemPalace. Manages the structured metadata that accelerates retrieva
 
 import json
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 HALL_TYPES = [
     "hall_facts",  # decisions made, choices locked
@@ -33,7 +33,7 @@ class Palace:
         self.data_file = self.palace_path / "palace.json"
         self._data = self._load()
 
-    def _load(self) -> dict:
+    def _load(self) -> dict[str, Any]:
         """Load palace data from disk."""
         if self.data_file.exists():
             with open(self.data_file) as f:
@@ -48,7 +48,7 @@ class Palace:
     # Wing operations
 
     def create_wing(
-        self, name: str, type: str = "project", keywords: list[str] = None
+        self, name: str, type: str = "project", keywords: Optional[list[str]] = None
     ) -> None:
         """Create a new wing."""
         if keywords is None:
@@ -62,16 +62,12 @@ class Palace:
         }
         self._save()
 
-    def list_wings(self) -> list[dict]:
+    def list_wings(self) -> list[dict[str, Any]]:
         """List all wings."""
         return [
             {"name": w["name"], "type": w["type"], "keywords": w.get("keywords", [])}
             for w in self._data.get("wings", {}).values()
         ]
-
-    def get_wing(self, name: str) -> Optional[dict]:
-        """Get a wing by name."""
-        return self._data.get("wings", {}).get(name)
 
     # Room operations
 
@@ -94,7 +90,7 @@ class Palace:
             return []
         return list(wing_data.get("rooms", {}).keys())
 
-    def get_room(self, wing: str, room_name: str) -> Optional[dict]:
+    def get_room(self, wing: str, room_name: str) -> Optional[dict[str, Any]]:
         """Get a room."""
         wing_data = self._data.get("wings", {}).get(wing)
         if not wing_data:

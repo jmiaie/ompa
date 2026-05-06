@@ -90,7 +90,6 @@ class Ompa:
                 )
             )
         else:
-            # Single-vault mode (legacy / backward compatible)
             self.vault_path = Path(vault_path or ".")
             self.vault = Vault(self.vault_path)
             self.palace = Palace(self.vault_path / ".palace")
@@ -164,14 +163,14 @@ class Ompa:
                 count = self.kg.populate_from_vault(self.vault_path)
                 logger.info("Auto-populated KG with %d triples on session start", count)
         except Exception as e:
-            logger.debug("KG auto-population skipped: %s", e)
+            logger.warning("KG auto-population skipped: %s", e)
 
         # Trigger semantic index build if needed (lazy property handles this)
         if self._enable_semantic:
             try:
                 _ = self.semantic  # triggers lazy build
             except Exception as e:
-                logger.debug("Semantic index build skipped: %s", e)
+                logger.warning("Semantic index build skipped: %s", e)
 
         result = self.hooks.run_session_start(self)
         self._session_started = True
@@ -215,14 +214,6 @@ class Ompa:
         self._session_started = False
         return result
 
-    def wrap_up(self) -> HookResult:
-        """Alias for stop()."""
-        return self.stop()
-
-    def standup(self) -> HookResult:
-        """Alias for session_start()."""
-        return self.session_start()
-
     # -------------------------------------------------------------------------
     # Auto palace population
     # -------------------------------------------------------------------------
@@ -251,7 +242,7 @@ class Ompa:
             self.palace.create_room(wing, room)
             self.palace.link_drawer(wing, room, str(path))
         except Exception as e:
-            logger.debug("Palace auto-add failed for %s: %s", file_path, e)
+            logger.warning("Palace auto-add failed for %s: %s", file_path, e)
 
     def _auto_update_kg(self, path: Path) -> None:
         """Auto-update knowledge graph when a note is written/edited."""
@@ -262,7 +253,7 @@ class Ompa:
             if added > 0:
                 logger.debug("KG updated: %d triples from %s", added, path.name)
         except Exception as e:
-            logger.debug("KG auto-update failed for %s: %s", path, e)
+            logger.warning("KG auto-update failed for %s: %s", path, e)
 
     def _auto_update_index(self, path: Path) -> None:
         """Incrementally update semantic index when a note is written/edited."""
@@ -273,7 +264,7 @@ class Ompa:
                 self._semantic.update_file(path)
                 logger.debug("Search index updated for %s", path.name)
         except Exception as e:
-            logger.debug("Index auto-update failed for %s: %s", path, e)
+            logger.warning("Index auto-update failed for %s: %s", path, e)
 
     # -------------------------------------------------------------------------
     # Classification
@@ -282,10 +273,6 @@ class Ompa:
     def classify(self, message: str) -> Classification:
         """Classify a user message."""
         return self.classifier.classify(message)
-
-    def get_routing_hint(self, message: str) -> str:
-        """Get a one-line routing hint for a message."""
-        return self.classifier.get_routing_hint(message)
 
     @property
     def last_classification(self) -> Optional[Classification]:
@@ -318,7 +305,6 @@ class Ompa:
                     ["shared", "personal"]. Default: ["shared"] in dual mode,
                     or the single vault in legacy mode.
         """
-        # Determine which vaults to search
         if not self.is_dual_vault:
             vaults = ["shared"]  # single vault acts as shared
         elif vaults is None:
@@ -326,7 +312,6 @@ class Ompa:
 
         all_results = []
 
-        # Search shared vault
         if "shared" in vaults:
             all_results.extend(
                 self._search_vault(
@@ -334,7 +319,6 @@ class Ompa:
                 )
             )
 
-        # Search personal vault
         if "personal" in vaults and self.personal_vault:
             personal_results = self._search_vault(
                 self.personal_vault,
@@ -345,12 +329,11 @@ class Ompa:
                 wing,
                 room,
             )
-            # Tag personal results
+            # Prefix match_type so callers can distinguish personal from shared results
             for r in personal_results:
                 r.match_type = f"personal:{r.match_type}"
             all_results.extend(personal_results)
 
-        # Sort by score and limit
         all_results.sort(key=lambda r: r.score, reverse=True)
         return all_results[:limit]
 
@@ -390,10 +373,6 @@ class Ompa:
             results = filtered or results[:limit]
 
         return results
-
-    def qsearch(self, query: str, limit: int = 5) -> list[SearchResult]:
-        """QMD-style semantic search. Convenience method."""
-        return self.search(query, limit, hybrid=True)
 
     def rebuild_index(self) -> int:
         """Rebuild the semantic index."""
