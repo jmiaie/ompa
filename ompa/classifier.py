@@ -42,7 +42,6 @@ class MessageClassifier:
     Inspired by obsidian-minds classify-message.py but framework-agnostic.
     """
 
-    # Regex patterns for classification
     PATTERNS = {
         MessageType.DECISION: [
             r"\b(decided|decision|we chose|going with|settled on|agreed to)\b",
@@ -112,7 +111,6 @@ class MessageClassifier:
         ],
     }
 
-    # Routing hints per message type
     ROUTING_HINTS = {
         MessageType.DECISION: [
             "This is a decision. Record it in brain/Key Decisions.md",
@@ -176,7 +174,6 @@ class MessageClassifier:
         ],
     }
 
-    # Suggested folder locations
     FOLDER_MAP = {
         MessageType.DECISION: "work/active/",
         MessageType.INCIDENT: "work/incidents/",
@@ -195,15 +192,7 @@ class MessageClassifier:
     }
 
     def classify(self, message: str) -> Classification:
-        """
-        Classify a user message and return routing guidance.
-
-        Args:
-            message: The user message text
-
-        Returns:
-            Classification with type, confidence, hints, and suggested actions
-        """
+        """Classify a user message and return routing guidance."""
         message_lower = message.lower()
         scores = {}
 
@@ -224,9 +213,8 @@ class MessageClassifier:
                 suggested_action="Continue conversation normally",
             )
 
-        # Get highest scoring type
         best_type = max(scores, key=scores.get)
-        confidence = min(scores[best_type] / 3.0, 1.0)  # Normalize to 0-1
+        confidence = min(scores[best_type] / 3.0, 1.0)  # 3 pattern hits = full confidence
 
         # For short messages, reduce confidence
         if len(message.split()) < 5:
@@ -269,7 +257,6 @@ class MessageClassifier:
         classification = self.classify(message)
         return f"[{classification.message_type.value.upper()}] {classification.suggested_action}"
 
-    # Shared-vault message types (team-visible content)
     SHARED_TYPES = {
         MessageType.DECISION,
         MessageType.MEETING,
@@ -282,7 +269,6 @@ class MessageClassifier:
         MessageType.WRAP_UP,
     }
 
-    # Personal-vault message types (agent-private content)
     PERSONAL_TYPES = {
         MessageType.BRAIN_DUMP,
     }

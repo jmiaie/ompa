@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Optional
 
 from .vault import Vault, Note, _safe_resolve
-from .palace import Palace
+from .palace import Palace, _stem_to_room
 from .knowledge_graph import KnowledgeGraph
 from .hooks import HookManager, HookResult
 from .classifier import MessageClassifier, Classification
@@ -238,10 +238,10 @@ class Ompa:
             parts = path.parts
             if "brain" in parts:
                 wing = "brain"
-                room = path.stem.lower().replace(" ", "-")
+                room = _stem_to_room(path.stem)
             elif "work" in parts:
                 wing = "work"
-                room = path.stem.lower().replace(" ", "-")
+                room = _stem_to_room(path.stem)
             elif "org" in parts and "people" in parts:
                 wing = path.stem  # person name
                 room = "context"

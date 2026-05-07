@@ -17,6 +17,11 @@ HALL_TYPES = [
 ]
 
 
+def _stem_to_room(stem: str) -> str:
+    """Convert a note filename stem to a palace room name (lower-kebab)."""
+    return stem.lower().replace(" ", "-")
+
+
 @dataclass
 class Wing:
     name: str
@@ -254,7 +259,7 @@ class Palace:
         if brain.exists():
             self.create_wing("brain", type="agent", keywords=["memory", "brain"])
             for note in brain.glob("*.md"):
-                room_name = note.stem.lower().replace(" ", "-")
+                room_name = _stem_to_room(note.stem)
                 self.create_room("brain", room_name)
                 self.link_drawer("brain", room_name, str(note.relative_to(vault_path)))
                 count += 1
@@ -264,7 +269,7 @@ class Palace:
         if work_active.exists():
             self.create_wing("work", type="projects", keywords=["work", "projects"])
             for note in work_active.glob("*.md"):
-                room_name = note.stem.lower().replace(" ", "-")
+                room_name = _stem_to_room(note.stem)
                 self.create_room("work", room_name)
                 self.link_drawer("work", room_name, str(note.relative_to(vault_path)))
                 count += 1

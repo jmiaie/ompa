@@ -209,7 +209,7 @@ def make_ompa(
     personal_vault_path: str | Path = None,
     isolation_mode: str = "strict",
     enable_semantic: bool = False,
-) -> Ompa:
+) -> "Ompa":
     """
     Create an Ompa instance, supporting both single and dual vault modes.
 
@@ -226,17 +226,15 @@ def make_ompa(
     Returns:
         Ompa instance configured for the selected mode
     """
-    from .core import Ompa  # Import here to avoid circular imports
+    from .core import Ompa  # deferred to avoid circular imports
 
     if shared_vault_path and personal_vault_path:
-        # Dual-vault mode
         return Ompa(
             shared_vault_path=shared_vault_path,
             personal_vault_path=personal_vault_path,
             isolation_mode=isolation_mode,
             enable_semantic=enable_semantic,
         )
-    # Single-vault mode (legacy / backward compatible)
     return Ompa(
         vault_path=vault_path or Path("."),
         enable_semantic=enable_semantic,
