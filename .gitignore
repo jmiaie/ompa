@@ -24,6 +24,9 @@ env/
 # Agent memory index (regenerated on rebuild)
 .agent-memory/
 
+# Claude Code tooling (worktrees, session state)
+.claude/
+
 # OS
 .DS_Store
 Thumbs.db
