@@ -384,7 +384,7 @@ def export(
         console.print("[yellow]Preview (run with --confirm to export):[/yellow]")
         console.print(f"  From: {result['source']}")
         console.print(f"  To: {result['target']}")
-        console.print(f"  Content: {result['preview'][:200]}...")
+        console.print(f"  Content: {str(result['preview'])[:200]}...")
     elif result.get("success"):
         console.print("[green]Exported to shared vault[/green]")
         console.print(f"  {result['source']} -> {result['target']}")
