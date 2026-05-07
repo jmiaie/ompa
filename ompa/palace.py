@@ -39,7 +39,7 @@ class Palace:
         self.data_file = self.palace_path / "palace.json"
         self._data = self._load()
 
-    def _load(self) -> dict[str, object]:
+    def _load(self) -> dict[str, Any]:
         """Load palace data from disk."""
         if self.data_file.exists():
             with open(self.data_file) as f:
@@ -68,7 +68,7 @@ class Palace:
         }
         self._save()
 
-    def list_wings(self) -> list[dict[str, object]]:
+    def list_wings(self) -> list[dict[str, Any]]:
         """List all wings."""
         return [
             {"name": w["name"], "type": w["type"], "keywords": w.get("keywords", [])}
@@ -96,7 +96,7 @@ class Palace:
             return []
         return list(wing_data.get("rooms", {}).keys())
 
-    def get_room(self, wing: str, room_name: str) -> Optional[dict[str, object]]:
+    def get_room(self, wing: str, room_name: str) -> Optional[dict[str, Any]]:
         """Get a room."""
         wing_data = self._data.get("wings", {}).get(wing)
         if not wing_data:
@@ -231,7 +231,7 @@ class Palace:
 
     # Stats
 
-    def stats(self) -> dict[str, int]:
+    def stats(self) -> dict[str, Any]:
         """Get palace statistics."""
         wings = self._data.get("wings", {})
         total_rooms = sum(len(w.get("rooms", {})) for w in wings.values())

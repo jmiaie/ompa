@@ -296,7 +296,6 @@ class Vault:
         notes = self.list_notes()
         filename_index = self._build_filename_index(notes)
 
-        # Build linked set using smart wikilink resolution
         linked_files = set()
         for note in notes:
             for link in note.links:
@@ -344,7 +343,7 @@ class Vault:
         try:
             path = _safe_resolve(self.vault_path, file_path)
         except ValueError:
-            # Also handle absolute paths that are within the vault
+            # _safe_resolve only handles relative paths; also accept absolute paths inside vault
             path = Path(file_path).resolve()
             try:
                 path.relative_to(self.vault_path)
@@ -360,7 +359,6 @@ class Vault:
         if path.suffix != ".md":
             return {"valid": True, "warnings": []}
 
-        # Skip dotfiles and template files
         if path.name.startswith(".") or path.name.startswith("README."):
             return {"valid": True, "warnings": []}
 
@@ -374,7 +372,6 @@ class Vault:
         try:
             content = path.read_text(encoding="utf-8")
 
-            # Check frontmatter
             if not content.startswith("---"):
                 warnings.append("Missing YAML frontmatter")
                 valid = False
@@ -391,7 +388,7 @@ class Vault:
                     if "tags:" not in fm and "tags :" not in fm:
                         warnings.append("Missing 'tags' in frontmatter")
 
-            # Check wikilinks (skip very short notes)
+            # Notes shorter than 300 chars often lack wikilinks intentionally (stubs)
             if len(content) > 300 and "[[" not in content:
                 warnings.append(
                     "No [[wikilinks]] found — every note must link to at least one other note"
