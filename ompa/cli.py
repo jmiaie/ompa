@@ -4,7 +4,7 @@ Run with: ao <command> or ao-mcp <command>
 """
 
 from pathlib import Path
-from typing import Optional
+from typing import Optional, cast
 
 import typer
 from rich.console import Console
@@ -289,9 +289,10 @@ def validate(
     warnings_list = []
     for note in notes:
         result = ao.validate_write(str(note.path))
-        if result["warnings"]:
+        note_warnings = cast(list[str], result["warnings"])
+        if note_warnings:
             total += 1
-            for w in result["warnings"]:
+            for w in note_warnings:
                 rel = (
                     note.path.relative_to(vault_path)
                     if note.path.is_relative_to(vault_path)
