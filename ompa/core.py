@@ -8,7 +8,7 @@ import logging
 import re
 import shutil
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 from .vault import Vault, Note, _safe_resolve
 from .palace import Palace, _stem_to_room
@@ -106,7 +106,7 @@ class Ompa:
         """True if dual-vault mode is active."""
         return self.dual_config.is_dual_vault
 
-    def _require_dual_vault(self) -> dict | None:
+    def _require_dual_vault(self) -> Optional[dict[str, Any]]:
         """Return an error dict if not in dual-vault mode, else None.
 
         Usage::
@@ -383,7 +383,7 @@ class Ompa:
     # Validation
     # -------------------------------------------------------------------------
 
-    def validate_write(self, file_path: str) -> dict[str, object]:
+    def validate_write(self, file_path: str) -> dict[str, Any]:
         """Validate a markdown file for frontmatter and wikilinks."""
         return self.vault.validate_write(file_path)
 
@@ -391,7 +391,7 @@ class Ompa:
     # Vault Management
     # -------------------------------------------------------------------------
 
-    def get_stats(self) -> dict[str, object]:
+    def get_stats(self) -> dict[str, Any]:
         """Get vault statistics."""
         return self.vault.get_stats()
 
@@ -450,7 +450,7 @@ class Ompa:
         """Populate KG from all vault notes (wikilinks, tags, folders)."""
         return self.kg.populate_from_vault(self.vault_path)
 
-    def sync(self) -> dict[str, int]:
+    def sync(self) -> dict[str, Any]:
         """
         Full sync: rebuild KG from vault, rebuild search index, rebuild palace.
 
@@ -526,7 +526,7 @@ class Ompa:
         file_path: Optional[str] = None,
         tags: Optional[list[str]] = None,
         vault: Optional[str] = None,
-    ) -> dict[str, str]:
+    ) -> dict[str, Any]:
         """
         Write content to the appropriate vault.
 
@@ -575,7 +575,7 @@ class Ompa:
         note_path: str,
         confirm: bool = True,
         sanitize: bool = True,
-    ) -> dict[str, object]:
+    ) -> dict[str, Any]:
         """
         Export a note from personal vault to shared vault.
 
@@ -643,7 +643,7 @@ class Ompa:
         self,
         note_path: str,
         link_back: bool = True,
-    ) -> dict[str, object]:
+    ) -> dict[str, Any]:
         """
         Import a note from shared vault to personal vault.
 
@@ -706,7 +706,7 @@ class Ompa:
         shared_path: str | Path,
         personal_path: str | Path,
         classification_rules: str = "auto",
-    ) -> dict[str, object]:
+    ) -> dict[str, Any]:
         """
         Migrate a single-vault OMPA to dual-vault architecture.
 

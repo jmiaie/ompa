@@ -18,7 +18,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -227,7 +227,7 @@ class KnowledgeGraph:
     # Timeline
     # -------------------------------------------------------------------------
 
-    def timeline(self, entity: str) -> list[dict[str, object]]:
+    def timeline(self, entity: str) -> list[dict[str, Any]]:
         """
         Get the chronological story of an entity.
         Returns all triples ordered by valid_from with direction indicators.
@@ -411,7 +411,7 @@ class KnowledgeGraph:
     # Statistics
     # -------------------------------------------------------------------------
 
-    def stats(self) -> dict[str, object]:
+    def stats(self) -> dict[str, Any]:
         """Get knowledge graph statistics."""
         with self._conn() as conn:
             entity_count = conn.execute("SELECT COUNT(*) FROM entities").fetchone()[0]

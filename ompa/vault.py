@@ -7,7 +7,7 @@ import logging
 import re
 from pathlib import Path
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Any, Optional
 import frontmatter
 
 logger = logging.getLogger(__name__)
@@ -291,7 +291,7 @@ class Vault:
         note.save()
         return note
 
-    def get_stats(self) -> dict[str, object]:
+    def get_stats(self) -> dict[str, Any]:
         """Get vault statistics."""
         notes = self.list_notes()
         filename_index = self._build_filename_index(notes)
@@ -334,7 +334,7 @@ class Vault:
             "brain_notes": brain_count,
         }
 
-    def validate_write(self, file_path: str) -> dict[str, object]:
+    def validate_write(self, file_path: str) -> dict[str, Any]:
         """
         Validate a markdown file for frontmatter and wikilinks.
         File must be within the vault directory.
