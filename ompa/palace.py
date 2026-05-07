@@ -5,7 +5,7 @@ Inspired by MemPalace. Manages the structured metadata that accelerates retrieva
 
 import json
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 HALL_TYPES = [
     "hall_facts",  # decisions made, choices locked

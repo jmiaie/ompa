@@ -8,6 +8,7 @@ import logging
 import hashlib
 from pathlib import Path
 from dataclasses import dataclass
+from typing import Any
 
 from .vault import DEFAULT_EXCLUDE_PATTERNS
 
@@ -88,8 +89,7 @@ class SemanticIndex:
             self.chunks = [c for c in self.chunks if c["path"] != path_str]
 
             content = path.read_text(encoding="utf-8")
-            # Split into chunks (512 tokens each)
-            chunk_size = 512
+            chunk_size = 512  # words per chunk; ~384 token embedding window of all-MiniLM-L6-v2
             words = content.split()
 
             for i in range(0, len(words), chunk_size):
@@ -255,7 +255,6 @@ class SemanticIndex:
         query_lower = query.lower()
         results = []
 
-        # Search through indexed chunks first
         if self.chunks:
             for chunk in self.chunks:
                 if query_lower in chunk["text"].lower():
@@ -271,8 +270,8 @@ class SemanticIndex:
                         break
             return results
 
-        # Fallback: scan the vault directory
-        vault_path = self.index_path.parent.parent  # .palace/semantic_index -> vault
+        # No indexed chunks — scan vault files directly (.palace/semantic_index -> vault)
+        vault_path = self.index_path.parent.parent
         if vault_path.exists():
             for md_file in vault_path.rglob("*.md"):
                 if any(excl in str(md_file) for excl in DEFAULT_EXCLUDE_PATTERNS):
