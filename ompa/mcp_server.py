@@ -215,7 +215,7 @@ def ao_write(arguments: dict[str, object]) -> dict[str, object]:
     """Write content to the appropriate vault (auto-classifies in dual mode)."""
     ao = _ompa_from_args(arguments)
     content = arguments.get("content", "")
-    tags_raw = arguments.get("tags", "")
+    tags_raw = str(arguments.get("tags", "") or "")
     tags = [t.strip() for t in tags_raw.split(",") if t.strip()] if tags_raw else []
     result = ao.write(
         content,
@@ -611,7 +611,7 @@ def handle_call_tool(name: str, arguments: dict[str, object]) -> dict[str, objec
             return {"error": "Invalid vault_path"}
         # Cap limit parameters
         if "limit" in arguments:
-            arguments = {**arguments, "limit": min(int(arguments["limit"]), 100)}
+            arguments = {**arguments, "limit": min(int(str(arguments["limit"])), 100)}
 
         dispatcher = _TOOL_DISPATCH.get(name)
         if dispatcher is None:

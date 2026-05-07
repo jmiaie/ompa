@@ -8,6 +8,7 @@ import logging
 import hashlib
 from pathlib import Path
 from dataclasses import dataclass
+from typing import Any
 
 from .vault import DEFAULT_EXCLUDE_PATTERNS
 
@@ -41,7 +42,7 @@ class SemanticIndex:
         self.model_name = model_name
         self.embedding_dim = embedding_dim
         self.embeddings = None
-        self.chunks: list[dict[str, object]] = []
+        self.chunks: list[dict[str, Any]] = []
         self._initialized = False
         self._model = None
 
