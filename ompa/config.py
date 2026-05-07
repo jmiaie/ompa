@@ -211,20 +211,8 @@ def make_ompa(
     enable_semantic: bool = False,
 ) -> "Ompa":
     """
-    Create an Ompa instance, supporting both single and dual vault modes.
-
-    Consolidates instance creation logic used across CLI and MCP server.
-    Automatically selects between single-vault and dual-vault initialization.
-
-    Args:
-        vault_path: Path for single-vault mode (ignored if dual vault paths provided)
-        shared_vault_path: Path to shared vault (activates dual-vault mode)
-        personal_vault_path: Path to personal vault (activates dual-vault mode)
-        isolation_mode: "strict", "permissive", or "manual"
-        enable_semantic: Whether to enable semantic search on initialization
-
-    Returns:
-        Ompa instance configured for the selected mode
+    Factory used by CLI and MCP server. Dual-vault mode activates when both
+    shared_vault_path and personal_vault_path are provided; otherwise single-vault.
     """
     from .core import Ompa  # deferred to avoid circular imports
 

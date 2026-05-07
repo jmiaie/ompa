@@ -57,7 +57,6 @@ class Ompa:
         self.agent_name = agent_name
         self._enable_semantic = enable_semantic
         self._session_started = False
-        self._last_classification: Optional[Classification] = None
 
         # Dual-vault config
         self.dual_config = DualVaultConfig(
@@ -65,12 +64,10 @@ class Ompa:
         )
 
         if shared_vault_path and personal_vault_path:
-            # Dual-vault mode
             self.dual_config.shared_path = Path(shared_vault_path).expanduser()
             self.dual_config.personal_path = Path(personal_vault_path).expanduser()
             self.vault_path = self.dual_config.shared_path  # primary for hooks
 
-            # Shared vault systems
             self.vault = Vault(self.dual_config.shared_path)
             self.palace = Palace(self.dual_config.shared_path / ".palace")
             self.kg = KnowledgeGraph(
@@ -79,7 +76,6 @@ class Ompa:
                 )
             )
 
-            # Personal vault systems
             self.personal_vault = Vault(self.dual_config.personal_path)
             self.personal_palace = Palace(self.dual_config.personal_path / ".palace")
             self.personal_kg = KnowledgeGraph(
@@ -90,7 +86,6 @@ class Ompa:
                 )
             )
         else:
-            # Single-vault mode (legacy / backward compatible)
             self.vault_path = Path(vault_path or ".")
             self.vault = Vault(self.vault_path)
             self.palace = Palace(self.vault_path / ".palace")
@@ -104,7 +99,6 @@ class Ompa:
         self.classifier = MessageClassifier()
         self.hooks = HookManager(self.vault_path, agent_name=self.agent_name)
 
-        # Semantic search (lazy-loaded)
         self._semantic = None
         self._personal_semantic = None
 
@@ -112,6 +106,18 @@ class Ompa:
     def is_dual_vault(self) -> bool:
         """True if dual-vault mode is active."""
         return self.dual_config.is_dual_vault
+
+    def _require_dual_vault(self) -> dict | None:
+        """Return an error dict if not in dual-vault mode, else None.
+
+        Usage::
+
+            if err := self._require_dual_vault():
+                return err
+        """
+        if not self.is_dual_vault:
+            return {"success": False, "error": "Not in dual-vault mode"}
+        return None
 
     @property
     def semantic(self) -> Optional[SemanticIndex]:
@@ -183,8 +189,6 @@ class Ompa:
         Classifies the message and returns routing hints (~100 tokens).
         """
         result = self.hooks.run_user_message(message, self)
-        if result.success:
-            self._last_classification = self.classifier.classify(message)
         return result
 
     def post_tool(self, tool_name: str, tool_input: dict) -> HookResult:
@@ -607,8 +611,8 @@ class Ompa:
         Returns:
             dict with {success, source, target, sanitized, preview}
         """
-        if not self.is_dual_vault:
-            return {"success": False, "error": "Not in dual-vault mode"}
+        if err := self._require_dual_vault():
+            return err
 
         # Validate paths upfront to prevent traversal
         try:
@@ -678,8 +682,8 @@ class Ompa:
         Returns:
             dict with {success, source, target}
         """
-        if not self.is_dual_vault:
-            return {"success": False, "error": "Not in dual-vault mode"}
+        if err := self._require_dual_vault():
+            return err
 
         # Validate paths upfront to prevent traversal
         try:

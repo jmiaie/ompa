@@ -169,7 +169,7 @@ class Vault:
 
         return notes
 
-    def _build_filename_index(self, notes: list[Note]) -> dict[str, Path]:
+    def _build_filename_index(self, notes: list["Note"]) -> dict[str, Path]:
         """Build a case-insensitive filename → path index for wikilink resolution."""
         index = {}
         for note in notes:
@@ -230,35 +230,34 @@ class Vault:
         query_lower = query.lower()
         return [n for n in self.list_notes() if query_lower in n.path.stem.lower()]
 
-    def get_brain_note(self, name: str) -> Optional[Note]:
-        """Get a brain note by name. Name is sanitized to prevent path traversal."""
-        # Reject names with path separators or parent-dir references
+    def _resolve_brain_note_path(self, name: str) -> Path:
+        """
+        Resolve and validate a brain note name to a safe absolute path.
+
+        Rejects names with path separators or parent-dir references, then
+        confirms the resolved path stays within the brain folder.
+        Raises ValueError for any invalid name.
+        """
         if "/" in name or "\\" in name or ".." in name:
             raise ValueError(f"Invalid brain note name: {name!r}")
         safe_name = Path(name).name  # Strip any directory components
-        path = self.config.brain_folder / f"{safe_name}.md"
-        path = path.resolve()
-        # Ensure we stay within brain folder
+        path = (self.config.brain_folder / f"{safe_name}.md").resolve()
         try:
             path.relative_to(self.config.brain_folder.resolve())
         except ValueError:
             raise ValueError(f"Invalid brain note name: {name!r}")
+        return path
+
+    def get_brain_note(self, name: str) -> Optional[Note]:
+        """Get a brain note by name. Name is sanitized to prevent path traversal."""
+        path = self._resolve_brain_note_path(name)
         if path.exists():
             return Note.from_file(path)
         return None
 
     def update_brain_note(self, name: str, content: str, append: bool = False) -> None:
         """Update a brain note. Name is sanitized to prevent path traversal."""
-        # Reject names with path separators or parent-dir references
-        if "/" in name or "\\" in name or ".." in name:
-            raise ValueError(f"Invalid brain note name: {name!r}")
-        safe_name = Path(name).name  # Strip any directory components
-        path = self.config.brain_folder / f"{safe_name}.md"
-        path = path.resolve()
-        try:
-            path.relative_to(self.config.brain_folder.resolve())
-        except ValueError:
-            raise ValueError(f"Invalid brain note name: {name!r}")
+        path = self._resolve_brain_note_path(name)
         path.parent.mkdir(parents=True, exist_ok=True)
 
         if append and path.exists():
@@ -292,7 +291,7 @@ class Vault:
         note.save()
         return note
 
-    def get_stats(self) -> dict:
+    def get_stats(self) -> dict[str, object]:
         """Get vault statistics."""
         notes = self.list_notes()
         filename_index = self._build_filename_index(notes)
@@ -312,7 +311,7 @@ class Vault:
             and n.path.name not in ["Home.md", "README.md"]
         )
 
-        folder_counts = {}
+        folder_counts: dict[str, int] = {}
         brain_count = 0
         for note in notes:
             folder = note.path.parent.name or "root"
@@ -321,7 +320,7 @@ class Vault:
             # Count brain notes: in brain/ folder OR wing=brain in frontmatter
             if "brain" in note.path.parts:
                 brain_count += 1
-            elif note.frontmatter.get("wing", "").lower() == "brain":
+            elif str(note.frontmatter.get("wing", "")).lower() == "brain":
                 brain_count += 1
 
         # Also count brain folder files not yet in notes list (e.g., empty ones)
@@ -336,7 +335,7 @@ class Vault:
             "brain_notes": brain_count,
         }
 
-    def validate_write(self, file_path: str) -> dict:
+    def validate_write(self, file_path: str) -> dict[str, object]:
         """
         Validate a markdown file for frontmatter and wikilinks.
         File must be within the vault directory.
