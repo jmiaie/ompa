@@ -1,14 +1,14 @@
 """
 OMPA — Universal AI Agent Memory Layer
 Core module integrating vault, palace, KG, hooks, classifier, and semantic search.
-Supports single-vault (legacy) and dual-vault (shared + personal) architecture.
+Supports single-vault and dual-vault (shared + personal) architecture.
 """
 
 import logging
 import re
 import shutil
 from pathlib import Path
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 
 from .vault import Vault, Note, _safe_resolve
 from .palace import Palace, _stem_to_room
@@ -33,7 +33,7 @@ class Ompa:
     - Classifier (15 message types with routing hints)
     - Semantic Search (local sentence-transformers)
 
-    Usage (single vault — legacy):
+    Usage (single vault):
         ao = Ompa(vault_path="./workspace")
 
     Usage (dual vault):
@@ -99,8 +99,8 @@ class Ompa:
         self.classifier = MessageClassifier()
         self.hooks = HookManager(self.vault_path, agent_name=self.agent_name)
 
-        self._semantic = None
-        self._personal_semantic = None
+        self._semantic: Optional[SemanticIndex] = None
+        self._personal_semantic: Optional[SemanticIndex] = None
 
     @property
     def is_dual_vault(self) -> bool:
@@ -163,7 +163,6 @@ class Ompa:
         Loads ~2K tokens: vault listing, North Star, active work, palace wings, KG stats.
         Auto-populates KG from vault if empty. Builds semantic index if missing.
         """
-        # Auto-populate KG if empty
         try:
             kg_stats = self.kg.stats()
             if kg_stats["triple_count"] == 0:
@@ -172,7 +171,6 @@ class Ompa:
         except Exception as e:
             logger.debug("KG auto-population skipped: %s", e)
 
-        # Trigger semantic index build if needed (lazy property handles this)
         if self._enable_semantic:
             try:
                 _ = self.semantic  # triggers lazy build
@@ -219,14 +217,6 @@ class Ompa:
         self._session_started = False
         return result
 
-    def wrap_up(self) -> HookResult:
-        """Alias for stop()."""
-        return self.stop()
-
-    def standup(self) -> HookResult:
-        """Alias for session_start()."""
-        return self.session_start()
-
     # -------------------------------------------------------------------------
     # Auto palace population
     # -------------------------------------------------------------------------
@@ -238,7 +228,6 @@ class Ompa:
             return
 
         try:
-            # Determine wing and room from path
             parts = path.parts
             if "brain" in parts:
                 wing = "brain"
@@ -287,15 +276,6 @@ class Ompa:
         """Classify a user message."""
         return self.classifier.classify(message)
 
-    def get_routing_hint(self, message: str) -> str:
-        """Get a one-line routing hint for a message."""
-        return self.classifier.get_routing_hint(message)
-
-    @property
-    def last_classification(self) -> Optional[Classification]:
-        """Get the last classification result."""
-        return self._last_classification
-
     # -------------------------------------------------------------------------
     # Search
     # -------------------------------------------------------------------------
@@ -319,18 +299,15 @@ class Ompa:
             wing: Filter by palace wing
             room: Filter by palace room
             vaults: Which vaults to search. Options: ["shared"], ["personal"],
-                    ["shared", "personal"]. Default: ["shared"] in dual mode,
-                    or the single vault in legacy mode.
+                    ["shared", "personal"]. Default: ["shared"].
         """
-        # Determine which vaults to search
         if not self.is_dual_vault:
-            vaults = ["shared"]  # single vault acts as shared
+            vaults = ["shared"]  # single vault maps to the shared slot
         elif vaults is None:
             vaults = ["shared"]
 
         all_results = []
 
-        # Search shared vault
         if "shared" in vaults:
             all_results.extend(
                 self._search_vault(
@@ -338,7 +315,6 @@ class Ompa:
                 )
             )
 
-        # Search personal vault
         if "personal" in vaults and self.personal_vault:
             personal_results = self._search_vault(
                 self.personal_vault,
@@ -349,12 +325,10 @@ class Ompa:
                 wing,
                 room,
             )
-            # Tag personal results
             for r in personal_results:
                 r.match_type = f"personal:{r.match_type}"
             all_results.extend(personal_results)
 
-        # Sort by score and limit
         all_results.sort(key=lambda r: r.score, reverse=True)
         return all_results[:limit]
 
@@ -395,17 +369,14 @@ class Ompa:
 
         return results
 
-    def qsearch(self, query: str, limit: int = 5) -> list[SearchResult]:
-        """QMD-style semantic search. Convenience method."""
-        return self.search(query, limit, hybrid=True)
-
     def rebuild_index(self) -> int:
         """Rebuild the semantic index."""
-        if self.semantic is None:
+        sem = self.semantic
+        if sem is None:
             return 0
-        self._semantic.clear()
-        count = self._semantic.index_vault(self.vault_path)
-        self._semantic.save_index()
+        sem.clear()
+        count = sem.index_vault(self.vault_path)
+        sem.save_index()
         return count
 
     # -------------------------------------------------------------------------
@@ -432,7 +403,6 @@ class Ompa:
         """Update a brain note and sync to KG + search index."""
         self.vault.update_brain_note(note_name, content, append)
 
-        # Sync brain note to KG and search index
         brain_path = self.vault.config.brain_folder / f"{note_name}.md"
         if brain_path.exists():
             self._auto_update_kg(brain_path)
@@ -496,7 +466,6 @@ class Ompa:
             "indexed_files": index_count,
         }
 
-        # Sync personal vault too if in dual mode
         if self.is_dual_vault:
             p_kg = self.personal_kg.populate_from_vault(self.dual_config.personal_path)
             p_palace = self.personal_palace.auto_build_from_vault(

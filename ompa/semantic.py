@@ -41,7 +41,7 @@ class SemanticIndex:
         self.model_name = model_name
         self.embedding_dim = embedding_dim
         self.embeddings = None
-        self.chunks = []
+        self.chunks: list[dict[str, object]] = []
         self._initialized = False
         self._model = None
 
@@ -131,7 +131,7 @@ class SemanticIndex:
             logger.warning("Incremental index update failed for %s: %s", path, e)
             return False
 
-    def index_vault(self, vault_path: Path, exclude_patterns: list = None) -> int:
+    def index_vault(self, vault_path: Path, exclude_patterns: list[str] = None) -> int:
         """Index all markdown files in a vault."""
         exclude_patterns = exclude_patterns or DEFAULT_EXCLUDE_PATTERNS
         count = 0

@@ -82,7 +82,7 @@ class DualVaultConfig:
         return self.shared_path is not None and self.personal_path is not None
 
     def classify_content(
-        self, content: str, tags: list[str] = None, file_path: str = None
+        self, content: str, tags: Optional[list[str]] = None, file_path: Optional[str] = None
     ) -> VaultTarget:
         """
         Classify content as shared or personal.
@@ -171,8 +171,23 @@ class DualVaultConfig:
             logger.warning("PyYAML not installed; cannot save config")
             return
 
-        data = {
-            "vaults": {},
+        vaults: dict[str, object] = {}
+        if self.shared_path:
+            vaults["shared"] = {
+                "path": str(self.shared_path),
+                "access": "read-write",
+                "auto_classify": True,
+            }
+        if self.personal_path:
+            vaults["personal"] = {
+                "path": str(self.personal_path),
+                "access": "read-write",
+                "auto_classify": True,
+                "never_sync_to_shared": True,
+            }
+
+        data: dict[str, object] = {
+            "vaults": vaults,
             "isolation": {
                 "mode": self.isolation_mode.value,
                 "default_vault": self.default_vault.value,
@@ -183,20 +198,6 @@ class DualVaultConfig:
                 "personal_indicators": self.personal_indicators,
             },
         }
-
-        if self.shared_path:
-            data["vaults"]["shared"] = {
-                "path": str(self.shared_path),
-                "access": "read-write",
-                "auto_classify": True,
-            }
-        if self.personal_path:
-            data["vaults"]["personal"] = {
-                "path": str(self.personal_path),
-                "access": "read-write",
-                "auto_classify": True,
-                "never_sync_to_shared": True,
-            }
 
         config_path.parent.mkdir(parents=True, exist_ok=True)
         with open(config_path, "w", encoding="utf-8") as f:
