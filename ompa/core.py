@@ -12,7 +12,7 @@ from typing import Optional, TYPE_CHECKING
 
 from .vault import Vault, Note, _safe_resolve
 from .palace import Palace, _stem_to_room
-from .knowledge_graph import KnowledgeGraph
+from .knowledge_graph import KnowledgeGraph, Triple
 from .hooks import HookManager, HookResult
 from .classifier import MessageClassifier, Classification
 from .semantic import SemanticIndex, SearchResult
@@ -189,7 +189,7 @@ class Ompa:
         result = self.hooks.run_user_message(message, self)
         return result
 
-    def post_tool(self, tool_name: str, tool_input: dict) -> HookResult:
+    def post_tool(self, tool_name: str, tool_input: dict[str, object]) -> HookResult:
         """
         Run post-tool hook after tool use.
         Validates writes, auto-adds to palace, updates KG + search index.
@@ -383,7 +383,7 @@ class Ompa:
     # Validation
     # -------------------------------------------------------------------------
 
-    def validate_write(self, file_path: str) -> dict:
+    def validate_write(self, file_path: str) -> dict[str, object]:
         """Validate a markdown file for frontmatter and wikilinks."""
         return self.vault.validate_write(file_path)
 
@@ -391,11 +391,11 @@ class Ompa:
     # Vault Management
     # -------------------------------------------------------------------------
 
-    def get_stats(self) -> dict:
+    def get_stats(self) -> dict[str, object]:
         """Get vault statistics."""
         return self.vault.get_stats()
 
-    def find_orphans(self) -> list:
+    def find_orphans(self) -> list[Note]:
         """Find notes with no wikilinks."""
         return self.vault.find_orphans()
 
@@ -409,7 +409,7 @@ class Ompa:
             self._auto_update_index(brain_path)
             self._auto_add_to_palace(str(brain_path))
 
-    def get_brain_note(self, name: str) -> Optional[object]:
+    def get_brain_note(self, name: str) -> Optional[Note]:
         """Get a brain note by name."""
         return self.vault.get_brain_note(name)
 
@@ -438,11 +438,11 @@ class Ompa:
             subject, predicate, object, valid_from=valid_from, source=source
         )
 
-    def kg_query(self, entity: str, as_of: str = None) -> list:
+    def kg_query(self, entity: str, as_of: Optional[str] = None) -> list["Triple"]:
         """Query the knowledge graph."""
         return self.kg.query_entity(entity, as_of=as_of)
 
-    def kg_timeline(self, entity: str) -> list:
+    def kg_timeline(self, entity: str) -> list[dict[str, object]]:
         """Get entity timeline."""
         return self.kg.timeline(entity)
 
@@ -450,7 +450,7 @@ class Ompa:
         """Populate KG from all vault notes (wikilinks, tags, folders)."""
         return self.kg.populate_from_vault(self.vault_path)
 
-    def sync(self) -> dict:
+    def sync(self) -> dict[str, int]:
         """
         Full sync: rebuild KG from vault, rebuild search index, rebuild palace.
 
@@ -484,10 +484,10 @@ class Ompa:
     def write(
         self,
         content: str,
-        file_path: str = None,
-        tags: list[str] = None,
-        vault: str = None,
-    ) -> dict:
+        file_path: Optional[str] = None,
+        tags: Optional[list[str]] = None,
+        vault: Optional[str] = None,
+    ) -> dict[str, str]:
         """
         Write content to the appropriate vault.
 
@@ -505,7 +505,6 @@ class Ompa:
         """
         tags = tags or []
 
-        # Determine target vault
         if not self.is_dual_vault:
             target = VaultTarget.SHARED
             target_vault = self.vault
@@ -515,13 +514,12 @@ class Ompa:
                 self.vault if target == VaultTarget.SHARED else self.personal_vault
             )
         elif self.dual_config.isolation_mode == IsolationMode.MANUAL:
-            # In manual mode, default to personal (safe default)
+            # MANUAL mode has no auto-classification — fall back to configured default_vault
             target = self.dual_config.default_vault
             target_vault = (
                 self.vault if target == VaultTarget.SHARED else self.personal_vault
             )
         else:
-            # Auto-classify
             target = self.dual_config.classify_content(
                 content, tags=tags, file_path=file_path
             )
@@ -529,20 +527,16 @@ class Ompa:
                 self.vault if target == VaultTarget.SHARED else self.personal_vault
             )
 
-        # Build file path if not provided
         if not file_path:
-            # Use classifier to determine folder
             classification = self.classifier.classify(content[:200])
             folder = classification.suggested_folder
-            # Sanitize content for filename
             words = re.sub(r"[^\w\s]", "", content[:40]).split()
             name = "-".join(words[:5]) if words else "note"
             file_path = f"{folder}{name}.md"
 
-        # Write the note
         from datetime import datetime
 
-        frontmatter = {
+        frontmatter: dict[str, object] = {
             "date": datetime.now().strftime("%Y-%m-%d"),
             "tags": tags,
             "vault": target.value,
@@ -552,7 +546,6 @@ class Ompa:
         note = Note(path=full_path, frontmatter=frontmatter, content=content)
         note.save()
 
-        # Update KG + index
         target_kg = self.kg if target == VaultTarget.SHARED else self.personal_kg
         if target_kg:
             target_kg.populate_from_note(full_path, target_vault.vault_path)
@@ -568,7 +561,7 @@ class Ompa:
         note_path: str,
         confirm: bool = True,
         sanitize: bool = True,
-    ) -> dict:
+    ) -> dict[str, object]:
         """
         Export a note from personal vault to shared vault.
 
@@ -640,7 +633,7 @@ class Ompa:
         self,
         note_path: str,
         link_back: bool = True,
-    ) -> dict:
+    ) -> dict[str, object]:
         """
         Import a note from shared vault to personal vault.
 
@@ -708,7 +701,7 @@ class Ompa:
         shared_path: str | Path,
         personal_path: str | Path,
         classification_rules: str = "auto",
-    ) -> dict:
+    ) -> dict[str, object]:
         """
         Migrate a single-vault OMPA to dual-vault architecture.
 
@@ -732,9 +725,11 @@ class Ompa:
         notes = self.vault.list_notes()
         for note in notes:
             if classification_rules == "auto":
+                raw_tags = note.frontmatter.get("tags", [])
+                tag_list: list[str] = list(raw_tags) if isinstance(raw_tags, (list, tuple)) else []
                 target = self.dual_config.classify_content(
                     note.content,
-                    tags=list(note.frontmatter.get("tags", [])),
+                    tags=tag_list,
                     file_path=str(note.path),
                 )
             else:

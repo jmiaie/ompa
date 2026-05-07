@@ -5,7 +5,6 @@ Inspired by MemPalace. Manages the structured metadata that accelerates retrieva
 
 import json
 from pathlib import Path
-from dataclasses import dataclass, field
 from typing import Optional
 
 HALL_TYPES = [
@@ -21,29 +20,6 @@ def _stem_to_room(stem: str) -> str:
     """Convert a note filename stem to a palace room name (lower-kebab)."""
     return stem.lower().replace(" ", "-")
 
-
-@dataclass
-class Wing:
-    name: str
-    type: str  # "person" or "project"
-    keywords: list[str] = field(default_factory=list)
-    rooms: dict[str, object] = field(default_factory=dict)
-
-
-@dataclass
-class Drawer:
-    wing: str
-    room: str
-    path: str
-
-
-@dataclass
-class Tunnel:
-    wing_a: str
-    wing_b: str
-    room: str
-    hall_a: str
-    hall_b: str
 
 
 class Palace:
@@ -98,10 +74,6 @@ class Palace:
             {"name": w["name"], "type": w["type"], "keywords": w.get("keywords", [])}
             for w in self._data.get("wings", {}).values()
         ]
-
-    def get_wing(self, name: str) -> Optional[dict[str, object]]:
-        """Get a wing by name."""
-        return self._data.get("wings", {}).get(name)
 
     # Room operations
 
@@ -212,41 +184,6 @@ class Palace:
             or (t.get("wing_a") == wing_b and t.get("wing_b") == wing_a)
         ]
 
-    def find_tunnels_by_room(self, room: str) -> list[dict[str, str]]:
-        """Find all tunnels that pass through a room."""
-        return [t for t in self._data.get("tunnels", []) if t.get("room") == room]
-
-    # Traversal
-
-    def traverse(self, wing: str, room: str) -> dict[str, object]:
-        """Walk the palace from a room across all connected wings via tunnels."""
-        connected: list[dict[str, object]] = []
-        tunnels = self.find_tunnels_by_room(room)
-        for tunnel in tunnels:
-            other_wing = (
-                tunnel["wing_b"] if tunnel["wing_a"] == wing else tunnel["wing_a"]
-            )
-            connected_room = self.get_room(other_wing, room)
-            if connected_room:
-                connected.append(
-                    {
-                        "wing": other_wing,
-                        "room": room,
-                        "room_data": connected_room,
-                        "hall": (
-                            tunnel["hall_b"]
-                            if tunnel["wing_a"] == wing
-                            else tunnel["hall_a"]
-                        ),
-                    }
-                )
-        return {
-            "wing": wing,
-            "room": room,
-            "room_data": self.get_room(wing, room),
-            "tunnels": tunnels,
-            "connected": connected,
-        }
 
     # Auto-build from vault
 
