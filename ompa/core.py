@@ -8,7 +8,7 @@ import logging
 import re
 import shutil
 from pathlib import Path
-from typing import Optional, TYPE_CHECKING
+from typing import Optional
 
 from .vault import Vault, Note, _safe_resolve
 from .palace import Palace, _stem_to_room
@@ -58,7 +58,6 @@ class Ompa:
         self._enable_semantic = enable_semantic
         self._session_started = False
 
-        # Dual-vault config
         self.dual_config = DualVaultConfig(
             isolation_mode=IsolationMode(isolation_mode),
         )
@@ -481,6 +480,45 @@ class Ompa:
     # Dual-vault operations
     # -------------------------------------------------------------------------
 
+    def _resolve_vault_target(
+        self,
+        content: str,
+        tags: list[str],
+        file_path: Optional[str],
+        vault: Optional[str],
+    ) -> tuple[VaultTarget, "Vault"]:
+        """
+        Determine the target VaultTarget and the corresponding Vault instance.
+
+        Resolution order (single-vault short-circuits first):
+        1. Single-vault mode -> always SHARED
+        2. Explicit vault= override
+        3. MANUAL isolation mode -> default vault
+        4. Auto-classify from content/tags/path
+        """
+        if not self.is_dual_vault:
+            return VaultTarget.SHARED, self.vault
+
+        if vault:
+            target = VaultTarget(vault)
+        elif self.dual_config.isolation_mode == IsolationMode.MANUAL:
+            target = self.dual_config.default_vault
+        else:
+            target = self.dual_config.classify_content(
+                content, tags=tags, file_path=file_path
+            )
+
+        target_vault = self.vault if target == VaultTarget.SHARED else self.personal_vault
+        return target, target_vault
+
+    def _build_file_path(self, content: str) -> str:
+        """Derive a default file path from content when none is provided."""
+        classification = self.classifier.classify(content[:200])
+        folder = classification.suggested_folder
+        words = re.sub(r"[^\w\s]", "", content[:40]).split()
+        name = "-".join(words[:5]) if words else "note"
+        return f"{folder}{name}.md"
+
     def write(
         self,
         content: str,
@@ -503,38 +541,13 @@ class Ompa:
         Returns:
             dict with {vault, path, classified_as}
         """
-        tags = tags or []
+        from datetime import datetime
 
-        if not self.is_dual_vault:
-            target = VaultTarget.SHARED
-            target_vault = self.vault
-        elif vault:
-            target = VaultTarget(vault)
-            target_vault = (
-                self.vault if target == VaultTarget.SHARED else self.personal_vault
-            )
-        elif self.dual_config.isolation_mode == IsolationMode.MANUAL:
-            # MANUAL mode has no auto-classification — fall back to configured default_vault
-            target = self.dual_config.default_vault
-            target_vault = (
-                self.vault if target == VaultTarget.SHARED else self.personal_vault
-            )
-        else:
-            target = self.dual_config.classify_content(
-                content, tags=tags, file_path=file_path
-            )
-            target_vault = (
-                self.vault if target == VaultTarget.SHARED else self.personal_vault
-            )
+        tags = tags or []
+        target, target_vault = self._resolve_vault_target(content, tags, file_path, vault)
 
         if not file_path:
-            classification = self.classifier.classify(content[:200])
-            folder = classification.suggested_folder
-            words = re.sub(r"[^\w\s]", "", content[:40]).split()
-            name = "-".join(words[:5]) if words else "note"
-            file_path = f"{folder}{name}.md"
-
-        from datetime import datetime
+            file_path = self._build_file_path(content)
 
         frontmatter: dict[str, object] = {
             "date": datetime.now().strftime("%Y-%m-%d"),
@@ -576,7 +589,6 @@ class Ompa:
         if err := self._require_dual_vault():
             return err
 
-        # Validate paths upfront to prevent traversal
         try:
             source = _safe_resolve(self.dual_config.personal_path, note_path)
             target = _safe_resolve(self.dual_config.shared_path, note_path)
@@ -584,7 +596,7 @@ class Ompa:
             return {"success": False, "error": f"Invalid note_path: {note_path}"}
 
         if self.dual_config.isolation_mode == IsolationMode.STRICT and confirm:
-            # In strict mode, first call returns preview for confirmation
+            # Strict mode: first call returns a preview; caller must confirm before writing
             if not source.exists():
                 return {"success": False, "error": f"Note not found: {note_path}"}
 
@@ -603,7 +615,6 @@ class Ompa:
                 "preview": content[:500],
             }
 
-        # Perform the export
         if not source.exists():
             return {"success": False, "error": f"Note not found: {note_path}"}
 
@@ -611,14 +622,12 @@ class Ompa:
         if sanitize:
             note.content = self._sanitize_content(note.content)
 
-        # Update frontmatter for shared vault
         note.frontmatter["vault"] = "shared"
         note.frontmatter.pop("@private", None)
 
         note.path = target
         note.save()
 
-        # Update shared KG
         self.kg.populate_from_note(target, self.dual_config.shared_path)
 
         logger.info("Exported %s to shared vault", note_path)
@@ -647,7 +656,6 @@ class Ompa:
         if err := self._require_dual_vault():
             return err
 
-        # Validate paths upfront to prevent traversal
         try:
             source = _safe_resolve(self.dual_config.shared_path, note_path)
             target = _safe_resolve(self.dual_config.personal_path, note_path)
@@ -667,7 +675,6 @@ class Ompa:
         note.path = target
         note.save()
 
-        # Update personal KG
         if self.personal_kg:
             self.personal_kg.populate_from_note(target, self.dual_config.personal_path)
 
@@ -679,12 +686,9 @@ class Ompa:
         }
 
     def _sanitize_content(self, content: str) -> str:
-        """Remove sensitive markers and credentials from content."""
-        # Remove personal tags
+        """Remove @private/@personal markers and redact credential-like strings."""
         content = re.sub(r"@private\b", "", content)
         content = re.sub(r"#personal\b", "", content)
-
-        # Redact credential-like patterns
         content = re.sub(r"(sk-[a-zA-Z0-9]{20,})", "[REDACTED]", content)
         content = re.sub(r"(AKIA[A-Z0-9]{16})", "[REDACTED]", content)
         content = re.sub(
@@ -750,7 +754,6 @@ class Ompa:
             dest.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(note.path, dest)
 
-        # Save config
         self.dual_config.shared_path = shared_path
         self.dual_config.personal_path = personal_path
         config_path = Path("~/.ompa/config.yaml").expanduser()
