@@ -27,7 +27,7 @@ class Wing:
     name: str
     type: str  # "person" or "project"
     keywords: list[str] = field(default_factory=list)
-    rooms: dict = field(default_factory=dict)
+    rooms: dict[str, object] = field(default_factory=dict)
 
 
 @dataclass
@@ -63,7 +63,7 @@ class Palace:
         self.data_file = self.palace_path / "palace.json"
         self._data = self._load()
 
-    def _load(self) -> dict:
+    def _load(self) -> dict[str, object]:
         """Load palace data from disk."""
         if self.data_file.exists():
             with open(self.data_file) as f:
@@ -92,14 +92,14 @@ class Palace:
         }
         self._save()
 
-    def list_wings(self) -> list[dict]:
+    def list_wings(self) -> list[dict[str, object]]:
         """List all wings."""
         return [
             {"name": w["name"], "type": w["type"], "keywords": w.get("keywords", [])}
             for w in self._data.get("wings", {}).values()
         ]
 
-    def get_wing(self, name: str) -> Optional[dict]:
+    def get_wing(self, name: str) -> Optional[dict[str, object]]:
         """Get a wing by name."""
         return self._data.get("wings", {}).get(name)
 
@@ -124,7 +124,7 @@ class Palace:
             return []
         return list(wing_data.get("rooms", {}).keys())
 
-    def get_room(self, wing: str, room_name: str) -> Optional[dict]:
+    def get_room(self, wing: str, room_name: str) -> Optional[dict[str, object]]:
         """Get a room."""
         wing_data = self._data.get("wings", {}).get(wing)
         if not wing_data:
@@ -202,7 +202,7 @@ class Palace:
         )
         self._save()
 
-    def find_tunnels(self, wing_a: str, wing_b: str) -> list[dict]:
+    def find_tunnels(self, wing_a: str, wing_b: str) -> list[dict[str, str]]:
         """Find all tunnels between two wings."""
         tunnels = self._data.get("tunnels", [])
         return [
@@ -212,28 +212,23 @@ class Palace:
             or (t.get("wing_a") == wing_b and t.get("wing_b") == wing_a)
         ]
 
-    def find_tunnels_by_room(self, room: str) -> list[dict]:
+    def find_tunnels_by_room(self, room: str) -> list[dict[str, str]]:
         """Find all tunnels that pass through a room."""
         return [t for t in self._data.get("tunnels", []) if t.get("room") == room]
 
     # Traversal
 
-    def traverse(self, wing: str, room: str) -> dict:
+    def traverse(self, wing: str, room: str) -> dict[str, object]:
         """Walk the palace from a room across all connected wings via tunnels."""
-        result = {
-            "wing": wing,
-            "room": room,
-            "room_data": self.get_room(wing, room),
-            "tunnels": self.find_tunnels_by_room(room),
-            "connected": [],
-        }
-        for tunnel in result["tunnels"]:
+        connected: list[dict[str, object]] = []
+        tunnels = self.find_tunnels_by_room(room)
+        for tunnel in tunnels:
             other_wing = (
                 tunnel["wing_b"] if tunnel["wing_a"] == wing else tunnel["wing_a"]
             )
             connected_room = self.get_room(other_wing, room)
             if connected_room:
-                result["connected"].append(
+                connected.append(
                     {
                         "wing": other_wing,
                         "room": room,
@@ -245,7 +240,13 @@ class Palace:
                         ),
                     }
                 )
-        return result
+        return {
+            "wing": wing,
+            "room": room,
+            "room_data": self.get_room(wing, room),
+            "tunnels": tunnels,
+            "connected": connected,
+        }
 
     # Auto-build from vault
 
@@ -293,7 +294,7 @@ class Palace:
 
     # Stats
 
-    def stats(self) -> dict:
+    def stats(self) -> dict[str, int]:
         """Get palace statistics."""
         wings = self._data.get("wings", {})
         total_rooms = sum(len(w.get("rooms", {})) for w in wings.values())

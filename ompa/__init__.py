@@ -26,7 +26,7 @@ from .hooks import HookManager, HookContext, HookResult, Hook
 from .semantic import SemanticIndex, SearchResult
 from .config import DualVaultConfig, IsolationMode, VaultTarget
 
-AgnosticObsidian = Ompa  # alias retained for any callers that pre-date the rename
+AgnosticObsidian = Ompa  # backwards-compat alias
 
 __all__ = [
     "Ompa",
