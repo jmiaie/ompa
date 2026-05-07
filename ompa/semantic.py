@@ -8,7 +8,6 @@ import logging
 import hashlib
 from pathlib import Path
 from dataclasses import dataclass
-from typing import Any
 
 from .vault import DEFAULT_EXCLUDE_PATTERNS
 
@@ -178,7 +177,7 @@ class SemanticIndex:
             return False
 
     def _score_chunk(
-        self, chunk: dict, query_embedding, query_words: set, hybrid: bool, util
+        self, chunk: dict[str, Any], query_embedding: Any, query_words: set[str], hybrid: bool, util: Any
     ) -> SearchResult:
         """Score a single chunk against a query and return a SearchResult."""
         similarity = util.cos_sim(query_embedding, chunk["embedding"])[0][0].item()
