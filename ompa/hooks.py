@@ -248,7 +248,6 @@ class PostToolHook(Hook):
                 output="(skipped - not a write operation)",
             )
 
-        # Extract file path from tool input
         file_path = tool_input.get("file_path") or tool_input.get("path")
         if not file_path:
             return HookResult(
@@ -270,13 +269,11 @@ class PostToolHook(Hook):
             else:
                 note = Note.from_file(path)
 
-                # Check frontmatter
                 if not note.frontmatter.get("date"):
                     warnings.append("Missing frontmatter 'date' field")
                 if not note.frontmatter.get("description"):
                     warnings.append("Missing frontmatter 'description' field")
 
-                # Check wikilinks
                 if not note.has_links():
                     warnings.append("Note has no wikilinks (orphan)")
 
@@ -434,34 +431,29 @@ class HookManager:
         )
 
     def run_session_start(self, memory: Optional["Ompa"] = None) -> HookResult:
-        """Run session start hook."""
         context = self._create_context(memory)
         return self.hooks["session_start"].execute(context)
 
     def run_user_message(self, message: str, memory: Optional["Ompa"] = None) -> HookResult:
-        """Run user message hook."""
         context = self._create_context(memory)
         return self.hooks["user_message"].execute(context, message=message)
 
     def run_post_tool(
         self, tool_name: str, tool_input: dict[str, object], memory: Optional["Ompa"] = None
     ) -> HookResult:
-        """Run post tool hook."""
         context = self._create_context(memory)
         return self.hooks["post_tool"].execute(
             context, tool_name=tool_name, tool_input=tool_input
         )
 
     def run_pre_compact(self, transcript: str, memory: Optional["Ompa"] = None) -> HookResult:
-        """Run pre-compact hook."""
         context = self._create_context(memory)
         return self.hooks["pre_compact"].execute(context, transcript=transcript)
 
     def run_stop(self, memory: Optional["Ompa"] = None) -> HookResult:
-        """Run stop hook."""
         context = self._create_context(memory)
         return self.hooks["stop"].execute(context)
 
     def register_hook(self, name: str, hook: Hook) -> None:
-        """Register a custom hook."""
+        """Register or replace a named hook."""
         self.hooks[name] = hook
