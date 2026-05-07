@@ -108,7 +108,6 @@ class SessionStartHook(Hook):
         return lines
 
     def _git_log_section(self, vault_path: Path) -> list[str]:
-        """Build recent git changes context lines."""
         import shutil
         import subprocess  # noqa: S404 — subprocess needed for git log
 
@@ -137,7 +136,6 @@ class SessionStartHook(Hook):
         return lines
 
     def _active_work_section(self, vault: Vault) -> list[str]:
-        """Build active work context lines."""
         lines = ["### Active Work"]
         active_notes = list(vault.config.work_folder.glob("active/*.md"))
         if active_notes:
@@ -149,7 +147,6 @@ class SessionStartHook(Hook):
         return lines
 
     def _vault_stats_section(self, vault: Vault) -> list[str]:
-        """Build vault statistics context lines."""
         stats = vault.get_stats()
         return [
             "### Vault Stats",
@@ -160,7 +157,6 @@ class SessionStartHook(Hook):
         ]
 
     def _kg_stats_section(self, context: HookContext) -> list[str]:
-        """Build knowledge graph statistics context lines."""
         lines = []
         if context.memory and context.memory.kg:
             try:
@@ -178,7 +174,6 @@ class SessionStartHook(Hook):
         return lines
 
     def _file_listing_section(self, vault: Vault, vault_path: Path) -> list[str]:
-        """Build truncated vault file listing context lines."""
         lines = ["### Vault Files"]
         all_notes = vault.list_notes()
         for note in sorted(all_notes, key=lambda n: n.path)[:30]:
@@ -191,7 +186,6 @@ class SessionStartHook(Hook):
         return lines
 
     def _extract_section(self, content: str, section: str) -> str:
-        """Extract a section from markdown content."""
         import re
 
         pattern = rf"## {section}(.*?)(?=## |$)"

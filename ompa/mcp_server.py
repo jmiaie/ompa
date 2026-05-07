@@ -31,7 +31,7 @@ __version__ = "0.4.1"
 # ---------------------------------------------------------------------------
 
 
-def ao_session_start(vault_path: str = ".") -> dict:
+def ao_session_start(vault_path: str = ".") -> dict[str, object]:
     """
     Start a session. Loads vault context: file listing, North Star,
     active work, palace wings, KG stats. ~2K tokens.
@@ -45,7 +45,7 @@ def ao_session_start(vault_path: str = ".") -> dict:
     }
 
 
-def ao_classify(message: str, vault_path: str = ".") -> dict:
+def ao_classify(message: str, vault_path: str = ".") -> dict[str, object]:
     """Classify a user message into one of 15 types."""
     ao = Ompa(vault_path=vault_path, enable_semantic=False)
     c = ao.classify(message)
@@ -57,7 +57,7 @@ def ao_classify(message: str, vault_path: str = ".") -> dict:
     }
 
 
-def ao_search(query: str, vault_path: str = ".", limit: int = 5) -> dict:
+def ao_search(query: str, vault_path: str = ".", limit: int = 5) -> dict[str, object]:
     """Search the vault with hybrid semantic + keyword search."""
     ao = Ompa(vault_path=vault_path, enable_semantic=True)
     results = ao.search(query, limit=limit)
@@ -74,7 +74,7 @@ def ao_search(query: str, vault_path: str = ".", limit: int = 5) -> dict:
     }
 
 
-def ao_kg_query(entity: str, vault_path: str = ".", as_of: str = None) -> dict:
+def ao_kg_query(entity: str, vault_path: str = ".", as_of: str = None) -> dict[str, object]:
     """Query the knowledge graph for an entity."""
     ao = Ompa(vault_path=vault_path, enable_semantic=False)
     triples = ao.kg.query_entity(entity, as_of=as_of)
@@ -100,7 +100,7 @@ def ao_kg_add(
     valid_from: str = None,
     source: str = None,
     vault_path: str = ".",
-) -> dict:
+) -> dict[str, object]:
     """
     Add a fact to the knowledge graph.
     """
@@ -115,19 +115,19 @@ def ao_kg_add(
     return {"success": True, "added": f"{subject} --{predicate}--> {object_}"}
 
 
-def ao_kg_stats(vault_path: str = ".") -> dict:
+def ao_kg_stats(vault_path: str = ".") -> dict[str, object]:
     """Get knowledge graph statistics."""
     ao = Ompa(vault_path=vault_path, enable_semantic=False)
     return ao.kg.stats()
 
 
-def ao_palace_wings(vault_path: str = ".") -> dict:
+def ao_palace_wings(vault_path: str = ".") -> dict[str, object]:
     """List all palace wings."""
     ao = Ompa(vault_path=vault_path, enable_semantic=False)
     return {"wings": ao.palace.list_wings()}
 
 
-def ao_palace_rooms(wing: str, vault_path: str = ".") -> dict:
+def ao_palace_rooms(wing: str, vault_path: str = ".") -> dict[str, object]:
     """List rooms in a wing."""
     ao = Ompa(vault_path=vault_path, enable_semantic=False)
     rooms = ao.palace.list_rooms(wing)
@@ -136,27 +136,27 @@ def ao_palace_rooms(wing: str, vault_path: str = ".") -> dict:
 
 def ao_palace_tunnel(
     wing_a: str, wing_b: str, room: str, vault_path: str = "."
-) -> dict:
+) -> dict[str, object]:
     """Create a tunnel between two wings."""
     ao = Ompa(vault_path=vault_path, enable_semantic=False)
     ao.palace.create_tunnel(wing_a, wing_b, room)
     return {"success": True, "tunnel": f"{wing_a} <-> {wing_b} via {room}"}
 
 
-def ao_validate(file_path: str, vault_path: str = ".") -> dict:
+def ao_validate(file_path: str, vault_path: str = ".") -> dict[str, object]:
     """Validate a markdown file."""
     ao = Ompa(vault_path=vault_path, enable_semantic=False)
     return ao.validate_write(file_path)
 
 
-def ao_wrap_up(vault_path: str = ".") -> dict:
+def ao_wrap_up(vault_path: str = ".") -> dict[str, object]:
     """Run session wrap-up."""
     ao = Ompa(vault_path=vault_path, enable_semantic=False)
     result = ao.stop()
     return {"success": result.success, "output": result.output}
 
 
-def ao_status(vault_path: str = ".") -> dict:
+def ao_status(vault_path: str = ".") -> dict[str, object]:
     """Get full status (vault + palace + KG)."""
     ao = Ompa(vault_path=vault_path, enable_semantic=False)
     return {
@@ -166,7 +166,7 @@ def ao_status(vault_path: str = ".") -> dict:
     }
 
 
-def ao_orphans(vault_path: str = ".") -> dict:
+def ao_orphans(vault_path: str = ".") -> dict[str, object]:
     """Find orphan notes."""
     ao = Ompa(vault_path=vault_path, enable_semantic=False)
     orphans = ao.find_orphans()
@@ -176,7 +176,7 @@ def ao_orphans(vault_path: str = ".") -> dict:
     }
 
 
-def ao_kg_populate(vault_path: str = ".") -> dict:
+def ao_kg_populate(vault_path: str = ".") -> dict[str, object]:
     """
     Populate the knowledge graph from all vault notes.
     Extracts wikilinks, tags, folder structure, and dates into triples.
@@ -192,7 +192,7 @@ def ao_kg_populate(vault_path: str = ".") -> dict:
     }
 
 
-def ao_sync(vault_path: str = ".") -> dict:
+def ao_sync(vault_path: str = ".") -> dict[str, object]:
     """
     Full sync: rebuild KG, palace, and search index from vault.
     """
@@ -210,7 +210,7 @@ def _ompa_from_args(arguments: dict, enable_semantic: bool = False):
     return make_ompa(**vault_args, enable_semantic=enable_semantic)
 
 
-def ao_write(arguments: dict) -> dict:
+def ao_write(arguments: dict[str, object]) -> dict[str, object]:
     """Write content to the appropriate vault (auto-classifies in dual mode)."""
     ao = _ompa_from_args(arguments)
     content = arguments.get("content", "")
@@ -225,7 +225,7 @@ def ao_write(arguments: dict) -> dict:
     return result
 
 
-def ao_export(arguments: dict) -> dict:
+def ao_export(arguments: dict[str, object]) -> dict[str, object]:
     """Export a note from personal vault to shared vault."""
     ao = _ompa_from_args(arguments)
     return ao.export_to_shared(
@@ -235,7 +235,7 @@ def ao_export(arguments: dict) -> dict:
     )
 
 
-def ao_import(arguments: dict) -> dict:
+def ao_import(arguments: dict[str, object]) -> dict[str, object]:
     """Import a note from shared vault to personal vault."""
     ao = _ompa_from_args(arguments)
     return ao.import_to_personal(
@@ -244,7 +244,7 @@ def ao_import(arguments: dict) -> dict:
     )
 
 
-def ao_init(vault_path: str = ".") -> dict:
+def ao_init(vault_path: str = ".") -> dict[str, object]:
     """
     Initialize a new vault + palace structure.
     Creates all folders and essential brain notes.
@@ -522,7 +522,7 @@ TOOLS = {
 }
 
 
-def handle_list_tools():
+def handle_list_tools() -> dict[str, object]:
     """Handle tool list request."""
     tools = []
     for name, spec in TOOLS.items():
@@ -597,7 +597,7 @@ _TOOL_DISPATCH = {
 }
 
 
-def handle_call_tool(name: str, arguments: dict) -> dict:
+def handle_call_tool(name: str, arguments: dict[str, object]) -> dict[str, object]:
     """Handle tool call request."""
     if name not in TOOLS:
         return {"error": f"Unknown tool: {name}"}
