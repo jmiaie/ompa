@@ -37,7 +37,6 @@ class Triple:
 
 
 def _row_to_triple(row: sqlite3.Row) -> Triple:
-    """Convert a SQLite Row to a Triple dataclass."""
     return Triple(
         subject=row["subject"],
         predicate=row["predicate"],
@@ -57,7 +56,6 @@ class KnowledgeGraph:
 
     @contextmanager
     def _conn(self):
-        """Get a database connection that auto-closes on exit."""
         conn = sqlite3.connect(self.db_path)
         conn.row_factory = sqlite3.Row
         try:
@@ -70,7 +68,6 @@ class KnowledgeGraph:
             conn.close()
 
     def _init_db(self) -> None:
-        """Initialize the database schema."""
         with self._conn() as conn:
             conn.executescript("""
                 CREATE TABLE IF NOT EXISTS entities (
@@ -98,11 +95,9 @@ class KnowledgeGraph:
             """)
 
     def _entity_id(self, name: str) -> str:
-        """Generate a stable ID for an entity."""
         return hashlib.sha256(name.encode()).hexdigest()[:16]
 
     def _triple_id(self, subject: str, predicate: str, obj: str) -> str:
-        """Generate a stable ID for a triple."""
         key = f"{subject}|{predicate}|{obj}"
         return hashlib.sha256(key.encode()).hexdigest()[:16]
 
@@ -114,7 +109,6 @@ class KnowledgeGraph:
     # -------------------------------------------------------------------------
 
     def add_entity(self, name: str, entity_type: str = "unknown") -> None:
-        """Add an entity."""
         entity_id = self._entity_id(name)
         with self._conn() as conn:
             conn.execute(
@@ -189,7 +183,7 @@ class KnowledgeGraph:
         object_id = self._entity_id(object)
 
         with self._conn() as conn:
-            # Ensure entities exist (single transaction)
+            # Entity upserts and triple upsert share one connection so they commit atomically
             conn.execute(
                 "INSERT OR IGNORE INTO entities (id, name, type) VALUES (?, ?, ?)",
                 (subject_id, subject, "unknown"),
@@ -305,7 +299,6 @@ class KnowledgeGraph:
         return count
 
     def _load_note_content(self, note_path: Path) -> tuple[Optional[str], dict]:
-        """Load a note's content and metadata. Returns (content, metadata) or (None, {})."""
         try:
             import frontmatter as fm
 

@@ -197,8 +197,9 @@ class Ompa:
 
         # Auto-update on file writes
         if tool_name in ("write", "edit", "create_file"):
-            file_path = tool_input.get("file_path") or tool_input.get("path")
-            if file_path:
+            file_path_raw = tool_input.get("file_path") or tool_input.get("path")
+            if file_path_raw:
+                file_path = str(file_path_raw)
                 path = Path(file_path)
                 self._auto_add_to_palace(file_path)
                 self._auto_update_kg(path)
