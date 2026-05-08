@@ -87,9 +87,9 @@ class AsyncOmpa:
         vault_path: str | Path = ".",
         agent_name: str = "async-agent",
         enable_semantic: bool = False,
-        embedding_backend=None,
-        shared_vault_path: str | Path = None,
-        personal_vault_path: str | Path = None,
+        embedding_backend: Optional[Any] = None,
+        shared_vault_path: Optional[str | Path] = None,
+        personal_vault_path: Optional[str | Path] = None,
         isolation_mode: str = "strict",
         max_workers: int = 4,
     ):
@@ -151,9 +151,9 @@ class AsyncOmpa:
         query: str,
         limit: int = 5,
         hybrid: bool = True,
-        wing: str = None,
-        room: str = None,
-        vaults: list[str] = None,
+        wing: Optional[str] = None,
+        room: Optional[str] = None,
+        vaults: Optional[list[str]] = None,
     ) -> list[SearchResult]:
         """Async semantic search across vault(s)."""
         return await self._run(
@@ -183,8 +183,8 @@ class AsyncOmpa:
         subject: str,
         predicate: str,
         object: str,
-        valid_from: str = None,
-        source: str = None,
+        valid_from: Optional[str] = None,
+        source: Optional[str] = None,
     ) -> None:
         """Async KG triple write."""
         return await self._run(
@@ -196,7 +196,7 @@ class AsyncOmpa:
             source=source,
         )
 
-    async def kg_query(self, entity: str, as_of: str = None) -> list[Triple]:
+    async def kg_query(self, entity: str, as_of: Optional[str] = None) -> list[Triple]:
         """Async KG entity query."""
         return await self._run(self._ompa.kg_query, entity, as_of=as_of)
 
