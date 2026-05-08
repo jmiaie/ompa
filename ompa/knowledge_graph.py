@@ -23,7 +23,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Iterator, Optional
+from typing import Callable, Iterator, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -300,7 +300,7 @@ class KnowledgeGraph:
     # Auto-population from vault
     # -------------------------------------------------------------------------
 
-    def populate_from_note(self, note_path: Path, vault_path: Path = None) -> int:
+    def populate_from_note(self, note_path: Path, vault_path: Optional[Path] = None) -> int:
         """
         Extract and store triples from a single vault note.
 
@@ -425,7 +425,7 @@ class KnowledgeGraph:
     # Statistics
     # -------------------------------------------------------------------------
 
-    def stats(self) -> dict:
+    def stats(self) -> dict[str, object]:
         """Get knowledge graph statistics."""
         with self._conn() as conn:
             entity_count = conn.execute("SELECT COUNT(*) FROM entities").fetchone()[0]

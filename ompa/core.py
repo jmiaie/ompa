@@ -67,41 +67,9 @@ class Ompa:
         )
 
         if shared_vault_path and personal_vault_path:
-            # Dual-vault mode
-            self.dual_config.shared_path = Path(shared_vault_path).expanduser()
-            self.dual_config.personal_path = Path(personal_vault_path).expanduser()
-            self.vault_path = self.dual_config.shared_path  # primary for hooks
-
-            # Shared vault systems
-            self.vault = Vault(self.dual_config.shared_path)
-            self.palace = Palace(self.dual_config.shared_path / ".palace")
-            self.kg = KnowledgeGraph(
-                db_path=str(
-                    self.dual_config.shared_path / ".palace" / "knowledge_graph.sqlite3"
-                )
-            )
-
-            # Personal vault systems
-            self.personal_vault = Vault(self.dual_config.personal_path)
-            self.personal_palace = Palace(self.dual_config.personal_path / ".palace")
-            self.personal_kg = KnowledgeGraph(
-                db_path=str(
-                    self.dual_config.personal_path
-                    / ".palace"
-                    / "knowledge_graph.sqlite3"
-                )
-            )
+            self._init_dual_vault(shared_vault_path, personal_vault_path)
         else:
-            # Single-vault mode
-            self.vault_path = Path(vault_path or ".")
-            self.vault = Vault(self.vault_path)
-            self.palace = Palace(self.vault_path / ".palace")
-            self.kg = KnowledgeGraph(
-                db_path=str(self.vault_path / ".palace" / "knowledge_graph.sqlite3")
-            )
-            self.personal_vault = None
-            self.personal_palace = None
-            self.personal_kg = None
+            self._init_single_vault(vault_path)
 
         self.classifier = MessageClassifier()
         self.hooks = HookManager(self.vault_path, agent_name=self.agent_name)
@@ -109,6 +77,44 @@ class Ompa:
         # Semantic search (lazy-loaded)
         self._semantic = None
         self._personal_semantic = None
+
+    def _init_dual_vault(
+        self, shared_vault_path: str | Path, personal_vault_path: str | Path
+    ) -> None:
+        """Set up dual-vault mode (shared + personal vaults)."""
+        self.dual_config.shared_path = Path(shared_vault_path).expanduser()
+        self.dual_config.personal_path = Path(personal_vault_path).expanduser()
+        self.vault_path = self.dual_config.shared_path  # primary for hooks
+
+        # Shared vault systems
+        self.vault = Vault(self.dual_config.shared_path)
+        self.palace = Palace(self.dual_config.shared_path / ".palace")
+        self.kg = KnowledgeGraph(
+            db_path=str(
+                self.dual_config.shared_path / ".palace" / "knowledge_graph.sqlite3"
+            )
+        )
+
+        # Personal vault systems
+        self.personal_vault = Vault(self.dual_config.personal_path)
+        self.personal_palace = Palace(self.dual_config.personal_path / ".palace")
+        self.personal_kg = KnowledgeGraph(
+            db_path=str(
+                self.dual_config.personal_path / ".palace" / "knowledge_graph.sqlite3"
+            )
+        )
+
+    def _init_single_vault(self, vault_path: str | Path = None) -> None:
+        """Set up single-vault mode (legacy / backward compatible)."""
+        self.vault_path = Path(vault_path or ".")
+        self.vault = Vault(self.vault_path)
+        self.palace = Palace(self.vault_path / ".palace")
+        self.kg = KnowledgeGraph(
+            db_path=str(self.vault_path / ".palace" / "knowledge_graph.sqlite3")
+        )
+        self.personal_vault = None
+        self.personal_palace = None
+        self.personal_kg = None
 
     @property
     def is_dual_vault(self) -> bool:
@@ -229,7 +235,6 @@ class Ompa:
             return
 
         try:
-            # Determine wing and room from path
             parts = path.parts
             if "brain" in parts:
                 wing = "brain"
@@ -419,7 +424,6 @@ class Ompa:
         """Update a brain note and sync to KG + search index."""
         self.vault.update_brain_note(note_name, content, append)
 
-        # Sync brain note to KG and search index
         brain_path = self.vault.config.brain_folder / f"{note_name}.md"
         if brain_path.exists():
             self._auto_update_kg(brain_path)
@@ -523,39 +527,10 @@ class Ompa:
         """
         tags = tags or []
 
-        # Determine target vault
-        if not self.is_dual_vault:
-            target = VaultTarget.SHARED
-            target_vault = self.vault
-        elif vault:
-            target = VaultTarget(vault)
-            target_vault = (
-                self.vault if target == VaultTarget.SHARED else self.personal_vault
-            )
-        elif self.dual_config.isolation_mode == IsolationMode.MANUAL:
-            # In manual mode, default to personal (safe default)
-            target = self.dual_config.default_vault
-            target_vault = (
-                self.vault if target == VaultTarget.SHARED else self.personal_vault
-            )
-        else:
-            # Auto-classify
-            target = self.dual_config.classify_content(
-                content, tags=tags, file_path=file_path
-            )
-            target_vault = (
-                self.vault if target == VaultTarget.SHARED else self.personal_vault
-            )
+        target, target_vault = self._resolve_write_target(content, tags, file_path, vault)
 
-        # Build file path if not provided
         if not file_path:
-            # Use classifier to determine folder
-            classification = self.classifier.classify(content[:200])
-            folder = classification.suggested_folder
-            # Sanitize content for filename
-            words = re.sub(r"[^\w\s]", "", content[:40]).split()
-            name = "-".join(words[:5]) if words else "note"
-            file_path = f"{folder}{name}.md"
+            file_path = self._build_file_path(content)
 
         # Write the note
         from datetime import datetime
@@ -580,6 +555,35 @@ class Ompa:
             "path": str(full_path),
             "classified_as": target.value,
         }
+
+    def _resolve_write_target(
+        self,
+        content: str,
+        tags: list,
+        file_path: Optional[str],
+        vault: Optional[str],
+    ):
+        """Return (VaultTarget, Vault) for a write operation."""
+        if not self.is_dual_vault:
+            return VaultTarget.SHARED, self.vault
+        if vault:
+            target = VaultTarget(vault)
+        elif self.dual_config.isolation_mode == IsolationMode.MANUAL:
+            target = self.dual_config.default_vault
+        else:
+            target = self.dual_config.classify_content(
+                content, tags=tags, file_path=file_path
+            )
+        target_vault = self.vault if target == VaultTarget.SHARED else self.personal_vault
+        return target, target_vault
+
+    def _build_file_path(self, content: str) -> str:
+        """Auto-generate a file path from content classification."""
+        classification = self.classifier.classify(content[:200])
+        folder = classification.suggested_folder
+        words = re.sub(r"[^\w\s]", "", content[:40]).split()
+        name = "-".join(words[:5]) if words else "note"
+        return f"{folder}{name}.md"
 
     def export_to_shared(
         self,

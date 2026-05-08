@@ -78,92 +78,12 @@ class SessionStartHook(Hook):
             lines.append(f"**Date:** {context.timestamp.strftime('%Y-%m-%d (%A)')}")
             lines.append("")
 
-            # North Star
-            north_star = vault.get_brain_note("North Star")
-            if north_star:
-                content = north_star.content
-                lines.append("### North Star (Current Goals)")
-                lines.append(
-                    self._extract_section(content, "Current Focus") or content[:500]
-                )
-                lines.append("")
-
-            # Recent git changes
-            lines.append("### Recent Changes (last 48h)")
-            try:
-                import shutil
-                import subprocess  # noqa: S404 — subprocess needed for git log
-
-                git_path = shutil.which("git")
-                if git_path:
-                    result = subprocess.run(  # noqa: S603
-                        [
-                            git_path,
-                            "log",
-                            "--oneline",
-                            "--since=48 hours ago",
-                            "--no-merges",
-                        ],
-                        cwd=context.vault_path,
-                        capture_output=True,
-                        text=True,
-                        timeout=5,
-                    )
-                    if result.returncode == 0 and result.stdout.strip():
-                        for line in result.stdout.strip().split("\n")[:10]:
-                            lines.append(f"- {line}")
-                    else:
-                        lines.append("(no recent git history)")
-                else:
-                    lines.append("(git not available)")
-            except Exception as e:
-                logger.debug("Git log failed: %s", e)
-                lines.append("(git not available)")
-            lines.append("")
-
-            # Active work
-            lines.append("### Active Work")
-            active_notes = list(vault.config.work_folder.glob("active/*.md"))
-            if active_notes:
-                for note in active_notes[:5]:
-                    lines.append(f"- {note.stem}")
-            else:
-                lines.append("(no active work notes)")
-            lines.append("")
-
-            # Vault stats
-            stats = vault.get_stats()
-            lines.append("### Vault Stats")
-            lines.append(f"- Total notes: {stats['total_notes']}")
-            lines.append(f"- Brain notes: {stats['brain_notes']}")
-            lines.append(f"- Orphans (no links): {stats['orphans']}")
-            lines.append("")
-
-            # KG stats
-            if context.memory and context.memory.kg:
-                try:
-                    kg_stats = context.memory.kg.stats()
-                    if kg_stats["triple_count"] > 0:
-                        lines.append("### Knowledge Graph")
-                        lines.append(f"- Entities: {kg_stats['entity_count']}")
-                        lines.append(f"- Current facts: {kg_stats['current_facts']}")
-                        lines.append(
-                            f"- Date range: {kg_stats['oldest_fact'] or 'N/A'} → {kg_stats['newest_fact'] or 'N/A'}"
-                        )
-                        lines.append("")
-                except Exception as e:
-                    logger.debug("KG stats unavailable: %s", e)
-
-            # File listing (truncated)
-            lines.append("### Vault Files")
-            all_notes = vault.list_notes()
-            for note in sorted(all_notes, key=lambda n: n.path)[:30]:
-                try:
-                    lines.append(f"- {note.path.relative_to(context.vault_path)}")
-                except ValueError:
-                    lines.append(f"- {note.path.name}")
-            if len(all_notes) > 30:
-                lines.append(f"... and {len(all_notes) - 30} more")
+            lines.extend(self._north_star_section(vault))
+            lines.extend(self._recent_git_section(context.vault_path))
+            lines.extend(self._active_work_section(vault))
+            lines.extend(self._vault_stats_section(vault))
+            lines.extend(self._kg_stats_section(context.memory))
+            lines.extend(self._vault_files_section(vault, context.vault_path))
 
             output = "\n".join(lines)
             return HookResult(
@@ -175,6 +95,102 @@ class SessionStartHook(Hook):
         except Exception as e:
             logger.error("SessionStartHook failed: %s", e, exc_info=True)
             return HookResult(hook_name=self.name, success=False, error=str(e))
+
+    def _north_star_section(self, vault) -> list[str]:
+        """Build the North Star goals section."""
+        lines = []
+        north_star = vault.get_brain_note("North Star")
+        if north_star:
+            lines.append("### North Star (Current Goals)")
+            lines.append(
+                self._extract_section(north_star.content, "Current Focus")
+                or north_star.content[:500]
+            )
+            lines.append("")
+        return lines
+
+    def _recent_git_section(self, vault_path: Path) -> list[str]:
+        """Build the recent git changes section."""
+        lines = ["### Recent Changes (last 48h)"]
+        try:
+            import shutil
+            import subprocess  # noqa: S404 — subprocess needed for git log
+
+            git_path = shutil.which("git")
+            if git_path:
+                result = subprocess.run(  # noqa: S603
+                    [git_path, "log", "--oneline", "--since=48 hours ago", "--no-merges"],
+                    cwd=vault_path,
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
+                )
+                if result.returncode == 0 and result.stdout.strip():
+                    for line in result.stdout.strip().split("\n")[:10]:
+                        lines.append(f"- {line}")
+                else:
+                    lines.append("(no recent git history)")
+            else:
+                lines.append("(git not available)")
+        except Exception as e:
+            logger.debug("Git log failed: %s", e)
+            lines.append("(git not available)")
+        lines.append("")
+        return lines
+
+    def _active_work_section(self, vault) -> list[str]:
+        """Build the active work section."""
+        lines = ["### Active Work"]
+        active_notes = list(vault.config.work_folder.glob("active/*.md"))
+        if active_notes:
+            for note in active_notes[:5]:
+                lines.append(f"- {note.stem}")
+        else:
+            lines.append("(no active work notes)")
+        lines.append("")
+        return lines
+
+    def _vault_stats_section(self, vault) -> list[str]:
+        """Build the vault statistics section."""
+        stats = vault.get_stats()
+        return [
+            "### Vault Stats",
+            f"- Total notes: {stats['total_notes']}",
+            f"- Brain notes: {stats['brain_notes']}",
+            f"- Orphans (no links): {stats['orphans']}",
+            "",
+        ]
+
+    def _kg_stats_section(self, memory) -> list[str]:
+        """Build the knowledge graph statistics section (empty if unavailable)."""
+        if not (memory and memory.kg):
+            return []
+        try:
+            kg_stats = memory.kg.stats()
+            if kg_stats["triple_count"] > 0:
+                return [
+                    "### Knowledge Graph",
+                    f"- Entities: {kg_stats['entity_count']}",
+                    f"- Current facts: {kg_stats['current_facts']}",
+                    f"- Date range: {kg_stats['oldest_fact'] or 'N/A'} → {kg_stats['newest_fact'] or 'N/A'}",
+                    "",
+                ]
+        except Exception as e:
+            logger.debug("KG stats unavailable: %s", e)
+        return []
+
+    def _vault_files_section(self, vault, vault_path: Path) -> list[str]:
+        """Build the truncated vault file listing section."""
+        lines = ["### Vault Files"]
+        all_notes = vault.list_notes()
+        for note in sorted(all_notes, key=lambda n: n.path)[:30]:
+            try:
+                lines.append(f"- {note.path.relative_to(vault_path)}")
+            except ValueError:
+                lines.append(f"- {note.path.name}")
+        if len(all_notes) > 30:
+            lines.append(f"... and {len(all_notes) - 30} more")
+        return lines
 
     def _extract_section(self, content: str, section: str) -> str:
         """Extract a section from markdown content."""
@@ -426,31 +442,26 @@ class HookManager:
         )
 
     def run_session_start(self, memory=None) -> HookResult:
-        """Run session start hook."""
         context = self._create_context(memory)
         return self.hooks["session_start"].execute(context)
 
     def run_user_message(self, message: str, memory=None) -> HookResult:
-        """Run user message hook."""
         context = self._create_context(memory)
         return self.hooks["user_message"].execute(context, message=message)
 
     def run_post_tool(
         self, tool_name: str, tool_input: dict, memory=None
     ) -> HookResult:
-        """Run post tool hook."""
         context = self._create_context(memory)
         return self.hooks["post_tool"].execute(
             context, tool_name=tool_name, tool_input=tool_input
         )
 
     def run_pre_compact(self, transcript: str, memory=None) -> HookResult:
-        """Run pre-compact hook."""
         context = self._create_context(memory)
         return self.hooks["pre_compact"].execute(context, transcript=transcript)
 
     def run_stop(self, memory=None) -> HookResult:
-        """Run stop hook."""
         context = self._create_context(memory)
         return self.hooks["stop"].execute(context)
 

@@ -33,11 +33,11 @@ class Palace:
         self.data_file = self.palace_path / "palace.json"
         self._data = self._load()
 
-    def _load(self) -> dict:
+    def _load(self) -> dict[str, object]:
         """Load palace data from disk."""
         if self.data_file.exists():
             with open(self.data_file) as f:
-                return json.load(f)
+                return dict(json.load(f))
         return {"wings": {}, "tunnels": []}
 
     def _save(self) -> None:
@@ -48,7 +48,7 @@ class Palace:
     # Wing operations
 
     def create_wing(
-        self, name: str, type: str = "project", keywords: list[str] = None
+        self, name: str, type: str = "project", keywords: Optional[list[str]] = None
     ) -> None:
         """Create a new wing."""
         if keywords is None:
