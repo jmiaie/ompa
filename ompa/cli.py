@@ -437,6 +437,77 @@ def migrate(
     console.print(f"  Config saved: {result['config_saved']}")
 
 
+def _doctor_check_root(vault_path: Path) -> list[tuple[str, str, str]]:
+    """Check that the vault root directory exists."""
+    if vault_path.exists():
+        return [("OK", "Vault root", str(vault_path.absolute()))]
+    return [("ERROR", "Vault root", f"Not found: {vault_path.absolute()}")]
+
+
+def _doctor_check_folders(vault_path: Path) -> list[tuple[str, str, str]]:
+    """Check for the standard brain/work/org/perf folder structure."""
+    checks = []
+    for folder in ["brain", "work", "org", "perf"]:
+        fp = vault_path / folder
+        if fp.exists():
+            note_count = len(list(fp.rglob("*.md")))
+            checks.append(("OK", f"{folder}/", f"{note_count} notes"))
+        else:
+            checks.append(("WARN", f"{folder}/", "Missing — run `ao init` to create"))
+    return checks
+
+
+def _doctor_check_palace(vault_path: Path, ao) -> list[tuple[str, str, str]]:
+    """Check palace metadata directory."""
+    palace_dir = vault_path / ".palace"
+    if palace_dir.exists():
+        ps = ao.palace.stats()
+        return [("OK", ".palace/", f"{ps['wing_count']} wings, {ps['room_count']} rooms")]
+    return [("WARN", ".palace/", "Not built — run `ao init`")]
+
+
+def _doctor_check_kg(vault_path: Path, ao) -> list[tuple[str, str, str]]:
+    """Check knowledge graph database status."""
+    kg_db = vault_path / ".palace" / "knowledge_graph.sqlite3"
+    if not kg_db.exists():
+        return [("WARN", "Knowledge Graph", "Not initialized — run `ao init`")]
+    ks = ao.kg.stats()
+    if ks["triple_count"] > 0:
+        return [("OK", "Knowledge Graph",
+                 f"{ks['entity_count']} entities, {ks['triple_count']} triples")]
+    return [("WARN", "Knowledge Graph", "Empty — run `ao kg-populate` to fill")]
+
+
+def _doctor_check_semantic_index(vault_path: Path) -> list[tuple[str, str, str]]:
+    """Check semantic index presence."""
+    index_path = vault_path / ".palace" / "semantic_index"
+    if index_path.exists() and any(index_path.iterdir()):
+        return [("OK", "Semantic Index", "Present")]
+    return [("INFO", "Semantic Index", "Not built — run `ao rebuild-index` (optional)")]
+
+
+def _doctor_check_orphans(ao) -> list[tuple[str, str, str]]:
+    """Check for orphan notes with no wikilinks."""
+    try:
+        orphan_list = ao.find_orphans()
+        if not orphan_list:
+            return [("OK", "Orphan notes", "None")]
+        return [("WARN", "Orphan notes", f"{len(orphan_list)} notes with no wikilinks")]
+    except Exception as e:
+        logger.debug("Orphan check failed: %s", e)
+        return [("WARN", "Orphan notes", "Check failed")]
+
+
+def _doctor_check_total_notes(ao) -> list[tuple[str, str, str]]:
+    """Check total note count."""
+    try:
+        vs = ao.get_stats()
+        return [("OK", "Total notes", str(vs["total_notes"]))]
+    except Exception as e:
+        logger.debug("Vault stats failed: %s", e)
+        return [("WARN", "Total notes", "Could not read vault")]
+
+
 def _sync_remote(vault_path: Path, backend: str, remote: Optional[str], message: str) -> None:
     """Push vault to a remote backend and print the result."""
     from ompa.sync import GitSyncBackend, S3SyncBackend, RsyncBackend
@@ -480,79 +551,13 @@ def doctor(
     ao = Ompa(vault_path, enable_semantic=False)
     checks: list[tuple[str, str, str]] = []
 
-    # Vault root
-    if vault_path.exists():
-        checks.append(("OK", "Vault root", str(vault_path.absolute())))
-    else:
-        checks.append(("ERROR", "Vault root", f"Not found: {vault_path.absolute()}"))
-
-    # Folder structure
-    for folder in ["brain", "work", "org", "perf"]:
-        fp = vault_path / folder
-        if fp.exists():
-            note_count = len(list(fp.rglob("*.md")))
-            checks.append(("OK", f"{folder}/", f"{note_count} notes"))
-        else:
-            checks.append(("WARN", f"{folder}/", "Missing — run `ao init` to create"))
-
-    # Palace metadata
-    palace_dir = vault_path / ".palace"
-    if palace_dir.exists():
-        ps = ao.palace.stats()
-        checks.append(
-            ("OK", ".palace/", f"{ps['wing_count']} wings, {ps['room_count']} rooms")
-        )
-    else:
-        checks.append(("WARN", ".palace/", "Not built — run `ao init`"))
-
-    # Knowledge graph
-    kg_db = vault_path / ".palace" / "knowledge_graph.sqlite3"
-    if kg_db.exists():
-        ks = ao.kg.stats()
-        if ks["triple_count"] > 0:
-            checks.append(
-                (
-                    "OK",
-                    "Knowledge Graph",
-                    f"{ks['entity_count']} entities, {ks['triple_count']} triples",
-                )
-            )
-        else:
-            checks.append(
-                ("WARN", "Knowledge Graph", "Empty — run `ao kg-populate` to fill")
-            )
-    else:
-        checks.append(("WARN", "Knowledge Graph", "Not initialized — run `ao init`"))
-
-    # Semantic index
-    index_path = vault_path / ".palace" / "semantic_index"
-    if index_path.exists() and any(index_path.iterdir()):
-        checks.append(("OK", "Semantic Index", "Present"))
-    else:
-        checks.append(
-            ("INFO", "Semantic Index", "Not built — run `ao rebuild-index` (optional)")
-        )
-
-    # Orphans
-    try:
-        orphan_list = ao.find_orphans()
-        if not orphan_list:
-            checks.append(("OK", "Orphan notes", "None"))
-        else:
-            checks.append(
-                ("WARN", "Orphan notes", f"{len(orphan_list)} notes with no wikilinks")
-            )
-    except Exception as e:
-        logger.debug("Orphan check failed: %s", e)
-        checks.append(("WARN", "Orphan notes", "Check failed"))
-
-    # Total notes
-    try:
-        vs = ao.get_stats()
-        checks.append(("OK", "Total notes", str(vs["total_notes"])))
-    except Exception as e:
-        logger.debug("Vault stats failed: %s", e)
-        checks.append(("WARN", "Total notes", "Could not read vault"))
+    checks.extend(_doctor_check_root(vault_path))
+    checks.extend(_doctor_check_folders(vault_path))
+    checks.extend(_doctor_check_palace(vault_path, ao))
+    checks.extend(_doctor_check_kg(vault_path, ao))
+    checks.extend(_doctor_check_semantic_index(vault_path))
+    checks.extend(_doctor_check_orphans(ao))
+    checks.extend(_doctor_check_total_notes(ao))
 
     # Render
     styles = {"OK": "green", "WARN": "yellow", "ERROR": "red", "INFO": "blue"}

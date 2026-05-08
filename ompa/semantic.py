@@ -195,7 +195,7 @@ class SemanticIndex:
 
         serializable = {
             "model": self.model_name,
-            "chunks": [{**c, "embedding": c["embedding"]} for c in self.chunks],
+            "chunks": list(self.chunks),
         }
 
         with open(index_file, "w", encoding="utf-8") as f:

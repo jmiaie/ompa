@@ -1,7 +1,7 @@
 """
 OMPA — Universal AI Agent Memory Layer
 Core module integrating vault, palace, KG, hooks, classifier, and semantic search.
-Supports single-vault (legacy) and dual-vault (shared + personal) architecture.
+Supports single-vault and dual-vault (shared + personal) architecture.
 """
 
 import logging
@@ -105,7 +105,7 @@ class Ompa:
         )
 
     def _init_single_vault(self, vault_path: str | Path = None) -> None:
-        """Set up single-vault mode (legacy / backward compatible)."""
+        """Set up single-vault mode."""
         self.vault_path = Path(vault_path or ".")
         self.vault = Vault(self.vault_path)
         self.palace = Palace(self.vault_path / ".palace")
@@ -166,7 +166,6 @@ class Ompa:
         Loads ~2K tokens: vault listing, North Star, active work, palace wings, KG stats.
         Auto-populates KG from vault if empty. Builds semantic index if missing.
         """
-        # Auto-populate KG if empty
         try:
             kg_stats = self.kg.stats()
             if kg_stats["triple_count"] == 0:
@@ -175,10 +174,9 @@ class Ompa:
         except Exception as e:
             logger.debug("KG auto-population skipped: %s", e)
 
-        # Trigger semantic index build if needed (lazy property handles this)
         if self._enable_semantic:
             try:
-                _ = self.semantic  # triggers lazy build
+                _ = self.semantic  # triggers lazy build via property
             except Exception as e:
                 logger.debug("Semantic index build skipped: %s", e)
 
@@ -316,7 +314,7 @@ class Ompa:
             room: Filter by palace room
             vaults: Which vaults to search. Options: ["shared"], ["personal"],
                     ["shared", "personal"]. Default: ["shared"] in dual mode,
-                    or the single vault in legacy mode.
+                    or the single vault in single-vault mode.
         """
         # Determine which vaults to search
         if not self.is_dual_vault:
@@ -613,26 +611,32 @@ class Ompa:
             return {"success": False, "error": f"Invalid note_path: {note_path}"}
 
         if self.dual_config.isolation_mode == IsolationMode.STRICT and confirm:
-            # In strict mode, first call returns preview for confirmation
-            if not source.exists():
-                return {"success": False, "error": f"Note not found: {note_path}"}
+            return self._export_preview(source, target, note_path, sanitize)
 
-            note = Note.from_file(source)
-            content = note.content
+        return self._export_execute(source, target, note_path, sanitize)
 
-            if sanitize:
-                content = self._sanitize_content(content)
+    def _export_preview(
+        self, source: Path, target: Path, note_path: str, sanitize: bool
+    ) -> dict:
+        """Return a preview dict for strict-mode export confirmation."""
+        if not source.exists():
+            return {"success": False, "error": f"Note not found: {note_path}"}
 
-            return {
-                "success": True,
-                "action": "preview",
-                "source": str(source),
-                "target": str(target),
-                "sanitized": sanitize,
-                "preview": content[:500],
-            }
+        note = Note.from_file(source)
+        content = self._sanitize_content(note.content) if sanitize else note.content
+        return {
+            "success": True,
+            "action": "preview",
+            "source": str(source),
+            "target": str(target),
+            "sanitized": sanitize,
+            "preview": content[:500],
+        }
 
-        # Perform the export
+    def _export_execute(
+        self, source: Path, target: Path, note_path: str, sanitize: bool
+    ) -> dict:
+        """Perform the actual export from personal to shared vault."""
         if not source.exists():
             return {"success": False, "error": f"Note not found: {note_path}"}
 
@@ -640,16 +644,12 @@ class Ompa:
         if sanitize:
             note.content = self._sanitize_content(note.content)
 
-        # Update frontmatter for shared vault
         note.frontmatter["vault"] = "shared"
         note.frontmatter.pop("@private", None)
-
         note.path = target
         note.save()
 
-        # Update shared KG
         self.kg.populate_from_note(target, self.dual_config.shared_path)
-
         logger.info("Exported %s to shared vault", note_path)
         return {
             "success": True,
