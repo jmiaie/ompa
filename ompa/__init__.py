@@ -30,7 +30,7 @@ __version__ = "0.6.0-dev"
 from .core import Ompa
 from .vault import Vault, Note, VaultConfig
 from .palace import Palace
-from .knowledge_graph import KnowledgeGraph
+from .knowledge_graph import KnowledgeGraph, Triple
 from .classifier import MessageClassifier, Classification, MessageType
 from .hooks import HookManager, HookContext, HookResult, Hook
 from .semantic import SemanticIndex, SearchResult
@@ -49,6 +49,7 @@ __all__ = [
     "VaultConfig",
     "Palace",
     "KnowledgeGraph",
+    "Triple",
     "MessageClassifier",
     "Classification",
     "MessageType",

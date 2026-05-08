@@ -12,7 +12,7 @@ from typing import Optional
 
 from .vault import Vault, Note, _safe_resolve
 from .palace import Palace
-from .knowledge_graph import KnowledgeGraph
+from .knowledge_graph import KnowledgeGraph, Triple
 from .hooks import HookManager, HookResult
 from .classifier import MessageClassifier, Classification
 from .semantic import SemanticIndex, SearchResult
@@ -423,7 +423,7 @@ class Ompa:
         """Get vault statistics."""
         return self.vault.get_stats()
 
-    def find_orphans(self) -> list:
+    def find_orphans(self) -> list[Note]:
         """Find notes with no wikilinks."""
         return self.vault.find_orphans()
 
@@ -467,11 +467,11 @@ class Ompa:
             subject, predicate, object, valid_from=valid_from, source=source
         )
 
-    def kg_query(self, entity: str, as_of: str = None) -> list:
+    def kg_query(self, entity: str, as_of: str = None) -> list[Triple]:
         """Query the knowledge graph."""
         return self.kg.query_entity(entity, as_of=as_of)
 
-    def kg_timeline(self, entity: str) -> list:
+    def kg_timeline(self, entity: str) -> list[dict]:
         """Get entity timeline."""
         return self.kg.timeline(entity)
 

@@ -23,7 +23,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
+from typing import Iterator, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -55,7 +55,7 @@ def _row_to_triple(row: sqlite3.Row) -> Triple:
 
 
 class KnowledgeGraph:
-    def __init__(self, db_path: str = None):
+    def __init__(self, db_path: Optional[str] = None):
         self.db_path = Path(db_path or DEFAULT_KG_PATH).expanduser()
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._local = threading.local()  # per-thread connection cache
@@ -75,7 +75,7 @@ class KnowledgeGraph:
         return self._local.conn
 
     @contextmanager
-    def _conn(self):
+    def _conn(self) -> Iterator[sqlite3.Connection]:
         """Yield the thread-local connection for a single transaction."""
         conn = self._get_connection()
         try:
@@ -147,7 +147,7 @@ class KnowledgeGraph:
                 (entity_id, name, entity_type),
             )
 
-    def query_entity(self, name: str, as_of: str = None) -> list[Triple]:
+    def query_entity(self, name: str, as_of: Optional[str] = None) -> list[Triple]:
         """
         Query all current triples for an entity.
 
@@ -325,12 +325,13 @@ class KnowledgeGraph:
             post = fm.load(note_path)
             content = post.content
             metadata = dict(post.metadata)
-        except Exception:
+        except Exception as e:
+            logger.debug("Frontmatter parse failed for %s: %s", note_path, e)
             try:
                 content = note_path.read_text(encoding="utf-8")
                 metadata = {}
-            except Exception as e:
-                logger.debug("Could not read %s: %s", note_path, e)
+            except OSError as read_err:
+                logger.debug("Could not read %s: %s", note_path, read_err)
                 return 0
 
         # 1. Wikilinks → links_to triples

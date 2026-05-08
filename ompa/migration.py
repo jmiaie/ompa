@@ -199,7 +199,8 @@ class VaultMigrator:
             if "idx_triples_subject_date" in index_names:
                 return 2
             return 1
-        except Exception:
+        except sqlite3.Error as e:
+            logger.debug("Could not inspect KG indexes for version detection: %s", e)
             return 1
 
     def _write_version(self, vault_path: Path, version: int) -> None:

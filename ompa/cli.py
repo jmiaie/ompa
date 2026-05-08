@@ -3,10 +3,13 @@ CLI for OMPA.
 Run with: ao <command> or ao-mcp <command>
 """
 
+import logging
 from pathlib import Path
 from typing import Optional
 
 import typer
+
+logger = logging.getLogger(__name__)
 from rich.console import Console
 from rich.table import Table
 
@@ -539,14 +542,16 @@ def doctor(
             checks.append(
                 ("WARN", "Orphan notes", f"{len(orphan_list)} notes with no wikilinks")
             )
-    except Exception:
+    except Exception as e:
+        logger.debug("Orphan check failed: %s", e)
         checks.append(("WARN", "Orphan notes", "Check failed"))
 
     # Total notes
     try:
         vs = ao.get_stats()
         checks.append(("OK", "Total notes", str(vs["total_notes"])))
-    except Exception:
+    except Exception as e:
+        logger.debug("Vault stats failed: %s", e)
         checks.append(("WARN", "Total notes", "Could not read vault"))
 
     # Render
