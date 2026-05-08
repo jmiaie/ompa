@@ -48,26 +48,20 @@ def extract_wikilinks(text: str) -> list[str]:
 @dataclass
 class VaultConfig:
     vault_path: Path
-    brain_folder: Optional[Path] = None
-    work_folder: Optional[Path] = None
-    org_folder: Optional[Path] = None
-    perf_folder: Optional[Path] = None
-    thinking_folder: Optional[Path] = None
-    templates_folder: Optional[Path] = None
+    brain_folder: Path = field(init=False)
+    work_folder: Path = field(init=False)
+    org_folder: Path = field(init=False)
+    perf_folder: Path = field(init=False)
+    thinking_folder: Path = field(init=False)
+    templates_folder: Path = field(init=False)
 
     def __post_init__(self):
-        if self.brain_folder is None:
-            self.brain_folder = self.vault_path / "brain"
-        if self.work_folder is None:
-            self.work_folder = self.vault_path / "work"
-        if self.org_folder is None:
-            self.org_folder = self.vault_path / "org"
-        if self.perf_folder is None:
-            self.perf_folder = self.vault_path / "perf"
-        if self.thinking_folder is None:
-            self.thinking_folder = self.vault_path / "thinking"
-        if self.templates_folder is None:
-            self.templates_folder = self.vault_path / "templates"
+        self.brain_folder = self.vault_path / "brain"
+        self.work_folder = self.vault_path / "work"
+        self.org_folder = self.vault_path / "org"
+        self.perf_folder = self.vault_path / "perf"
+        self.thinking_folder = self.vault_path / "thinking"
+        self.templates_folder = self.vault_path / "templates"
 
 
 @dataclass

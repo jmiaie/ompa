@@ -201,7 +201,6 @@ class Ompa:
         """
         result = self.hooks.run_post_tool(tool_name, tool_input, self)
 
-        # Auto-update on file writes
         if tool_name in ("write", "edit", "create_file"):
             file_path = tool_input.get("file_path") or tool_input.get("path")
             if file_path:
@@ -316,15 +315,13 @@ class Ompa:
                     ["shared", "personal"]. Default: ["shared"] in dual mode,
                     or the single vault in single-vault mode.
         """
-        # Determine which vaults to search
         if not self.is_dual_vault:
-            vaults = ["shared"]  # single vault acts as shared
+            vaults = ["shared"]  # single vault always maps to "shared"
         elif vaults is None:
             vaults = ["shared"]
 
         all_results = []
 
-        # Search shared vault
         if "shared" in vaults:
             all_results.extend(
                 self._search_vault(
@@ -332,7 +329,6 @@ class Ompa:
                 )
             )
 
-        # Search personal vault
         if "personal" in vaults and self.personal_vault:
             personal_results = self._search_vault(
                 self.personal_vault,
@@ -343,12 +339,10 @@ class Ompa:
                 wing,
                 room,
             )
-            # Tag personal results
             for r in personal_results:
                 r.match_type = f"personal:{r.match_type}"
             all_results.extend(personal_results)
 
-        # Sort by score and limit
         all_results.sort(key=lambda r: r.score, reverse=True)
         return all_results[:limit]
 

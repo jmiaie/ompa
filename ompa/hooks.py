@@ -7,13 +7,12 @@ import json
 import logging
 from datetime import datetime
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 from pathlib import Path
 
 from .vault import Vault, Note
 from .classifier import MessageClassifier
 from .token_counter import count_tokens
-from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from .core import Ompa

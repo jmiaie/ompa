@@ -10,7 +10,7 @@ import logging
 import hashlib
 from pathlib import Path
 from dataclasses import dataclass
-from typing import Optional, Protocol, runtime_checkable
+from typing import Any, Optional, Protocol, runtime_checkable
 
 from .vault import DEFAULT_EXCLUDE_PATTERNS
 
@@ -67,7 +67,7 @@ class SemanticIndex:
         self.model_name = model_name
         self.embedding_dim = embedding_dim
         self.embeddings = None
-        self.chunks = []
+        self.chunks: list[dict[str, Any]] = []
         self._initialized = False
         # Accept a pre-built backend (e.g. NIMEmbeddingBackend) or load lazily
         self._model: Optional[EmbeddingBackend] = embedding_backend
@@ -171,7 +171,7 @@ class SemanticIndex:
             logger.debug("Removed %d chunks for %s", removed, path)
         return removed > 0
 
-    def index_vault(self, vault_path: Path, exclude_patterns: list = None) -> int:
+    def index_vault(self, vault_path: Path, exclude_patterns: Optional[list[str]] = None) -> int:
         """Index all markdown files in a vault."""
         exclude_patterns = exclude_patterns or DEFAULT_EXCLUDE_PATTERNS
         count = 0

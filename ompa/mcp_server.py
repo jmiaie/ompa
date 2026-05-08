@@ -1,6 +1,6 @@
 """
 OMPA MCP Server
-Provides 15+ tools via the Model Context Protocol.
+Provides 18 tools via the Model Context Protocol.
 Works with Claude Desktop, Cursor, Windsurf, and any MCP-compatible client.
 
 Usage:
@@ -20,10 +20,8 @@ import json
 import sys
 from pathlib import Path
 
-from ompa import Ompa
+from ompa import Ompa, __version__
 from ompa.config import make_ompa
-
-__version__ = "0.4.1"
 
 
 # ---------------------------------------------------------------------------

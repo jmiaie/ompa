@@ -94,7 +94,7 @@ class Palace:
             return []
         return list(wing_data.get("rooms", {}).keys())
 
-    def get_room(self, wing: str, room_name: str) -> Optional[dict[str, object]]:
+    def get_room(self, wing: str, room_name: str) -> Optional[dict[str, Any]]:
         """Get a room."""
         wing_data = self._data.get("wings", {}).get(wing)
         if not wing_data:
@@ -172,7 +172,7 @@ class Palace:
         )
         self._save()
 
-    def find_tunnels(self, wing_a: str, wing_b: str) -> list[dict[str, object]]:
+    def find_tunnels(self, wing_a: str, wing_b: str) -> list[dict[str, Any]]:
         """Find all tunnels between two wings."""
         tunnels = self._data.get("tunnels", [])
         return [
@@ -182,16 +182,16 @@ class Palace:
             or (t.get("wing_a") == wing_b and t.get("wing_b") == wing_a)
         ]
 
-    def find_tunnels_by_room(self, room: str) -> list[dict[str, object]]:
+    def find_tunnels_by_room(self, room: str) -> list[dict[str, Any]]:
         """Find all tunnels that pass through a room."""
         return [t for t in self._data.get("tunnels", []) if t.get("room") == room]
 
     # Traversal
 
-    def traverse(self, wing: str, room: str) -> dict[str, object]:
+    def traverse(self, wing: str, room: str) -> dict[str, Any]:
         """Walk the palace from a room across all connected wings via tunnels."""
-        tunnels: list[dict[str, object]] = self.find_tunnels_by_room(room)
-        connected: list[dict[str, object]] = []
+        tunnels: list[dict[str, Any]] = self.find_tunnels_by_room(room)
+        connected: list[dict[str, Any]] = []
         for tunnel in tunnels:
             other_wing = (
                 tunnel["wing_b"] if tunnel["wing_a"] == wing else tunnel["wing_a"]
@@ -264,7 +264,7 @@ class Palace:
 
     # Stats
 
-    def stats(self) -> dict[str, int]:
+    def stats(self) -> dict[str, Any]:
         """Get palace statistics."""
         wings = self._data.get("wings", {})
         total_rooms = sum(len(w.get("rooms", {})) for w in wings.values())
