@@ -549,10 +549,10 @@ class Ompa:
     def _resolve_write_target(
         self,
         content: str,
-        tags: list,
+        tags: list[str],
         file_path: Optional[str],
         vault: Optional[str],
-    ):
+    ) -> tuple[VaultTarget, Vault]:
         """Return (VaultTarget, Vault) for a write operation."""
         if not self.is_dual_vault:
             return VaultTarget.SHARED, self.vault
@@ -594,6 +594,9 @@ class Ompa:
         """
         if not self.is_dual_vault:
             return {"success": False, "error": "Not in dual-vault mode"}
+
+        assert self.dual_config.personal_path is not None
+        assert self.dual_config.shared_path is not None
 
         # Validate paths upfront to prevent traversal
         try:
@@ -667,6 +670,9 @@ class Ompa:
         """
         if not self.is_dual_vault:
             return {"success": False, "error": "Not in dual-vault mode"}
+
+        assert self.dual_config.shared_path is not None
+        assert self.dual_config.personal_path is not None
 
         # Validate paths upfront to prevent traversal
         try:
@@ -746,9 +752,11 @@ class Ompa:
         notes = self.vault.list_notes()
         for note in notes:
             if classification_rules == "auto":
+                raw_tags = note.frontmatter.get("tags", [])
+                tags_list: list[str] = list(raw_tags) if isinstance(raw_tags, list) else []
                 target = self.dual_config.classify_content(
                     note.content,
-                    tags=list(note.frontmatter.get("tags", [])),
+                    tags=tags_list,
                     file_path=str(note.path),
                 )
             else:
