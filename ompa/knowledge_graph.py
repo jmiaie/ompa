@@ -191,10 +191,10 @@ class KnowledgeGraph:
         subject: str,
         predicate: str,
         object: str,
-        valid_from: str = None,
-        valid_to: str = None,
+        valid_from: Optional[str] = None,
+        valid_to: Optional[str] = None,
         confidence: float = 1.0,
-        source: str = None,
+        source: Optional[str] = None,
     ) -> None:
         """
         Add a fact triple to the knowledge graph.
@@ -240,7 +240,7 @@ class KnowledgeGraph:
             )
 
     def invalidate(
-        self, subject: str, predicate: str, obj: str, ended: str = None
+        self, subject: str, predicate: str, obj: str, ended: Optional[str] = None
     ) -> None:
         """
         Invalidate a triple by setting its valid_to date.
@@ -258,7 +258,7 @@ class KnowledgeGraph:
     # Timeline
     # -------------------------------------------------------------------------
 
-    def timeline(self, entity: str) -> list[dict]:
+    def timeline(self, entity: str) -> list[dict[str, Optional[str]]]:
         """
         Get the chronological story of an entity.
         Returns all triples ordered by valid_from with direction indicators.
@@ -394,7 +394,7 @@ class KnowledgeGraph:
         return count
 
     def populate_from_vault(
-        self, vault_path: Path, exclude_patterns: list = None
+        self, vault_path: Path, exclude_patterns: Optional[list[str]] = None
     ) -> int:
         """
         Scan all vault notes and populate the knowledge graph.

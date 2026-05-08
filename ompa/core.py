@@ -33,7 +33,7 @@ class Ompa:
     - Classifier (15 message types with routing hints)
     - Semantic Search (local sentence-transformers)
 
-    Usage (single vault — legacy):
+    Usage (single vault):
         ao = Ompa(vault_path="./workspace")
 
     Usage (dual vault):
@@ -92,7 +92,7 @@ class Ompa:
                 )
             )
         else:
-            # Single-vault mode (legacy / backward compatible)
+            # Single-vault mode
             self.vault_path = Path(vault_path or ".")
             self.vault = Vault(self.vault_path)
             self.palace = Palace(self.vault_path / ".palace")
@@ -217,14 +217,6 @@ class Ompa:
         result = self.hooks.run_stop(self)
         self._session_started = False
         return result
-
-    def wrap_up(self) -> HookResult:
-        """Alias for stop()."""
-        return self.stop()
-
-    def standup(self) -> HookResult:
-        """Alias for session_start()."""
-        return self.session_start()
 
     # -------------------------------------------------------------------------
     # Auto palace population
@@ -393,10 +385,6 @@ class Ompa:
             results = filtered or results[:limit]
 
         return results
-
-    def qsearch(self, query: str, limit: int = 5) -> list[SearchResult]:
-        """QMD-style semantic search. Convenience method."""
-        return self.search(query, limit, hybrid=True)
 
     def rebuild_index(self) -> int:
         """Rebuild the semantic index."""
