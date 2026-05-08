@@ -33,7 +33,7 @@ from __future__ import annotations
 import json
 import logging
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 from ..semantic import SearchResult, EmbeddingBackend, _cosine_similarity
 
@@ -74,8 +74,8 @@ class FAISSSemanticIndex:
         self._model = None
         self._initialized = False
 
-        self._faiss_index = None     # faiss.Index
-        self._metadata: list[dict] = []   # parallel list: one dict per vector
+        self._faiss_index: Optional[Any] = None     # faiss.Index
+        self._metadata: list[dict[str, Any]] = []   # parallel list: one dict per vector
 
     # ------------------------------------------------------------------
     # Model / backend init
@@ -149,10 +149,11 @@ class FAISSSemanticIndex:
         if self._faiss_index is None:
             self._build_index()
 
-        if self.use_ivf and not self._faiss_index.is_trained:
+        if self._faiss_index is not None and self.use_ivf and not self._faiss_index.is_trained:
             return  # deferred — train after collecting enough vectors
 
-        self._faiss_index.add(vec)
+        if self._faiss_index is not None:
+            self._faiss_index.add(vec)
 
     def _train_if_needed(self) -> None:
         if not self.use_ivf or self._faiss_index is None:
@@ -213,7 +214,7 @@ class FAISSSemanticIndex:
         except Exception as e:
             logger.warning("Error indexing %s: %s", path, e)
 
-    def index_vault(self, vault_path: Path, exclude_patterns: list = None) -> int:
+    def index_vault(self, vault_path: Path, exclude_patterns: Optional[list[str]] = None) -> int:
         """Index all markdown files in a vault. Returns file count."""
         from ..vault import DEFAULT_EXCLUDE_PATTERNS
 
@@ -247,10 +248,12 @@ class FAISSSemanticIndex:
 
         if self.use_ivf:
             if len(self._metadata) >= self.ivf_nlist:
-                self._faiss_index.train(vecs)
+                if self._faiss_index is not None:
+                    self._faiss_index.train(vecs)
             else:
                 self._faiss_index = faiss.IndexFlatIP(self.embedding_dim)
-        self._faiss_index.add(vecs)
+        if self._faiss_index is not None:
+            self._faiss_index.add(vecs)
 
     # ------------------------------------------------------------------
     # Search

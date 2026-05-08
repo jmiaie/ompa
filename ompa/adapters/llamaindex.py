@@ -89,7 +89,8 @@ class OmpaReader:
 
             # Tags filter
             if self._tags_filter:
-                note_tags = set(note.frontmatter.get("tags", []))
+                raw_note_tags = note.frontmatter.get("tags", [])
+                note_tags = set(raw_note_tags) if isinstance(raw_note_tags, list) else set()
                 if not (note_tags & self._tags_filter):
                     continue
 

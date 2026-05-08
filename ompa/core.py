@@ -96,9 +96,9 @@ class Ompa:
         )
 
         # Personal vault systems
-        self.personal_vault = Vault(self.dual_config.personal_path)
-        self.personal_palace = Palace(self.dual_config.personal_path / ".palace")
-        self.personal_kg = KnowledgeGraph(
+        self.personal_vault: Optional[Vault] = Vault(self.dual_config.personal_path)
+        self.personal_palace: Optional[Palace] = Palace(self.dual_config.personal_path / ".palace")
+        self.personal_kg: Optional[KnowledgeGraph] = KnowledgeGraph(
             db_path=str(
                 self.dual_config.personal_path / ".palace" / "knowledge_graph.sqlite3"
             )
@@ -385,11 +385,12 @@ class Ompa:
 
     def rebuild_index(self) -> int:
         """Rebuild the semantic index."""
-        if self.semantic is None:
+        idx = self.semantic
+        if idx is None:
             return 0
-        self._semantic.clear()
-        count = self._semantic.index_vault(self.vault_path)
-        self._semantic.save_index()
+        idx.clear()
+        count = idx.index_vault(self.vault_path)
+        idx.save_index()
         return count
 
     # -------------------------------------------------------------------------
@@ -480,7 +481,12 @@ class Ompa:
         }
 
         # Sync personal vault too if in dual mode
-        if self.is_dual_vault:
+        if (
+            self.is_dual_vault
+            and self.personal_kg is not None
+            and self.personal_palace is not None
+            and self.dual_config.personal_path is not None
+        ):
             p_kg = self.personal_kg.populate_from_vault(self.dual_config.personal_path)
             p_palace = self.personal_palace.auto_build_from_vault(
                 self.dual_config.personal_path
@@ -526,7 +532,7 @@ class Ompa:
 
         from datetime import datetime
 
-        frontmatter = {
+        frontmatter: dict[str, object] = {
             "date": datetime.now().strftime("%Y-%m-%d"),
             "tags": tags,
             "vault": target.value,
@@ -564,7 +570,7 @@ class Ompa:
             target = self.dual_config.classify_content(
                 content, tags=tags, file_path=file_path
             )
-        target_vault = self.vault if target == VaultTarget.SHARED else self.personal_vault
+        target_vault = self.vault if target == VaultTarget.SHARED else (self.personal_vault or self.vault)
         return target, target_vault
 
     def _build_file_path(self, content: str) -> str:

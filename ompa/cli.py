@@ -228,7 +228,7 @@ def tunnel(
 @app.command()
 def kg_query(
     entity: str,
-    as_of: str = None,
+    as_of: Optional[str] = None,
     vault_path: Path = Path("."),
 ):
     """Query the knowledge graph."""
@@ -514,6 +514,7 @@ def _sync_remote(vault_path: Path, backend: str, remote: Optional[str], message:
 
     b = backend.lower()
     try:
+        syncer: "GitSyncBackend | S3SyncBackend | RsyncBackend | None" = None
         if b == "git":
             parts = (remote or "origin/main").split("/", 1)
             git_remote, branch = (parts[0], parts[1]) if len(parts) == 2 else (parts[0], "main")

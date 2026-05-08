@@ -91,7 +91,7 @@ class OmpaAgentHooks:
         """Called after each tool call. Syncs file writes to palace and KG."""
         try:
             tool_name = getattr(tool, "name", str(tool))
-            tool_input = {}
+            tool_input: dict[str, object] = {}
             if hasattr(tool, "input"):
                 tool_input = tool.input if isinstance(tool.input, dict) else {"input": str(tool.input)}
             self._ao.post_tool(tool_name, tool_input)
