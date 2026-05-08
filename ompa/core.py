@@ -46,13 +46,13 @@ class Ompa:
 
     def __init__(
         self,
-        vault_path: str | Path = None,
+        vault_path: Optional[str | Path] = None,
         agent_name: str = "agent",
         enable_semantic: bool = True,
-        embedding_backend=None,  # EmbeddingBackend protocol — e.g. NIMEmbeddingBackend
+        embedding_backend: Optional["EmbeddingBackend"] = None,  # EmbeddingBackend protocol — e.g. NIMEmbeddingBackend
         # Dual-vault parameters
-        shared_vault_path: str | Path = None,
-        personal_vault_path: str | Path = None,
+        shared_vault_path: Optional[str | Path] = None,
+        personal_vault_path: Optional[str | Path] = None,
         isolation_mode: str = "strict",
     ):
         self.agent_name = agent_name
@@ -524,7 +524,6 @@ class Ompa:
         if not file_path:
             file_path = self._build_file_path(content)
 
-        # Write the note
         from datetime import datetime
 
         frontmatter = {
@@ -537,7 +536,6 @@ class Ompa:
         note = Note(path=full_path, frontmatter=frontmatter, content=content)
         note.save()
 
-        # Update KG + index
         target_kg = self.kg if target == VaultTarget.SHARED else self.personal_kg
         if target_kg:
             target_kg.populate_from_note(full_path, target_vault.vault_path)
