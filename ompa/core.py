@@ -15,7 +15,7 @@ from .palace import Palace
 from .knowledge_graph import KnowledgeGraph, Triple
 from .hooks import HookManager, HookResult
 from .classifier import MessageClassifier, Classification
-from .semantic import SemanticIndex, SearchResult
+from .semantic import SemanticIndex, SearchResult, EmbeddingBackend
 from .config import DualVaultConfig, IsolationMode, VaultTarget
 
 logger = logging.getLogger(__name__)
@@ -75,8 +75,8 @@ class Ompa:
         self.hooks = HookManager(self.vault_path, agent_name=self.agent_name)
 
         # Semantic search (lazy-loaded)
-        self._semantic = None
-        self._personal_semantic = None
+        self._semantic: Optional[SemanticIndex] = None
+        self._personal_semantic: Optional[SemanticIndex] = None
 
     def _init_dual_vault(
         self, shared_vault_path: str | Path, personal_vault_path: str | Path
@@ -104,7 +104,7 @@ class Ompa:
             )
         )
 
-    def _init_single_vault(self, vault_path: str | Path = None) -> None:
+    def _init_single_vault(self, vault_path: Optional[str | Path] = None) -> None:
         """Set up single-vault mode."""
         self.vault_path = Path(vault_path or ".")
         self.vault = Vault(self.vault_path)
@@ -298,9 +298,9 @@ class Ompa:
         query: str,
         limit: int = 5,
         hybrid: bool = True,
-        wing: str = None,
-        room: str = None,
-        vaults: list[str] = None,
+        wing: Optional[str] = None,
+        room: Optional[str] = None,
+        vaults: Optional[list[str]] = None,
     ) -> list[SearchResult]:
         """
         Search the vault(s) semantically.
@@ -353,8 +353,8 @@ class Ompa:
         query: str,
         limit: int,
         hybrid: bool,
-        wing: str = None,
-        room: str = None,
+        wing: Optional[str] = None,
+        room: Optional[str] = None,
     ) -> list[SearchResult]:
         """Search a single vault."""
         if semantic is None:
@@ -443,19 +443,19 @@ class Ompa:
         subject: str,
         predicate: str,
         object: str,
-        valid_from: str = None,
-        source: str = None,
+        valid_from: Optional[str] = None,
+        source: Optional[str] = None,
     ) -> None:
         """Add a fact to the knowledge graph."""
         self.kg.add_triple(
             subject, predicate, object, valid_from=valid_from, source=source
         )
 
-    def kg_query(self, entity: str, as_of: str = None) -> list[Triple]:
+    def kg_query(self, entity: str, as_of: Optional[str] = None) -> list[Triple]:
         """Query the knowledge graph."""
         return self.kg.query_entity(entity, as_of=as_of)
 
-    def kg_timeline(self, entity: str) -> list[dict]:
+    def kg_timeline(self, entity: str) -> list[dict[str, Optional[str]]]:
         """Get entity timeline."""
         return self.kg.timeline(entity)
 
@@ -463,7 +463,7 @@ class Ompa:
         """Populate KG from all vault notes (wikilinks, tags, folders)."""
         return self.kg.populate_from_vault(self.vault_path)
 
-    def sync(self) -> dict:
+    def sync(self) -> dict[str, int]:
         """
         Full sync: rebuild KG from vault, rebuild search index, rebuild palace.
 
@@ -498,10 +498,10 @@ class Ompa:
     def write(
         self,
         content: str,
-        file_path: str = None,
-        tags: list[str] = None,
-        vault: str = None,
-    ) -> dict:
+        file_path: Optional[str] = None,
+        tags: Optional[list[str]] = None,
+        vault: Optional[str] = None,
+    ) -> dict[str, object]:
         """
         Write content to the appropriate vault.
 

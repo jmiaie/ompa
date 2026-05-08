@@ -385,11 +385,11 @@ class KnowledgeGraph:
             )
             count += 1
 
-        # 5. Frontmatter description → has_description (for search context)
+        # 5. Mark entity type when a description is present (makes the entity
+        #    retrievable by type in future queries without storing content)
         desc = metadata.get("description")
         if desc and isinstance(desc, str) and len(desc) > 10:
             self.add_entity(note_name, entity_type="note")
-            count += 1
 
         return count
 
@@ -406,15 +406,12 @@ class KnowledgeGraph:
         Returns:
             Total number of triples added.
         """
-        from .vault import DEFAULT_EXCLUDE_PATTERNS
+        from .vault import iter_vault_notes
 
-        exclude_patterns = exclude_patterns or DEFAULT_EXCLUDE_PATTERNS
         total = 0
         vault_path = Path(vault_path)
 
-        for md_file in vault_path.rglob("*.md"):
-            if any(excl in str(md_file) for excl in exclude_patterns):
-                continue
+        for md_file in iter_vault_notes(vault_path, exclude_patterns):
             added = self.populate_from_note(md_file, vault_path)
             total += added
 

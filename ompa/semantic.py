@@ -12,7 +12,7 @@ from pathlib import Path
 from dataclasses import dataclass
 from typing import Any, Optional, Protocol, runtime_checkable
 
-from .vault import DEFAULT_EXCLUDE_PATTERNS
+from .vault import DEFAULT_EXCLUDE_PATTERNS, iter_vault_notes
 
 logger = logging.getLogger(__name__)
 
@@ -117,7 +117,6 @@ class SemanticIndex:
             self.chunks = [c for c in self.chunks if c["path"] != path_str]
 
             content = path.read_text(encoding="utf-8")
-            # Split into chunks (512 tokens each)
             chunk_size = 512
             words = content.split()
 
@@ -173,7 +172,6 @@ class SemanticIndex:
 
     def index_vault(self, vault_path: Path, exclude_patterns: Optional[list[str]] = None) -> int:
         """Index all markdown files in a vault."""
-        exclude_patterns = exclude_patterns or DEFAULT_EXCLUDE_PATTERNS
         count = 0
 
         if not self._initialized:
@@ -181,9 +179,7 @@ class SemanticIndex:
         if self._model is None:
             return 0
 
-        for path in vault_path.rglob("*.md"):
-            if any(excl in str(path) for excl in exclude_patterns):
-                continue
+        for path in iter_vault_notes(vault_path, exclude_patterns):
             self.index_file(path)
             count += 1
 

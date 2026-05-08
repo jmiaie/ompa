@@ -199,10 +199,18 @@ def ao_sync(vault_path: str = ".") -> dict:
     return {"success": True, **result}
 
 
+_VAULT_ARG_KEYS = ('vault_path', 'shared_vault_path', 'personal_vault_path', 'isolation_mode')
+
+
+def _make_ompa_from_args(arguments: dict, enable_semantic: bool = False):
+    """Extract vault-related keys from an arguments dict and return an Ompa instance."""
+    vault_kwargs = {k: arguments[k] for k in _VAULT_ARG_KEYS if k in arguments}
+    return make_ompa(**vault_kwargs, enable_semantic=enable_semantic)
+
+
 def ao_write(arguments: dict) -> dict:
     """Write content to the appropriate vault (auto-classifies in dual mode)."""
-    om_pa_args = {k: arguments[k] for k in ['vault_path', 'shared_vault_path', 'personal_vault_path', 'isolation_mode'] if k in arguments}
-    ao = make_ompa(**om_pa_args, enable_semantic=False)
+    ao = _make_ompa_from_args(arguments)
     content = arguments.get("content", "")
     tags_raw = arguments.get("tags", "")
     tags = [t.strip() for t in tags_raw.split(",") if t.strip()] if tags_raw else []
@@ -217,8 +225,7 @@ def ao_write(arguments: dict) -> dict:
 
 def ao_export(arguments: dict) -> dict:
     """Export a note from personal vault to shared vault."""
-    om_pa_args = {k: arguments[k] for k in ['vault_path', 'shared_vault_path', 'personal_vault_path', 'isolation_mode'] if k in arguments}
-    ao = make_ompa(**om_pa_args, enable_semantic=False)
+    ao = _make_ompa_from_args(arguments)
     return ao.export_to_shared(
         note_path=arguments["note_path"],
         confirm=arguments.get("confirm", True),
@@ -228,8 +235,7 @@ def ao_export(arguments: dict) -> dict:
 
 def ao_import(arguments: dict) -> dict:
     """Import a note from shared vault to personal vault."""
-    om_pa_args = {k: arguments[k] for k in ['vault_path', 'shared_vault_path', 'personal_vault_path', 'isolation_mode'] if k in arguments}
-    ao = make_ompa(**om_pa_args, enable_semantic=False)
+    ao = _make_ompa_from_args(arguments)
     return ao.import_to_personal(
         note_path=arguments["note_path"],
         link_back=arguments.get("link_back", True),

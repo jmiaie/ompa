@@ -30,6 +30,21 @@ def _safe_resolve(base: Path, untrusted: str) -> Path:
     return resolved
 
 
+def iter_vault_notes(
+    vault_path: Path, exclude_patterns: Optional[list[str]] = None
+):
+    """
+    Yield all *.md paths under vault_path, skipping excluded patterns.
+
+    Centralises the repeated rglob + exclude-filter loop used by Vault,
+    KnowledgeGraph, and SemanticIndex.
+    """
+    exclude_patterns = exclude_patterns or DEFAULT_EXCLUDE_PATTERNS
+    for path in vault_path.rglob("*.md"):
+        if not any(excl in str(path) for excl in exclude_patterns):
+            yield path
+
+
 def extract_wikilinks(text: str) -> list[str]:
     """Extract [[wikilinks]] from text, returning normalized link targets."""
     raw = re.findall(r"\[\[([^\]]+)\]\]", text)
@@ -157,16 +172,10 @@ class Vault:
 
     def list_notes(self, exclude_patterns: Optional[list[str]] = None) -> list[Note]:
         """List all markdown notes in the vault."""
-        exclude_patterns = exclude_patterns or DEFAULT_EXCLUDE_PATTERNS
-        notes = []
-
-        for path in self.vault_path.rglob("*.md"):
-            # Check exclusions
-            if any(excl in str(path) for excl in exclude_patterns):
-                continue
-            notes.append(Note.from_file(path))
-
-        return notes
+        return [
+            Note.from_file(path)
+            for path in iter_vault_notes(self.vault_path, exclude_patterns)
+        ]
 
     def _build_filename_index(self, notes: list[Note]) -> dict[str, Path]:
         """Build a case-insensitive filename → path index for wikilink resolution."""
@@ -279,7 +288,6 @@ class Vault:
 
         template = Note.from_file(template_path)
 
-        # Replace placeholders
         content = template.content
         for key, value in kwargs.items():
             content = content.replace(f"{{{{{key}}}}}", str(value))
