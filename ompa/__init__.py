@@ -4,7 +4,7 @@ OMPA — Obsidian-MemPalace-Agnostic
 Universal AI agent memory layer.
 Combines obsidian-mind vault conventions + MemPalace palace structure + temporal knowledge graph.
 
-Works with any AI agent: Claude Code, OpenClaw, Codex, Gemini CLI, LangChain, LlamaIndex,
+Works with any AI agent: Claude Code, Codex, Gemini CLI, LangChain, LlamaIndex,
 OpenAI Agents SDK, or any custom agent runtime.
 
 Usage:

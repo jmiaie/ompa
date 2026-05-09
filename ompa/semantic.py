@@ -11,6 +11,16 @@ import hashlib
 from pathlib import Path
 from dataclasses import dataclass
 from typing import Any, Optional, Protocol, runtime_checkable
+# TypedDict for chunk records stored in the semantic index
+from typing import TypedDict
+
+
+class _ChunkRecord(TypedDict):
+    hash: str
+    path: str
+    chunk_index: int
+    text: str
+    embedding: list[float]
 
 from .vault import DEFAULT_EXCLUDE_PATTERNS
 
@@ -32,7 +42,10 @@ def _cosine_similarity(a, b) -> float:
         b = np.array(b, dtype=float)
         norm = np.linalg.norm(a) * np.linalg.norm(b)
         return float(np.dot(a, b) / norm) if norm > 1e-9 else 0.0
-    except Exception:
+    except ImportError:
+        return 0.0
+    except (ValueError, TypeError) as e:
+        logger.debug("cosine_similarity: bad input vectors: %s", e)
         return 0.0
 
 
@@ -64,7 +77,7 @@ class SemanticIndex:
         self.model_name = model_name
         self.embedding_dim = embedding_dim
         self.embeddings = None
-        self.chunks: list[dict[str, Any]] = []
+        self.chunks: list[_ChunkRecord] = []
         self._initialized = False
         # Accept a pre-built backend (e.g. NIMEmbeddingBackend) or load lazily
         self._model: Optional[EmbeddingBackend] = embedding_backend
@@ -168,7 +181,7 @@ class SemanticIndex:
             logger.debug("Removed %d chunks for %s", removed, path)
         return removed > 0
 
-    def index_vault(self, vault_path: Path, exclude_patterns: list = None) -> int:
+    def index_vault(self, vault_path: Path, exclude_patterns: Optional[list[str]] = None) -> int:
         """Index all markdown files in a vault."""
         exclude_patterns = exclude_patterns or DEFAULT_EXCLUDE_PATTERNS
         count = 0

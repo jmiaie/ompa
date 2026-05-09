@@ -33,14 +33,14 @@ def _safe_resolve(base: Path, untrusted: str) -> Path:
 @dataclass
 class VaultConfig:
     vault_path: Path
-    brain_folder: Path = None
-    work_folder: Path = None
-    org_folder: Path = None
-    perf_folder: Path = None
-    thinking_folder: Path = None
-    templates_folder: Path = None
+    brain_folder: Optional[Path] = None
+    work_folder: Optional[Path] = None
+    org_folder: Optional[Path] = None
+    perf_folder: Optional[Path] = None
+    thinking_folder: Optional[Path] = None
+    templates_folder: Optional[Path] = None
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if self.brain_folder is None:
             self.brain_folder = self.vault_path / "brain"
         if self.work_folder is None:
@@ -156,7 +156,7 @@ class Vault:
             folder_path = self.vault_path / folder
             folder_path.mkdir(parents=True, exist_ok=True)
 
-    def list_notes(self, exclude_patterns: list[str] = None) -> list[Note]:
+    def list_notes(self, exclude_patterns: Optional[list[str]] = None) -> list[Note]:
         """List all markdown notes in the vault."""
         exclude_patterns = exclude_patterns or DEFAULT_EXCLUDE_PATTERNS
         notes = []
@@ -230,35 +230,31 @@ class Vault:
         query_lower = query.lower()
         return [n for n in self.list_notes() if query_lower in n.path.stem.lower()]
 
-    def get_brain_note(self, name: str) -> Optional[Note]:
-        """Get a brain note by name. Name is sanitized to prevent path traversal."""
-        # Reject names with path separators or parent-dir references
+    def _resolve_brain_path(self, name: str) -> Path:
+        """
+        Resolve and validate a brain note name to its absolute path.
+        Raises ValueError if the name contains path separators or escapes the brain folder.
+        """
         if "/" in name or "\\" in name or ".." in name:
             raise ValueError(f"Invalid brain note name: {name!r}")
         safe_name = Path(name).name  # Strip any directory components
-        path = self.config.brain_folder / f"{safe_name}.md"
-        path = path.resolve()
-        # Ensure we stay within brain folder
+        path = (self.config.brain_folder / f"{safe_name}.md").resolve()
         try:
             path.relative_to(self.config.brain_folder.resolve())
         except ValueError:
             raise ValueError(f"Invalid brain note name: {name!r}")
+        return path
+
+    def get_brain_note(self, name: str) -> Optional[Note]:
+        """Get a brain note by name. Name is sanitized to prevent path traversal."""
+        path = self._resolve_brain_path(name)
         if path.exists():
             return Note.from_file(path)
         return None
 
     def update_brain_note(self, name: str, content: str, append: bool = False) -> None:
         """Update a brain note. Name is sanitized to prevent path traversal."""
-        # Reject names with path separators or parent-dir references
-        if "/" in name or "\\" in name or ".." in name:
-            raise ValueError(f"Invalid brain note name: {name!r}")
-        safe_name = Path(name).name  # Strip any directory components
-        path = self.config.brain_folder / f"{safe_name}.md"
-        path = path.resolve()
-        try:
-            path.relative_to(self.config.brain_folder.resolve())
-        except ValueError:
-            raise ValueError(f"Invalid brain note name: {name!r}")
+        path = self._resolve_brain_path(name)
         path.parent.mkdir(parents=True, exist_ok=True)
 
         if append and path.exists():

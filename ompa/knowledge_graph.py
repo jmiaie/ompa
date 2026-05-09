@@ -55,7 +55,7 @@ def _row_to_triple(row: sqlite3.Row) -> Triple:
 
 
 class KnowledgeGraph:
-    def __init__(self, db_path: str = None):
+    def __init__(self, db_path: Optional[str] = None):
         self.db_path = Path(db_path or DEFAULT_KG_PATH).expanduser()
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._local = threading.local()  # per-thread connection cache
@@ -147,7 +147,7 @@ class KnowledgeGraph:
                 (entity_id, name, entity_type),
             )
 
-    def query_entity(self, name: str, as_of: str = None) -> list[Triple]:
+    def query_entity(self, name: str, as_of: Optional[str] = None) -> list[Triple]:
         """
         Query all current triples for an entity.
 
@@ -191,10 +191,10 @@ class KnowledgeGraph:
         subject: str,
         predicate: str,
         object: str,
-        valid_from: str = None,
-        valid_to: str = None,
+        valid_from: Optional[str] = None,
+        valid_to: Optional[str] = None,
         confidence: float = 1.0,
-        source: str = None,
+        source: Optional[str] = None,
     ) -> None:
         """
         Add a fact triple to the knowledge graph.
@@ -240,7 +240,7 @@ class KnowledgeGraph:
             )
 
     def invalidate(
-        self, subject: str, predicate: str, obj: str, ended: str = None
+        self, subject: str, predicate: str, obj: str, ended: Optional[str] = None
     ) -> None:
         """
         Invalidate a triple by setting its valid_to date.
@@ -325,7 +325,8 @@ class KnowledgeGraph:
             post = fm.load(note_path)
             content = post.content
             metadata = dict(post.metadata)
-        except Exception:
+        except Exception as e:
+            logger.debug("Frontmatter parse failed for %s: %s", note_path, e)
             try:
                 content = note_path.read_text(encoding="utf-8")
                 metadata = {}

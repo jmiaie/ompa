@@ -23,7 +23,7 @@ class Wing:
     name: str
     type: str  # "person" or "project"
     keywords: list[str] = field(default_factory=list)
-    rooms: dict = field(default_factory=dict)
+    rooms: dict[str, object] = field(default_factory=dict)
 
 
 @dataclass
@@ -74,7 +74,7 @@ class Palace:
     # Wing operations
 
     def create_wing(
-        self, name: str, type: str = "project", keywords: list[str] = None
+        self, name: str, type: str = "project", keywords: Optional[list[str]] = None
     ) -> None:
         """Create a new wing."""
         if keywords is None:
