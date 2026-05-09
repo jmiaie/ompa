@@ -33,26 +33,20 @@ def _safe_resolve(base: Path, untrusted: str) -> Path:
 @dataclass
 class VaultConfig:
     vault_path: Path
-    brain_folder: Optional[Path] = None
-    work_folder: Optional[Path] = None
-    org_folder: Optional[Path] = None
-    perf_folder: Optional[Path] = None
-    thinking_folder: Optional[Path] = None
-    templates_folder: Optional[Path] = None
+    brain_folder: Path = field(init=False)
+    work_folder: Path = field(init=False)
+    org_folder: Path = field(init=False)
+    perf_folder: Path = field(init=False)
+    thinking_folder: Path = field(init=False)
+    templates_folder: Path = field(init=False)
 
     def __post_init__(self) -> None:
-        if self.brain_folder is None:
-            self.brain_folder = self.vault_path / "brain"
-        if self.work_folder is None:
-            self.work_folder = self.vault_path / "work"
-        if self.org_folder is None:
-            self.org_folder = self.vault_path / "org"
-        if self.perf_folder is None:
-            self.perf_folder = self.vault_path / "perf"
-        if self.thinking_folder is None:
-            self.thinking_folder = self.vault_path / "thinking"
-        if self.templates_folder is None:
-            self.templates_folder = self.vault_path / "templates"
+        self.brain_folder = self.vault_path / "brain"
+        self.work_folder = self.vault_path / "work"
+        self.org_folder = self.vault_path / "org"
+        self.perf_folder = self.vault_path / "perf"
+        self.thinking_folder = self.vault_path / "thinking"
+        self.templates_folder = self.vault_path / "templates"
 
 
 @dataclass
@@ -291,22 +285,7 @@ class Vault:
     def get_stats(self) -> dict:
         """Get vault statistics."""
         notes = self.list_notes()
-        filename_index = self._build_filename_index(notes)
-
-        # Build linked set using smart wikilink resolution
-        linked_files = set()
-        for note in notes:
-            for link in note.links:
-                resolved = self._resolve_wikilink(link, filename_index)
-                if resolved:
-                    linked_files.add(resolved)
-
-        orphan_count = sum(
-            1
-            for n in notes
-            if n.path not in linked_files
-            and n.path.name not in ["Home.md", "README.md"]
-        )
+        orphan_paths = {o.path for o in self.find_orphans()}
 
         folder_counts: dict[str, int] = {}
         brain_count = 0
@@ -327,7 +306,7 @@ class Vault:
 
         return {
             "total_notes": len(notes),
-            "orphans": orphan_count,
+            "orphans": len(orphan_paths),
             "folder_counts": folder_counts,
             "brain_notes": brain_count,
         }

@@ -16,7 +16,6 @@ Usage:
 
 import hashlib
 import logging
-import re
 import sqlite3
 import threading
 from contextlib import contextmanager
@@ -300,7 +299,7 @@ class KnowledgeGraph:
     # Auto-population from vault
     # -------------------------------------------------------------------------
 
-    def populate_from_note(self, note_path: Path, vault_path: Path = None) -> int:
+    def populate_from_note(self, note_path: Path, vault_path: Optional[Path] = None) -> int:
         """
         Extract and store triples from a single vault note.
 
@@ -335,13 +334,10 @@ class KnowledgeGraph:
                 return 0
 
         # 1. Wikilinks → links_to triples
-        wikilinks = re.findall(r"\[\[([^\]]+)\]\]", content)
-        for link in wikilinks:
-            # Strip display text from piped links: [[target|display]]
-            target = link.split("|")[0].strip()
-            if target:
-                self.add_triple(note_name, "links_to", target, source=source)
-                count += 1
+        from .vault import Note as _Note
+        for target in _Note._extract_wikilinks(content):
+            self.add_triple(note_name, "links_to", target, source=source)
+            count += 1
 
         # 2. Frontmatter tags → has_tag triples
         tags = metadata.get("tags", [])
@@ -394,7 +390,7 @@ class KnowledgeGraph:
         return count
 
     def populate_from_vault(
-        self, vault_path: Path, exclude_patterns: list = None
+        self, vault_path: Path, exclude_patterns: Optional[list[str]] = None
     ) -> int:
         """
         Scan all vault notes and populate the knowledge graph.

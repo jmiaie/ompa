@@ -96,7 +96,7 @@ class OmpaAgentHooks:
                 tool_input = tool.input if isinstance(tool.input, dict) else {"input": str(tool.input)}
             self._ao.post_tool(tool_name, tool_input)
         except Exception as e:
-            logger.debug("OmpaAgentHooks.on_tool_call_result failed: %s", e)
+            logger.warning("OmpaAgentHooks.on_tool_call_result failed (palace/KG sync skipped): %s", e)
 
     async def on_handoff(self, context: Any, agent: Any, source: Any) -> None:
         """Called on agent handoff. Classifies the handoff event."""

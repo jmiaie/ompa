@@ -5,6 +5,7 @@ Handles session_start, user_message, post_tool, pre_compact, and stop events.
 
 import json
 import logging
+import re
 from datetime import datetime
 from dataclasses import dataclass
 from typing import Optional
@@ -178,8 +179,6 @@ class SessionStartHook(Hook):
 
     def _extract_section(self, content: str, section: str) -> str:
         """Extract a section from markdown content."""
-        import re
-
         pattern = rf"## {section}(.*?)(?=## |$)"
         match = re.search(pattern, content, re.DOTALL | re.IGNORECASE)
         return match.group(1).strip() if match else ""

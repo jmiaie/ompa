@@ -536,92 +536,97 @@ def handle_list_tools():
     return {"tools": tools}
 
 
+# ---------------------------------------------------------------------------
+# Tool dispatch table
+# Tools that only need vault_path are mapped to a simple callable.
+# Tools that need additional arguments are mapped to a lambda over `arguments`.
+# ---------------------------------------------------------------------------
+
+def _dispatch_ao_classify(arguments: dict, vault_path: str) -> dict:
+    return ao_classify(message=arguments["message"], vault_path=vault_path)
+
+def _dispatch_ao_search(arguments: dict, vault_path: str) -> dict:
+    return ao_search(query=arguments["query"], vault_path=vault_path, limit=arguments.get("limit", 5))
+
+def _dispatch_ao_kg_query(arguments: dict, vault_path: str) -> dict:
+    return ao_kg_query(entity=arguments["entity"], vault_path=vault_path, as_of=arguments.get("as_of"))
+
+def _dispatch_ao_kg_add(arguments: dict, vault_path: str) -> dict:
+    return ao_kg_add(
+        subject=arguments["subject"],
+        predicate=arguments["predicate"],
+        object_=arguments["object"],
+        valid_from=arguments.get("valid_from"),
+        source=arguments.get("source"),
+        vault_path=vault_path,
+    )
+
+def _dispatch_ao_palace_rooms(arguments: dict, vault_path: str) -> dict:
+    return ao_palace_rooms(wing=arguments["wing"], vault_path=vault_path)
+
+def _dispatch_ao_palace_tunnel(arguments: dict, vault_path: str) -> dict:
+    return ao_palace_tunnel(
+        wing_a=arguments["wing_a"],
+        wing_b=arguments["wing_b"],
+        room=arguments.get("room", "shared"),
+        vault_path=vault_path,
+    )
+
+def _dispatch_ao_validate(arguments: dict, vault_path: str) -> dict:
+    return ao_validate(file_path=arguments["file_path"], vault_path=vault_path)
+
+
+# Dispatch table: name -> callable(arguments, vault_path)
+# Simple vault-only tools use a lambda; argument-requiring tools use helpers.
+_TOOL_DISPATCH = {
+    "ao_session_start":   lambda a, vp: ao_session_start(vp),
+    "ao_classify":        _dispatch_ao_classify,
+    "ao_search":          _dispatch_ao_search,
+    "ao_kg_query":        _dispatch_ao_kg_query,
+    "ao_kg_add":          _dispatch_ao_kg_add,
+    "ao_kg_stats":        lambda a, vp: ao_kg_stats(vp),
+    "ao_palace_wings":    lambda a, vp: ao_palace_wings(vp),
+    "ao_palace_rooms":    _dispatch_ao_palace_rooms,
+    "ao_palace_tunnel":   _dispatch_ao_palace_tunnel,
+    "ao_validate":        _dispatch_ao_validate,
+    "ao_wrap_up":         lambda a, vp: ao_wrap_up(vp),
+    "ao_status":          lambda a, vp: ao_status(vp),
+    "ao_orphans":         lambda a, vp: ao_orphans(vp),
+    "ao_kg_populate":     lambda a, vp: ao_kg_populate(vp),
+    "ao_sync":            lambda a, vp: ao_sync(vp),
+    "ao_write":           lambda a, vp: ao_write(a),
+    "ao_export":          lambda a, vp: ao_export(a),
+    "ao_import":          lambda a, vp: ao_import(a),
+    "ao_init":            lambda a, vp: ao_init(vp),
+}
+
+
+def _validate_call_arguments(arguments: dict) -> tuple[str, dict]:
+    """
+    Validate and normalise common call arguments.
+    Returns (vault_path, sanitised_arguments) or raises ValueError.
+    """
+    vault_path = str(arguments.get("vault_path", "."))
+    if ".." in vault_path or vault_path in ("/", "C:\\", "C:/"):
+        raise ValueError("Invalid vault_path")
+    if "limit" in arguments:
+        arguments = {**arguments, "limit": min(int(arguments["limit"]), 100)}
+    return vault_path, arguments
+
+
 def handle_call_tool(name: str, arguments: dict) -> dict:
     """Handle tool call request."""
     if name not in TOOLS:
         return {"error": f"Unknown tool: {name}"}
 
     try:
-        # Extract and validate vault_path
-        vault_path = str(arguments.get("vault_path", "."))
-        # Block obvious traversal attempts
-        if ".." in vault_path or vault_path in ("/", "C:\\", "C:/"):
-            return {"error": "Invalid vault_path"}
-        # Cap limit parameters
-        if "limit" in arguments:
-            arguments = {**arguments, "limit": min(int(arguments["limit"]), 100)}
-
-        if name == "ao_session_start":
-            result = ao_session_start(vault_path)
-        elif name == "ao_classify":
-            result = ao_classify(
-                message=arguments["message"],
-                vault_path=vault_path,
-            )
-        elif name == "ao_search":
-            result = ao_search(
-                query=arguments["query"],
-                vault_path=vault_path,
-                limit=arguments.get("limit", 5),
-            )
-        elif name == "ao_kg_query":
-            result = ao_kg_query(
-                entity=arguments["entity"],
-                vault_path=vault_path,
-                as_of=arguments.get("as_of"),
-            )
-        elif name == "ao_kg_add":
-            result = ao_kg_add(
-                subject=arguments["subject"],
-                predicate=arguments["predicate"],
-                object_=arguments["object"],
-                valid_from=arguments.get("valid_from"),
-                source=arguments.get("source"),
-                vault_path=vault_path,
-            )
-        elif name == "ao_kg_stats":
-            result = ao_kg_stats(vault_path)
-        elif name == "ao_palace_wings":
-            result = ao_palace_wings(vault_path)
-        elif name == "ao_palace_rooms":
-            result = ao_palace_rooms(
-                wing=arguments["wing"],
-                vault_path=vault_path,
-            )
-        elif name == "ao_palace_tunnel":
-            result = ao_palace_tunnel(
-                wing_a=arguments["wing_a"],
-                wing_b=arguments["wing_b"],
-                room=arguments.get("room", "shared"),
-                vault_path=vault_path,
-            )
-        elif name == "ao_validate":
-            result = ao_validate(
-                file_path=arguments["file_path"],
-                vault_path=vault_path,
-            )
-        elif name == "ao_wrap_up":
-            result = ao_wrap_up(vault_path)
-        elif name == "ao_status":
-            result = ao_status(vault_path)
-        elif name == "ao_orphans":
-            result = ao_orphans(vault_path)
-        elif name == "ao_kg_populate":
-            result = ao_kg_populate(vault_path)
-        elif name == "ao_sync":
-            result = ao_sync(vault_path)
-        elif name == "ao_write":
-            result = ao_write(arguments)
-        elif name == "ao_export":
-            result = ao_export(arguments)
-        elif name == "ao_import":
-            result = ao_import(arguments)
-        elif name == "ao_init":
-            result = ao_init(vault_path)
-        else:
-            result = {"error": f"Unhandled tool: {name}"}
-
-        return result
+        vault_path, arguments = _validate_call_arguments(arguments)
+        dispatcher = _TOOL_DISPATCH.get(name)
+        if dispatcher is None:
+            return {"error": f"Unhandled tool: {name}"}
+        return dispatcher(arguments, vault_path)
+    except ValueError as e:
+        return {"error": str(e)}
     except KeyError as e:
         return {"error": f"Missing required argument: {e}"}
     except Exception as e:

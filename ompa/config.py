@@ -10,7 +10,6 @@ import logging
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any
 from typing import Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -85,7 +84,7 @@ class DualVaultConfig:
         return self.shared_path is not None and self.personal_path is not None
 
     def classify_content(
-        self, content: str, tags: list[str] = None, file_path: str = None
+        self, content: str, tags: Optional[list[str]] = None, file_path: Optional[str] = None
     ) -> VaultTarget:
         """
         Classify content as shared or personal.
@@ -187,7 +186,7 @@ class DualVaultConfig:
             },
         }
 
-        vaults: dict[str, Any] = data["vaults"]  # type: ignore[assignment]
+        vaults: dict = data["vaults"]  # type: ignore[assignment]
         if self.shared_path:
             vaults["shared"] = {
                 "path": str(self.shared_path),
@@ -208,9 +207,9 @@ class DualVaultConfig:
 
 
 def make_ompa(
-    vault_path: str | Path = None,
-    shared_vault_path: str | Path = None,
-    personal_vault_path: str | Path = None,
+    vault_path: Optional[str | Path] = None,
+    shared_vault_path: Optional[str | Path] = None,
+    personal_vault_path: Optional[str | Path] = None,
     isolation_mode: str = "strict",
     enable_semantic: bool = False,
 ) -> Ompa:
