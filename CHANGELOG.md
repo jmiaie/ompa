@@ -11,6 +11,16 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [1.0.8] — 2026-05-09
+
+### Fixed
+
+- Sync git history with PyPI: versions 1.0.4–1.0.8 were published manually without corresponding git tags; this commit restores alignment.
+- `fix: annotation NameError on Python 3.10–3.13` — forward-reference in type annotations caused `NameError` on Python 3.10/3.11; resolved by quoting annotations or using `from __future__ import annotations`.
+- pip-audit added to CI security job for ongoing dependency vulnerability scanning.
+
+---
+
 ## [1.0.0] — 2026-05-07
 
 First stable release. Semver commitment begins here — no breaking public API changes without a major version bump.

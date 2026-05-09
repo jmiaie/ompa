@@ -1,6 +1,6 @@
 [project]
 name = "ompa"
-version = "1.0.0"
+version = "1.0.8"
 description = "Universal AI agent memory layer — vault + palace + temporal knowledge graph"
 readme = "README.md"
 license = {text = "MIT"}
