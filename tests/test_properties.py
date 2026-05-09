@@ -20,6 +20,22 @@ try:
 except ImportError:
     HYPOTHESIS_AVAILABLE = False
 
+    # No-op stubs so class bodies parse without error when hypothesis is absent.
+    def given(*_args, **_kwargs):
+        return lambda f: f
+
+    def settings(*_args, **_kwargs):
+        return lambda f: f
+
+    def assume(_cond):
+        pass
+
+    class _FakeSt:
+        def __getattr__(self, name):
+            return lambda *a, **kw: None
+
+    st = _FakeSt()  # type: ignore[assignment]
+
 pytestmark = pytest.mark.skipif(
     not HYPOTHESIS_AVAILABLE,
     reason="hypothesis not installed (pip install hypothesis)",
@@ -58,6 +74,15 @@ if HYPOTHESIS_AVAILABLE:
         "QUESTION", "SUGGESTION", "REVIEW", "BUG", "FEATURE",
         "LEARN", "RETROSPECTIVE", "ALERT", "STATUS", "CHORE",
     ])
+else:
+    # Placeholder names so class-body decorators like @given(subject=entity_name)
+    # have something to reference — they will never be called because pytestmark
+    # skips the entire module.
+    safe_text = None
+    entity_name = None
+    predicate_name = None
+    iso_date = None
+    message_type_str = None
 
 
 # ---------------------------------------------------------------------------
