@@ -294,8 +294,10 @@ class TestVaultProperties:
             note = vault.get_brain_note(note_name)
 
             assert note is not None, f"Expected to retrieve brain note '{note_name}'"
-            assert content in note.content, (
-                f"Content {content!r} not found in note"
+            # Vault strips surrounding whitespace on read (Markdown convention),
+            # so compare stripped content.
+            assert content.strip() in note.content, (
+                f"Content {content.strip()!r} not found in note"
             )
 
     @given(
