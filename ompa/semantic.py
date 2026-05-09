@@ -298,52 +298,57 @@ class SemanticIndex:
             logger.warning("Search error: %s", e)
             return self._keyword_search(query, limit)
 
-    def _keyword_search(self, query: str, limit: int) -> list[SearchResult]:
-        """Fallback keyword search using pure Python (no subprocess)."""
-        query_lower = query.lower()
+    def _keyword_search_chunks(self, query_lower: str, limit: int) -> list[SearchResult]:
+        """Keyword search against already-indexed chunks."""
         results = []
-
-        # Search through indexed chunks first
-        if self.chunks:
-            for chunk in self.chunks:
-                if query_lower in chunk["text"].lower():
-                    results.append(
-                        SearchResult(
-                            path=chunk["path"],
-                            content_excerpt=chunk["text"][:200],
-                            score=1.0,
-                            match_type="keyword",
-                        )
+        for chunk in self.chunks:
+            if query_lower in chunk["text"].lower():
+                results.append(
+                    SearchResult(
+                        path=chunk["path"],
+                        content_excerpt=chunk["text"][:200],
+                        score=1.0,
+                        match_type="keyword",
                     )
-                    if len(results) >= limit:
-                        break
-            return results
-
-        # Fallback: scan the vault directory
-        vault_path = self.index_path.parent.parent  # .palace/semantic_index -> vault
-        if vault_path.exists():
-            for md_file in vault_path.rglob("*.md"):
-                if any(excl in str(md_file) for excl in DEFAULT_EXCLUDE_PATTERNS):
-                    continue
-                try:
-                    content = md_file.read_text(encoding="utf-8")
-                    for line_content in content.split("\n"):
-                        if query_lower in line_content.lower():
-                            results.append(
-                                SearchResult(
-                                    path=str(md_file),
-                                    content_excerpt=line_content[:200],
-                                    score=1.0,
-                                    match_type="keyword",
-                                )
-                            )
-                            break
-                except Exception as e:
-                    logger.debug("Skipping %s: %s", md_file, e)
+                )
                 if len(results) >= limit:
                     break
-
         return results
+
+    def _keyword_search_vault_files(self, query_lower: str, limit: int) -> list[SearchResult]:
+        """Keyword search by scanning vault markdown files directly (no index)."""
+        results: list[SearchResult] = []
+        vault_path = self.index_path.parent.parent  # .palace/semantic_index -> vault
+        if not vault_path.exists():
+            return results
+        for md_file in vault_path.rglob("*.md"):
+            if any(excl in str(md_file) for excl in DEFAULT_EXCLUDE_PATTERNS):
+                continue
+            try:
+                content = md_file.read_text(encoding="utf-8")
+                for line_content in content.split("\n"):
+                    if query_lower in line_content.lower():
+                        results.append(
+                            SearchResult(
+                                path=str(md_file),
+                                content_excerpt=line_content[:200],
+                                score=1.0,
+                                match_type="keyword",
+                            )
+                        )
+                        break
+            except Exception as e:
+                logger.debug("Skipping %s: %s", md_file, e)
+            if len(results) >= limit:
+                break
+        return results
+
+    def _keyword_search(self, query: str, limit: int) -> list[SearchResult]:
+        """Fallback keyword search: uses indexed chunks when available, else scans files."""
+        query_lower = query.lower()
+        if self.chunks:
+            return self._keyword_search_chunks(query_lower, limit)
+        return self._keyword_search_vault_files(query_lower, limit)
 
     def clear(self) -> None:
         """Clear the index."""
