@@ -571,109 +571,19 @@ def doctor(
     vault_path: Path = Path("."),
 ):
     """Check vault health — structure, KG, palace, semantic index, orphans."""
-    from rich import box
-
     ao = Ompa(vault_path, enable_semantic=False)
-    checks: list[tuple[str, str, str]] = []
 
-    # Vault root
-    if vault_path.exists():
-        checks.append(("OK", "Vault root", str(vault_path.absolute())))
-    else:
-        checks.append(("ERROR", "Vault root", f"Not found: {vault_path.absolute()}"))
+    checks: list[_CheckRow] = [
+        _check_vault_root(vault_path),
+        *_check_folders(vault_path),
+        _check_palace(vault_path, ao),
+        _check_knowledge_graph(vault_path, ao),
+        _check_semantic_index(vault_path),
+        _check_orphans(ao),
+        _check_total_notes(ao),
+    ]
 
-    # Folder structure
-    for folder in ["brain", "work", "org", "perf"]:
-        fp = vault_path / folder
-        if fp.exists():
-            note_count = len(list(fp.rglob("*.md")))
-            checks.append(("OK", f"{folder}/", f"{note_count} notes"))
-        else:
-            checks.append(("WARN", f"{folder}/", "Missing — run `ao init` to create"))
-
-    # Palace metadata
-    palace_dir = vault_path / ".palace"
-    if palace_dir.exists():
-        ps = ao.palace.stats()
-        checks.append(
-            ("OK", ".palace/", f"{ps['wing_count']} wings, {ps['room_count']} rooms")
-        )
-    else:
-        checks.append(("WARN", ".palace/", "Not built — run `ao init`"))
-
-    # Knowledge graph
-    kg_db = vault_path / ".palace" / "knowledge_graph.sqlite3"
-    if kg_db.exists():
-        ks = ao.kg.stats()
-        if ks["triple_count"] > 0:
-            checks.append(
-                (
-                    "OK",
-                    "Knowledge Graph",
-                    f"{ks['entity_count']} entities, {ks['triple_count']} triples",
-                )
-            )
-        else:
-            checks.append(
-                ("WARN", "Knowledge Graph", "Empty — run `ao kg-populate` to fill")
-            )
-    else:
-        checks.append(("WARN", "Knowledge Graph", "Not initialized — run `ao init`"))
-
-    # Semantic index
-    index_path = vault_path / ".palace" / "semantic_index"
-    if index_path.exists() and any(index_path.iterdir()):
-        checks.append(("OK", "Semantic Index", "Present"))
-    else:
-        checks.append(
-            ("INFO", "Semantic Index", "Not built — run `ao rebuild-index` (optional)")
-        )
-
-    # Orphans
-    try:
-        orphan_list = ao.find_orphans()
-        if not orphan_list:
-            checks.append(("OK", "Orphan notes", "None"))
-        else:
-            checks.append(
-                ("WARN", "Orphan notes", f"{len(orphan_list)} notes with no wikilinks")
-            )
-    except Exception as e:
-        logger.warning("Orphan check failed: %s", e)
-        checks.append(("WARN", "Orphan notes", "Check failed"))
-
-    # Total notes
-    try:
-        vs = ao.get_stats()
-        checks.append(("OK", "Total notes", str(vs["total_notes"])))
-    except Exception as e:
-        logger.warning("Vault stats failed: %s", e)
-        checks.append(("WARN", "Total notes", "Could not read vault"))
-
-    # Render
-    styles = {"OK": "green", "WARN": "yellow", "ERROR": "red", "INFO": "blue"}
-    table = Table(title="OMPA Health Check", box=box.ROUNDED)
-    table.add_column("Status", width=8)
-    table.add_column("Check", min_width=22)
-    table.add_column("Detail")
-
-    for status, check, detail in checks:
-        s = styles.get(status, "white")
-        table.add_row(f"[{s}]{status}[/{s}]", check, detail)
-
-    console.print(table)
-
-    errors = sum(1 for s, _, _ in checks if s == "ERROR")
-    warns = sum(1 for s, _, _ in checks if s == "WARN")
-
-    if errors:
-        console.print(f"\n[red]✗ {errors} error(s), {warns} warning(s)[/red]")
-    elif warns:
-        console.print(
-            f"\n[yellow]⚠ {warns} warning(s) — vault operational but incomplete[/yellow]"
-        )
-    else:
-        console.print("\n[green]✓ Vault is healthy[/green]")
+    _render_doctor_table(checks)
 
 
 @app.command()
