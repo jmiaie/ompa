@@ -437,6 +437,99 @@ def migrate(
     console.print(f"  Config saved: {result['config_saved']}")
 
 
+# ---------------------------------------------------------------------------
+# doctor — per-check helpers
+# ---------------------------------------------------------------------------
+
+_CheckRow = tuple[str, str, str]  # (status, name, detail)
+
+
+def _check_vault_root(vault_path: Path) -> _CheckRow:
+    if vault_path.exists():
+        return ("OK", "Vault root", str(vault_path.absolute()))
+    return ("ERROR", "Vault root", f"Not found: {vault_path.absolute()}")
+
+
+def _check_folders(vault_path: Path) -> list[_CheckRow]:
+    rows: list[_CheckRow] = []
+    for folder in ["brain", "work", "org", "perf"]:
+        fp = vault_path / folder
+        if fp.exists():
+            rows.append(("OK", f"{folder}/", f"{len(list(fp.rglob('*.md')))} notes"))
+        else:
+            rows.append(("WARN", f"{folder}/", "Missing — run `ao init` to create"))
+    return rows
+
+
+def _check_palace(vault_path: Path, ao: "Ompa") -> _CheckRow:
+    palace_dir = vault_path / ".palace"
+    if palace_dir.exists():
+        ps = ao.palace.stats()
+        return ("OK", ".palace/", f"{ps['wing_count']} wings, {ps['room_count']} rooms")
+    return ("WARN", ".palace/", "Not built — run `ao init`")
+
+
+def _check_knowledge_graph(vault_path: Path, ao: "Ompa") -> _CheckRow:
+    kg_db = vault_path / ".palace" / "knowledge_graph.sqlite3"
+    if not kg_db.exists():
+        return ("WARN", "Knowledge Graph", "Not initialized — run `ao init`")
+    ks = ao.kg.stats()
+    if ks["triple_count"] > 0:
+        return ("OK", "Knowledge Graph", f"{ks['entity_count']} entities, {ks['triple_count']} triples")
+    return ("WARN", "Knowledge Graph", "Empty — run `ao kg-populate` to fill")
+
+
+def _check_semantic_index(vault_path: Path) -> _CheckRow:
+    index_path = vault_path / ".palace" / "semantic_index"
+    if index_path.exists() and any(index_path.iterdir()):
+        return ("OK", "Semantic Index", "Present")
+    return ("INFO", "Semantic Index", "Not built — run `ao rebuild-index` (optional)")
+
+
+def _check_orphans(ao: "Ompa") -> _CheckRow:
+    try:
+        orphan_list = ao.find_orphans()
+        if not orphan_list:
+            return ("OK", "Orphan notes", "None")
+        return ("WARN", "Orphan notes", f"{len(orphan_list)} notes with no wikilinks")
+    except Exception as e:
+        logger.warning("Orphan check failed: %s", e)
+        return ("WARN", "Orphan notes", "Check failed")
+
+
+def _check_total_notes(ao: "Ompa") -> _CheckRow:
+    try:
+        vs = ao.get_stats()
+        return ("OK", "Total notes", str(vs["total_notes"]))
+    except Exception as e:
+        logger.warning("Vault stats failed: %s", e)
+        return ("WARN", "Total notes", "Could not read vault")
+
+
+def _render_doctor_table(checks: list[_CheckRow]) -> None:
+    """Print the health-check table and summary line."""
+    from rich import box
+
+    styles = {"OK": "green", "WARN": "yellow", "ERROR": "red", "INFO": "blue"}
+    table = Table(title="OMPA Health Check", box=box.ROUNDED)
+    table.add_column("Status", width=8)
+    table.add_column("Check", min_width=22)
+    table.add_column("Detail")
+    for status, check, detail in checks:
+        s = styles.get(status, "white")
+        table.add_row(f"[{s}]{status}[/{s}]", check, detail)
+    console.print(table)
+
+    errors = sum(1 for s, _, _ in checks if s == "ERROR")
+    warns = sum(1 for s, _, _ in checks if s == "WARN")
+    if errors:
+        console.print(f"\n[red]✗ {errors} error(s), {warns} warning(s)[/red]")
+    elif warns:
+        console.print(f"\n[yellow]⚠ {warns} warning(s) — vault operational but incomplete[/yellow]")
+    else:
+        console.print("\n[green]✓ Vault is healthy[/green]")
+
+
 def _sync_remote(vault_path: Path, backend: str, remote: Optional[str], message: str) -> None:
     """Push vault to a remote backend and print the result."""
     from ompa.sync import GitSyncBackend, S3SyncBackend, RsyncBackend, SyncBackend

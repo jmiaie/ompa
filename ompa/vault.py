@@ -311,69 +311,86 @@ class Vault:
             "brain_notes": brain_count,
         }
 
+    def _resolve_validate_path(self, file_path: str) -> Optional[Path]:
+        """
+        Resolve file_path to an absolute path within the vault.
+        Returns None if the path escapes the vault.
+        """
+        try:
+            return _safe_resolve(self.vault_path, file_path)
+        except ValueError:
+            path = Path(file_path).resolve()
+            try:
+                path.relative_to(self.vault_path)
+                return path
+            except ValueError:
+                return None
+
+    def _is_exempt_from_validation(self, path: Path) -> bool:
+        """Return True for non-markdown, dotfiles, READMEs, and special folders."""
+        if path.suffix != ".md":
+            return True
+        if path.name.startswith(".") or path.name.startswith("README."):
+            return True
+        exempt_folders = {"templates", "thinking", ".claude"}
+        return bool(exempt_folders & set(path.parts))
+
+    def _check_frontmatter(self, content: str, warnings: list) -> bool:
+        """
+        Validate YAML frontmatter block.
+        Appends warning strings to `warnings`. Returns False if fundamentally invalid.
+        """
+        if not content.startswith("---"):
+            warnings.append("Missing YAML frontmatter")
+            return False
+        parts = content.split("---", 2)
+        if len(parts) >= 3:
+            fm = parts[1]
+            if "date:" not in fm and "date :" not in fm:
+                warnings.append("Missing 'date' in frontmatter")
+            if "description:" not in fm and "description :" not in fm:
+                warnings.append("Missing 'description' in frontmatter (~150 chars)")
+            if "tags:" not in fm and "tags :" not in fm:
+                warnings.append("Missing 'tags' in frontmatter")
+        return True
+
+    def _check_wikilinks(self, content: str, warnings: list) -> bool:
+        """
+        Check that non-trivial notes contain at least one [[wikilink]].
+        Returns False if the check fails.
+        """
+        if len(content) > 300 and "[[" not in content:
+            warnings.append(
+                "No [[wikilinks]] found — every note must link to at least one other note"
+            )
+            return False
+        return True
+
     def validate_write(self, file_path: str) -> dict:
         """
         Validate a markdown file for frontmatter and wikilinks.
         File must be within the vault directory.
         Returns {valid: bool, warnings: list[str]}.
         """
-        try:
-            path = _safe_resolve(self.vault_path, file_path)
-        except ValueError:
-            # Also handle absolute paths that are within the vault
-            path = Path(file_path).resolve()
-            try:
-                path.relative_to(self.vault_path)
-            except ValueError:
-                return {"valid": False, "warnings": ["Path is outside the vault"]}
-
-        warnings = []
-        valid = True
+        path = self._resolve_validate_path(file_path)
+        if path is None:
+            return {"valid": False, "warnings": ["Path is outside the vault"]}
 
         if not path.exists():
             return {"valid": False, "warnings": ["File does not exist"]}
 
-        if path.suffix != ".md":
+        if self._is_exempt_from_validation(path):
             return {"valid": True, "warnings": []}
 
-        # Skip dotfiles and template files
-        if path.name.startswith(".") or path.name.startswith("README."):
-            return {"valid": True, "warnings": []}
-
-        if (
-            "templates" in path.parts
-            or "thinking" in path.parts
-            or ".claude" in path.parts
-        ):
-            return {"valid": True, "warnings": []}
+        warnings: list = []
+        valid = True
 
         try:
             content = path.read_text(encoding="utf-8")
-
-            # Check frontmatter
-            if not content.startswith("---"):
-                warnings.append("Missing YAML frontmatter")
+            if not self._check_frontmatter(content, warnings):
                 valid = False
-            else:
-                parts = content.split("---", 2)
-                if len(parts) >= 3:
-                    fm = parts[1]
-                    if "date:" not in fm and "date :" not in fm:
-                        warnings.append("Missing 'date' in frontmatter")
-                    if "description:" not in fm and "description :" not in fm:
-                        warnings.append(
-                            "Missing 'description' in frontmatter (~150 chars)"
-                        )
-                    if "tags:" not in fm and "tags :" not in fm:
-                        warnings.append("Missing 'tags' in frontmatter")
-
-            # Check wikilinks (skip very short notes)
-            if len(content) > 300 and "[[" not in content:
-                warnings.append(
-                    "No [[wikilinks]] found — every note must link to at least one other note"
-                )
+            if not self._check_wikilinks(content, warnings):
                 valid = False
-
         except Exception as e:
             warnings.append(f"Error reading file: {type(e).__name__}")
             valid = False

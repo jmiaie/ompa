@@ -225,7 +225,7 @@ class MessageClassifier:
             )
 
         # Get highest scoring type
-        best_type = max(scores, key=scores.get)
+        best_type = max(scores, key=lambda t: scores[t])
         confidence = min(scores[best_type] / 3.0, 1.0)  # Normalize to 0-1
 
         # For short messages, reduce confidence

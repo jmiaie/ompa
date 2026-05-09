@@ -226,6 +226,47 @@ class SemanticIndex:
             logger.warning("Error loading index: %s", e)
             return False
 
+    def _dedupe_by_path(
+        self, results: list[SearchResult], limit: int
+    ) -> list[SearchResult]:
+        """Return the top-scoring unique-path results up to limit."""
+        seen: set[str] = set()
+        unique: list[SearchResult] = []
+        for r in results:
+            if r.path not in seen:
+                seen.add(r.path)
+                unique.append(r)
+                if len(unique) >= limit:
+                    break
+        return unique
+
+    def _score_all_chunks(
+        self, query: str, query_embedding, hybrid: bool
+    ) -> list[SearchResult]:
+        """Score every chunk in the index and return unsorted SearchResults."""
+        results = []
+        query_words = set(query.lower().split())
+        for chunk in self.chunks:
+            similarity = _cosine_similarity(query_embedding, chunk["embedding"])
+            keyword_boost = 0.0
+            if hybrid and query_words:
+                chunk_words = set(chunk["text"].lower().split())
+                overlap = query_words & chunk_words
+                if overlap:
+                    keyword_boost = len(overlap) / len(query_words) * 0.3
+            excerpt = (
+                chunk["text"][:300] + "..." if len(chunk["text"]) > 300 else chunk["text"]
+            )
+            results.append(
+                SearchResult(
+                    path=chunk["path"],
+                    content_excerpt=excerpt,
+                    score=similarity + keyword_boost,
+                    match_type="hybrid" if hybrid and keyword_boost > 0 else "semantic",
+                )
+            )
+        return results
+
     def search(
         self,
         query: str,
@@ -250,56 +291,9 @@ class SemanticIndex:
 
         try:
             query_embedding = self.model.encode(query)
-
-            best_results = []
-
-            for chunk in self.chunks:
-                # Semantic similarity
-                chunk_embedding = chunk["embedding"]
-                similarity = _cosine_similarity(query_embedding, chunk_embedding)
-
-                # Keyword boost
-                keyword_boost = 0.0
-                if hybrid:
-                    query_lower = query.lower()
-                    chunk_lower = chunk["text"].lower()
-                    query_words = set(query_lower.split())
-                    chunk_words = set(chunk_lower.split())
-                    overlap = query_words & chunk_words
-                    if overlap:
-                        keyword_boost = len(overlap) / len(query_words) * 0.3
-
-                combined_score = similarity + keyword_boost
-
-                best_results.append(
-                    SearchResult(
-                        path=chunk["path"],
-                        content_excerpt=(
-                            chunk["text"][:300] + "..."
-                            if len(chunk["text"]) > 300
-                            else chunk["text"]
-                        ),
-                        score=combined_score,
-                        match_type=(
-                            "hybrid" if hybrid and keyword_boost > 0 else "semantic"
-                        ),
-                    )
-                )
-
-            # Sort by score and dedupe by path
-            best_results.sort(key=lambda r: r.score, reverse=True)
-
-            seen_paths = set()
-            unique_results = []
-            for result in best_results:
-                if result.path not in seen_paths:
-                    seen_paths.add(result.path)
-                    unique_results.append(result)
-                    if len(unique_results) >= limit:
-                        break
-
-            return unique_results
-
+            scored = self._score_all_chunks(query, query_embedding, hybrid)
+            scored.sort(key=lambda r: r.score, reverse=True)
+            return self._dedupe_by_path(scored, limit)
         except Exception as e:
             logger.warning("Search error: %s", e)
             return self._keyword_search(query, limit)

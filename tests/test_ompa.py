@@ -1044,8 +1044,8 @@ class TestDualVault:
             assert "Invalid note_path" in result["error"]
 
 
-class TestSemanticIndex:
-    """Test semantic index lazy initialization behavior."""
+class TestDualVaultExtended:
+    """Additional dual-vault tests: cross-vault search, isolation, export, path traversal."""
 
     def test_index_vault_initializes_model(self, monkeypatch):
         """index_vault() should initialize the model before indexing."""
