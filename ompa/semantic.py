@@ -10,9 +10,7 @@ import logging
 import hashlib
 from pathlib import Path
 from dataclasses import dataclass
-from typing import Any, Optional, Protocol, runtime_checkable
-# TypedDict for chunk records stored in the semantic index
-from typing import TypedDict
+from typing import Optional, Protocol, TypedDict, runtime_checkable
 
 
 class _ChunkRecord(TypedDict):
@@ -35,7 +33,7 @@ class EmbeddingBackend(Protocol):
 
 
 def _cosine_similarity(a, b) -> float:
-    """Pure-numpy cosine similarity — no sentence_transformers.util needed."""
+    """Pure-numpy cosine similarity — works regardless of which embedding backend is active."""
     try:
         import numpy as np
         a = np.array(a, dtype=float)
@@ -79,7 +77,8 @@ class SemanticIndex:
         self.embeddings = None
         self.chunks: list[_ChunkRecord] = []
         self._initialized = False
-        # Accept a pre-built backend (e.g. NIMEmbeddingBackend) or load lazily
+        # Pre-built backend (e.g. NIMEmbeddingBackend) skips lazy model load;
+        # None means sentence-transformers will be loaded on first access.
         self._model: Optional[EmbeddingBackend] = embedding_backend
         if embedding_backend is not None:
             self._initialized = True

@@ -5,7 +5,6 @@ Inspired by MemPalace. Manages the structured metadata that accelerates retrieva
 
 import json
 from pathlib import Path
-from typing import cast
 from typing import Optional
 
 HALL_TYPES = [
@@ -191,20 +190,22 @@ class Palace:
 
     def traverse(self, wing: str, room: str) -> dict:
         """Walk the palace from a room across all connected wings via tunnels."""
-        result = {
+        tunnels: list[dict] = self.find_tunnels_by_room(room)
+        connected: list[dict] = []
+        result: dict = {
             "wing": wing,
             "room": room,
             "room_data": self.get_room(wing, room),
-            "tunnels": self.find_tunnels_by_room(room),
-            "connected": [],
+            "tunnels": tunnels,
+            "connected": connected,
         }
-        for tunnel in result["tunnels"]:
+        for tunnel in tunnels:
             other_wing = (
                 tunnel["wing_b"] if tunnel["wing_a"] == wing else tunnel["wing_a"]
             )
             connected_room = self.get_room(other_wing, room)
             if connected_room:
-                cast("list", result["connected"]).append(
+                connected.append(
                     {
                         "wing": other_wing,
                         "room": room,

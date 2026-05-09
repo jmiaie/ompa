@@ -299,6 +299,76 @@ class KnowledgeGraph:
     # Auto-population from vault
     # -------------------------------------------------------------------------
 
+    def _load_note_content(self, note_path: Path) -> tuple[str, dict]:
+        """Load note text and frontmatter metadata. Raises on unreadable files."""
+        try:
+            import frontmatter as fm
+            post = fm.load(note_path)
+            return post.content, dict(post.metadata)
+        except Exception as e:
+            logger.debug("Frontmatter parse failed for %s: %s", note_path, e)
+            return note_path.read_text(encoding="utf-8"), {}
+
+    def _extract_wikilink_triples(self, note_name: str, content: str, source: str) -> int:
+        """Add links_to triples for each [[wikilink]] in content. Returns count."""
+        from .vault import Note as _Note
+        count = 0
+        for target in _Note._extract_wikilinks(content):
+            self.add_triple(note_name, "links_to", target, source=source)
+            count += 1
+        return count
+
+    def _extract_tag_triples(self, note_name: str, metadata: dict, source: str) -> int:
+        """Add has_tag triples from frontmatter tags. Returns count."""
+        count = 0
+        tags = metadata.get("tags", [])
+        if isinstance(tags, str):
+            tags = [t.strip() for t in tags.split(",") if t.strip()]
+        if isinstance(tags, list):
+            for tag in tags:
+                if isinstance(tag, str) and tag.strip():
+                    self.add_triple(note_name, "has_tag", tag.strip(), source=source)
+                    count += 1
+        return count
+
+    def _extract_folder_triples(
+        self, note_name: str, note_path: Path, vault_path: Path, source: str
+    ) -> int:
+        """Add in_folder / in_subfolder triples from the note's path. Returns count."""
+        count = 0
+        try:
+            parts = note_path.relative_to(vault_path).parts
+            if len(parts) > 1:
+                self.add_triple(note_name, "in_folder", parts[0], source=source)
+                count += 1
+                if len(parts) > 2:
+                    self.add_triple(
+                        note_name, "in_subfolder", f"{parts[0]}/{parts[1]}", source=source
+                    )
+                    count += 1
+        except ValueError:
+            pass
+        return count
+
+    def _extract_date_triple(self, note_name: str, metadata: dict, source: str) -> int:
+        """Add created_on triple from frontmatter date. Returns 1 if added, else 0."""
+        date_val = metadata.get("date")
+        if date_val:
+            date_str = str(date_val)[:10]
+            self.add_triple(
+                note_name, "created_on", date_str, valid_from=date_str, source=source
+            )
+            return 1
+        return 0
+
+    def _extract_description_entity(self, note_name: str, metadata: dict) -> int:
+        """Register entity when a meaningful description is present. Returns 1 if added."""
+        desc = metadata.get("description")
+        if desc and isinstance(desc, str) and len(desc) > 10:
+            self.add_entity(note_name, entity_type="note")
+            return 1
+        return 0
+
     def populate_from_note(self, note_path: Path, vault_path: Optional[Path] = None) -> int:
         """
         Extract and store triples from a single vault note.
@@ -314,78 +384,21 @@ class KnowledgeGraph:
         if not note_path.exists() or note_path.suffix != ".md":
             return 0
 
-        count = 0
         note_name = note_path.stem
         source = str(note_path)
 
         try:
-            import frontmatter as fm
-
-            post = fm.load(note_path)
-            content = post.content
-            metadata = dict(post.metadata)
+            content, metadata = self._load_note_content(note_path)
         except Exception as e:
-            logger.debug("Frontmatter parse failed for %s: %s", note_path, e)
-            try:
-                content = note_path.read_text(encoding="utf-8")
-                metadata = {}
-            except Exception as e:
-                logger.debug("Could not read %s: %s", note_path, e)
-                return 0
+            logger.debug("Could not read %s: %s", note_path, e)
+            return 0
 
-        # 1. Wikilinks → links_to triples
-        from .vault import Note as _Note
-        for target in _Note._extract_wikilinks(content):
-            self.add_triple(note_name, "links_to", target, source=source)
-            count += 1
-
-        # 2. Frontmatter tags → has_tag triples
-        tags = metadata.get("tags", [])
-        if isinstance(tags, str):
-            tags = [t.strip() for t in tags.split(",") if t.strip()]
-        if isinstance(tags, list):
-            for tag in tags:
-                if isinstance(tag, str) and tag.strip():
-                    self.add_triple(note_name, "has_tag", tag.strip(), source=source)
-                    count += 1
-
-        # 3. Folder membership
+        count = self._extract_wikilink_triples(note_name, content, source)
+        count += self._extract_tag_triples(note_name, metadata, source)
         if vault_path:
-            try:
-                rel = note_path.relative_to(vault_path)
-                parts = rel.parts
-                if len(parts) > 1:
-                    folder = parts[0]  # top-level: brain, work, org, perf
-                    self.add_triple(note_name, "in_folder", folder, source=source)
-                    count += 1
-                    # Sub-folder (e.g., work/active, org/people)
-                    if len(parts) > 2:
-                        subfolder = f"{parts[0]}/{parts[1]}"
-                        self.add_triple(
-                            note_name, "in_subfolder", subfolder, source=source
-                        )
-                        count += 1
-            except ValueError:
-                pass
-
-        # 4. Frontmatter date → created_on
-        date_val = metadata.get("date")
-        if date_val:
-            date_str = str(date_val)[:10]  # YYYY-MM-DD
-            self.add_triple(
-                note_name,
-                "created_on",
-                date_str,
-                valid_from=date_str,
-                source=source,
-            )
-            count += 1
-
-        # 5. Frontmatter description → has_description (for search context)
-        desc = metadata.get("description")
-        if desc and isinstance(desc, str) and len(desc) > 10:
-            self.add_entity(note_name, entity_type="note")
-            count += 1
+            count += self._extract_folder_triples(note_name, note_path, vault_path, source)
+        count += self._extract_date_triple(note_name, metadata, source)
+        count += self._extract_description_entity(note_name, metadata)
 
         return count
 

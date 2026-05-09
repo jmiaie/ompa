@@ -323,7 +323,7 @@ class Ompa:
             room: Filter by palace room
             vaults: Which vaults to search. Options: ["shared"], ["personal"],
                     ["shared", "personal"]. Default: ["shared"] in dual mode,
-                    or the single vault in legacy mode.
+                    or the single vault in single-vault mode.
         """
         # Determine which vaults to search
         if not self.is_dual_vault:
@@ -400,7 +400,7 @@ class Ompa:
 
     def rebuild_index(self) -> int:
         """Rebuild the semantic index."""
-        semantic = self.semantic  # access property once; narrows Optional
+        semantic = self.semantic
         if semantic is None:
             return 0
         semantic.clear()
@@ -497,7 +497,7 @@ class Ompa:
         }
 
         # Sync personal vault too if in dual mode
-        if self.is_dual_vault:
+        if self.is_dual_vault and self.personal_kg and self.personal_palace and self.dual_config.personal_path:
             p_kg = self.personal_kg.populate_from_vault(self.dual_config.personal_path)
             p_palace = self.personal_palace.auto_build_from_vault(
                 self.dual_config.personal_path
@@ -539,17 +539,17 @@ class Ompa:
         # Determine target vault
         if not self.is_dual_vault:
             target = VaultTarget.SHARED
-            target_vault = self.vault
+            target_vault: Vault = self.vault
         elif vault:
             target = VaultTarget(vault)
             target_vault = (
-                self.vault if target == VaultTarget.SHARED else self.personal_vault
+                self.vault if target == VaultTarget.SHARED else (self.personal_vault or self.vault)
             )
         elif self.dual_config.isolation_mode == IsolationMode.MANUAL:
             # In manual mode, default to personal (safe default)
             target = self.dual_config.default_vault
             target_vault = (
-                self.vault if target == VaultTarget.SHARED else self.personal_vault
+                self.vault if target == VaultTarget.SHARED else (self.personal_vault or self.vault)
             )
         else:
             # Auto-classify
@@ -557,7 +557,7 @@ class Ompa:
                 content, tags=tags, file_path=file_path
             )
             target_vault = (
-                self.vault if target == VaultTarget.SHARED else self.personal_vault
+                self.vault if target == VaultTarget.SHARED else (self.personal_vault or self.vault)
             )
 
         # Build file path if not provided
@@ -611,7 +611,7 @@ class Ompa:
         Returns:
             dict with {success, source, target, sanitized, preview}
         """
-        if not self.is_dual_vault:
+        if not self.is_dual_vault or not self.dual_config.personal_path or not self.dual_config.shared_path:
             return {"success": False, "error": "Not in dual-vault mode"}
 
         # Validate paths upfront to prevent traversal
@@ -682,7 +682,7 @@ class Ompa:
         Returns:
             dict with {success, source, target}
         """
-        if not self.is_dual_vault:
+        if not self.is_dual_vault or not self.dual_config.shared_path or not self.dual_config.personal_path:
             return {"success": False, "error": "Not in dual-vault mode"}
 
         # Validate paths upfront to prevent traversal
