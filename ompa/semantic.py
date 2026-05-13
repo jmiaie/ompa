@@ -10,11 +10,21 @@ import logging
 import hashlib
 from pathlib import Path
 from dataclasses import dataclass
-from typing import Any, Optional, Protocol, runtime_checkable
+from typing import Optional, Protocol, TypedDict, runtime_checkable
 
-from .vault import DEFAULT_EXCLUDE_PATTERNS
+from .vault import DEFAULT_EXCLUDE_PATTERNS, _is_excluded
 
 logger = logging.getLogger(__name__)
+
+
+class ChunkDict(TypedDict):
+    """A single indexed text chunk with its embedding."""
+
+    hash: str
+    path: str
+    chunk_index: int
+    text: str
+    embedding: list[float]
 
 
 @runtime_checkable
@@ -32,7 +42,8 @@ def _cosine_similarity(a, b) -> float:
         b = np.array(b, dtype=float)
         norm = np.linalg.norm(a) * np.linalg.norm(b)
         return float(np.dot(a, b) / norm) if norm > 1e-9 else 0.0
-    except Exception:
+    except Exception as e:
+        logger.warning("Cosine similarity failed: %s", e)
         return 0.0
 
 
@@ -64,7 +75,7 @@ class SemanticIndex:
         self.model_name = model_name
         self.embedding_dim = embedding_dim
         self.embeddings = None
-        self.chunks: list[dict[str, Any]] = []
+        self.chunks: list[ChunkDict] = []
         self._initialized = False
         # Accept a pre-built backend (e.g. NIMEmbeddingBackend) or load lazily
         self._model: Optional[EmbeddingBackend] = embedding_backend
@@ -168,7 +179,7 @@ class SemanticIndex:
             logger.debug("Removed %d chunks for %s", removed, path)
         return removed > 0
 
-    def index_vault(self, vault_path: Path, exclude_patterns: list = None) -> int:
+    def index_vault(self, vault_path: Path, exclude_patterns: Optional[list[str]] = None) -> int:
         """Index all markdown files in a vault."""
         exclude_patterns = exclude_patterns or DEFAULT_EXCLUDE_PATTERNS
         count = 0
@@ -179,7 +190,7 @@ class SemanticIndex:
             return 0
 
         for path in vault_path.rglob("*.md"):
-            if any(excl in str(path) for excl in exclude_patterns):
+            if _is_excluded(path, exclude_patterns):
                 continue
             self.index_file(path)
             count += 1
@@ -317,7 +328,7 @@ class SemanticIndex:
         vault_path = self.index_path.parent.parent  # .palace/semantic_index -> vault
         if vault_path.exists():
             for md_file in vault_path.rglob("*.md"):
-                if any(excl in str(md_file) for excl in DEFAULT_EXCLUDE_PATTERNS):
+                if _is_excluded(md_file, DEFAULT_EXCLUDE_PATTERNS):
                     continue
                 try:
                     content = md_file.read_text(encoding="utf-8")

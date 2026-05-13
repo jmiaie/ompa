@@ -225,7 +225,7 @@ def tunnel(
 @app.command()
 def kg_query(
     entity: str,
-    as_of: str = None,
+    as_of: Optional[str] = None,
     vault_path: Path = Path("."),
 ):
     """Query the knowledge graph."""
@@ -542,15 +542,15 @@ def doctor(
             checks.append(
                 ("WARN", "Orphan notes", f"{len(orphan_list)} notes with no wikilinks")
             )
-    except Exception:
-        checks.append(("WARN", "Orphan notes", "Check failed"))
+    except Exception as e:
+        checks.append(("WARN", "Orphan notes", f"Check failed: {e}"))
 
     # Total notes
     try:
         vs = ao.get_stats()
         checks.append(("OK", "Total notes", str(vs["total_notes"])))
-    except Exception:
-        checks.append(("WARN", "Total notes", "Could not read vault"))
+    except Exception as e:
+        checks.append(("WARN", "Total notes", f"Could not read vault: {e}"))
 
     # Render
     styles = {"OK": "green", "WARN": "yellow", "ERROR": "red", "INFO": "blue"}

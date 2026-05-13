@@ -1,14 +1,14 @@
 """
 OMPA — Universal AI Agent Memory Layer
 Core module integrating vault, palace, KG, hooks, classifier, and semantic search.
-Supports single-vault (legacy) and dual-vault (shared + personal) architecture.
+Supports single-vault and dual-vault (shared + personal) architecture.
 """
 
 import logging
 import re
 import shutil
 from pathlib import Path
-from typing import Any, Optional
+from typing import Optional
 
 from .vault import Vault, Note, _safe_resolve
 from .palace import Palace
@@ -33,7 +33,7 @@ class Ompa:
     - Classifier (15 message types with routing hints)
     - Semantic Search (local sentence-transformers)
 
-    Usage (single vault — legacy):
+    Usage (single vault):
         ao = Ompa(vault_path="./workspace")
 
     Usage (dual vault):
@@ -46,13 +46,13 @@ class Ompa:
 
     def __init__(
         self,
-        vault_path: str | Path = None,
+        vault_path: Optional[str | Path] = None,
         agent_name: str = "agent",
         enable_semantic: bool = True,
         embedding_backend=None,  # EmbeddingBackend protocol — e.g. NIMEmbeddingBackend
         # Dual-vault parameters
-        shared_vault_path: str | Path = None,
-        personal_vault_path: str | Path = None,
+        shared_vault_path: Optional[str | Path] = None,
+        personal_vault_path: Optional[str | Path] = None,
         isolation_mode: str = "strict",
     ):
         self.agent_name = agent_name
@@ -92,21 +92,20 @@ class Ompa:
                 )
             )
         else:
-            # Single-vault mode (legacy / backward compatible)
+            # Single-vault mode
             self.vault_path = Path(vault_path or ".")
             self.vault = Vault(self.vault_path)
             self.palace = Palace(self.vault_path / ".palace")
             self.kg = KnowledgeGraph(
                 db_path=str(self.vault_path / ".palace" / "knowledge_graph.sqlite3")
             )
-            self.personal_vault = None
-            self.personal_palace = None
-            self.personal_kg = None
+            self.personal_vault: Optional[Vault] = None
+            self.personal_palace: Optional[Palace] = None
+            self.personal_kg: Optional[KnowledgeGraph] = None
 
         self.classifier = MessageClassifier()
         self.hooks = HookManager(self.vault_path, agent_name=self.agent_name)
 
-        # Semantic search (lazy-loaded); annotated explicitly to help mypy
         self._semantic: Optional[SemanticIndex] = None
         self._personal_semantic: Optional[SemanticIndex] = None
 
@@ -117,7 +116,6 @@ class Ompa:
 
     @property
     def semantic(self) -> Optional[SemanticIndex]:
-        """Lazy-load semantic index on first access."""
         if self._semantic is None and self._enable_semantic:
             self._semantic = SemanticIndex(
                 index_path=self.vault_path / ".palace" / "semantic_index",
@@ -131,7 +129,6 @@ class Ompa:
 
     @property
     def personal_semantic(self) -> Optional[SemanticIndex]:
-        """Lazy-load personal semantic index."""
         if (
             self._personal_semantic is None
             and self._enable_semantic
@@ -160,21 +157,20 @@ class Ompa:
         Loads ~2K tokens: vault listing, North Star, active work, palace wings, KG stats.
         Auto-populates KG from vault if empty. Builds semantic index if missing.
         """
-        # Auto-populate KG if empty
         try:
             kg_stats = self.kg.stats()
             if kg_stats["triple_count"] == 0:
                 count = self.kg.populate_from_vault(self.vault_path)
                 logger.info("Auto-populated KG with %d triples on session start", count)
         except Exception as e:
-            logger.debug("KG auto-population skipped: %s", e)
+            logger.warning("KG auto-population failed: %s", e)
 
         # Trigger semantic index build if needed (lazy property handles this)
         if self._enable_semantic:
             try:
                 _ = self.semantic  # triggers lazy build
             except Exception as e:
-                logger.debug("Semantic index build skipped: %s", e)
+                logger.warning("Semantic index build failed: %s", e)
 
         result = self.hooks.run_session_start(self)
         self._session_started = True
@@ -239,12 +235,11 @@ class Ompa:
         try:
             # Determine wing and room from path
             parts = path.parts
+            room = path.stem.lower().replace(" ", "-")
             if "brain" in parts:
                 wing = "brain"
-                room = path.stem.lower().replace(" ", "-")
             elif "work" in parts:
                 wing = "work"
-                room = path.stem.lower().replace(" ", "-")
             elif "org" in parts and "people" in parts:
                 wing = path.stem  # person name
                 room = "context"
@@ -254,7 +249,7 @@ class Ompa:
             self.palace.create_room(wing, room)
             self.palace.link_drawer(wing, room, str(path))
         except Exception as e:
-            logger.debug("Palace auto-add failed for %s: %s", file_path, e)
+            logger.warning("Palace auto-add failed for %s: %s", file_path, e)
 
     def _auto_update_kg(self, path: Path) -> None:
         """Auto-update knowledge graph when a note is written/edited."""
@@ -265,7 +260,7 @@ class Ompa:
             if added > 0:
                 logger.debug("KG updated: %d triples from %s", added, path.name)
         except Exception as e:
-            logger.debug("KG auto-update failed for %s: %s", path, e)
+            logger.warning("KG auto-update failed for %s: %s", path, e)
 
     def _auto_update_index(self, path: Path) -> None:
         """Incrementally update semantic index when a note is written/edited."""
@@ -276,7 +271,7 @@ class Ompa:
                 self._semantic.update_file(path)
                 logger.debug("Search index updated for %s", path.name)
         except Exception as e:
-            logger.debug("Index auto-update failed for %s: %s", path, e)
+            logger.warning("Index auto-update failed for %s: %s", path, e)
 
     # -------------------------------------------------------------------------
     # Classification
@@ -304,9 +299,9 @@ class Ompa:
         query: str,
         limit: int = 5,
         hybrid: bool = True,
-        wing: str = None,
-        room: str = None,
-        vaults: list[str] = None,
+        wing: Optional[str] = None,
+        room: Optional[str] = None,
+        vaults: Optional[list[str]] = None,
     ) -> list[SearchResult]:
         """
         Search the vault(s) semantically.
@@ -364,8 +359,8 @@ class Ompa:
         query: str,
         limit: int,
         hybrid: bool,
-        wing: str = None,
-        room: str = None,
+        wing: Optional[str] = None,
+        room: Optional[str] = None,
     ) -> list[SearchResult]:
         """Search a single vault."""
         if semantic is None:
@@ -439,7 +434,7 @@ class Ompa:
             self._auto_update_index(brain_path)
             self._auto_add_to_palace(str(brain_path))
 
-    def get_brain_note(self, name: str) -> Optional[object]:
+    def get_brain_note(self, name: str) -> Optional["Note"]:
         """Get a brain note by name."""
         return self.vault.get_brain_note(name)
 
@@ -460,15 +455,15 @@ class Ompa:
         subject: str,
         predicate: str,
         object: str,
-        valid_from: str = None,
-        source: str = None,
+        valid_from: Optional[str] = None,
+        source: Optional[str] = None,
     ) -> None:
         """Add a fact to the knowledge graph."""
         self.kg.add_triple(
             subject, predicate, object, valid_from=valid_from, source=source
         )
 
-    def kg_query(self, entity: str, as_of: str = None) -> list:
+    def kg_query(self, entity: str, as_of: Optional[str] = None) -> list:
         """Query the knowledge graph."""
         return self.kg.query_entity(entity, as_of=as_of)
 
@@ -515,9 +510,9 @@ class Ompa:
     def write(
         self,
         content: str,
-        file_path: str = None,
-        tags: list[str] = None,
-        vault: str = None,
+        file_path: Optional[str] = None,
+        tags: Optional[list[str]] = None,
+        vault: Optional[str] = None,
     ) -> dict:
         """
         Write content to the appropriate vault.
@@ -573,7 +568,7 @@ class Ompa:
         # Write the note
         from datetime import datetime
 
-        frontmatter: dict[str, Any] = {
+        frontmatter: dict[str, object] = {
             "date": datetime.now().strftime("%Y-%m-%d"),
             "tags": tags,
             "vault": target.value,

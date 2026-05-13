@@ -180,8 +180,10 @@ class VaultMigrator:
         if version_file.exists():
             try:
                 return int(version_file.read_text().strip())
-            except (ValueError, OSError):
-                pass
+            except ValueError as e:
+                logger.warning("schema_version file has invalid content: %s", e)
+            except OSError as e:
+                logger.warning("Could not read schema_version: %s", e)
 
         # Heuristic: infer version from what exists
         kg_path = vault_path / ".palace" / "knowledge_graph.sqlite3"
@@ -199,7 +201,8 @@ class VaultMigrator:
             if "idx_triples_subject_date" in index_names:
                 return 2
             return 1
-        except Exception:
+        except sqlite3.Error as e:
+            logger.warning("Could not inspect KG indexes for version detection: %s", e)
             return 1
 
     def _write_version(self, vault_path: Path, version: int) -> None:

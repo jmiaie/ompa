@@ -32,7 +32,7 @@ import logging
 from concurrent.futures import ThreadPoolExecutor
 from functools import partial
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -144,9 +144,9 @@ class AsyncOmpa:
         query: str,
         limit: int = 5,
         hybrid: bool = True,
-        wing: str = None,
-        room: str = None,
-        vaults: list[str] = None,
+        wing: Optional[str] = None,
+        room: Optional[str] = None,
+        vaults: Optional[list[str]] = None,
     ) -> list:
         """Async semantic search across vault(s)."""
         return await self._run(
@@ -176,8 +176,8 @@ class AsyncOmpa:
         subject: str,
         predicate: str,
         object: str,
-        valid_from: str = None,
-        source: str = None,
+        valid_from: Optional[str] = None,
+        source: Optional[str] = None,
     ) -> None:
         """Async KG triple write."""
         return await self._run(
@@ -189,7 +189,7 @@ class AsyncOmpa:
             source=source,
         )
 
-    async def kg_query(self, entity: str, as_of: str = None) -> list:
+    async def kg_query(self, entity: str, as_of: Optional[str] = None) -> list:
         """Async KG entity query."""
         return await self._run(self._ompa.kg_query, entity, as_of=as_of)
 

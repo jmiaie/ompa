@@ -25,6 +25,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
+from .vault import DEFAULT_EXCLUDE_PATTERNS
+
 logger = logging.getLogger(__name__)
 
 DEFAULT_KG_PATH = "~/.ompa/knowledge_graph.sqlite3"
@@ -55,7 +57,7 @@ def _row_to_triple(row: sqlite3.Row) -> Triple:
 
 
 class KnowledgeGraph:
-    def __init__(self, db_path: str = None):
+    def __init__(self, db_path: Optional[str] = None):
         self.db_path = Path(db_path or DEFAULT_KG_PATH).expanduser()
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._local = threading.local()  # per-thread connection cache
@@ -147,7 +149,7 @@ class KnowledgeGraph:
                 (entity_id, name, entity_type),
             )
 
-    def query_entity(self, name: str, as_of: str = None) -> list[Triple]:
+    def query_entity(self, name: str, as_of: Optional[str] = None) -> list[Triple]:
         """
         Query all current triples for an entity.
 
@@ -191,10 +193,10 @@ class KnowledgeGraph:
         subject: str,
         predicate: str,
         object: str,
-        valid_from: str = None,
-        valid_to: str = None,
+        valid_from: Optional[str] = None,
+        valid_to: Optional[str] = None,
         confidence: float = 1.0,
-        source: str = None,
+        source: Optional[str] = None,
     ) -> None:
         """
         Add a fact triple to the knowledge graph.
@@ -240,7 +242,7 @@ class KnowledgeGraph:
             )
 
     def invalidate(
-        self, subject: str, predicate: str, obj: str, ended: str = None
+        self, subject: str, predicate: str, obj: str, ended: Optional[str] = None
     ) -> None:
         """
         Invalidate a triple by setting its valid_to date.
@@ -300,7 +302,7 @@ class KnowledgeGraph:
     # Auto-population from vault
     # -------------------------------------------------------------------------
 
-    def populate_from_note(self, note_path: Path, vault_path: Path = None) -> int:
+    def populate_from_note(self, note_path: Path, vault_path: Optional[Path] = None) -> int:
         """
         Extract and store triples from a single vault note.
 
@@ -325,7 +327,8 @@ class KnowledgeGraph:
             post = fm.load(note_path)
             content = post.content
             metadata = dict(post.metadata)
-        except Exception:
+        except Exception as e:
+            logger.debug("Frontmatter parse failed for %s: %s", note_path, e)
             try:
                 content = note_path.read_text(encoding="utf-8")
                 metadata = {}
@@ -393,7 +396,7 @@ class KnowledgeGraph:
         return count
 
     def populate_from_vault(
-        self, vault_path: Path, exclude_patterns: list = None
+        self, vault_path: Path, exclude_patterns: Optional[list[str]] = None
     ) -> int:
         """
         Scan all vault notes and populate the knowledge graph.
@@ -405,14 +408,14 @@ class KnowledgeGraph:
         Returns:
             Total number of triples added.
         """
-        from .vault import DEFAULT_EXCLUDE_PATTERNS
+        from .vault import _is_excluded
 
         exclude_patterns = exclude_patterns or DEFAULT_EXCLUDE_PATTERNS
         total = 0
         vault_path = Path(vault_path)
 
         for md_file in vault_path.rglob("*.md"):
-            if any(excl in str(md_file) for excl in exclude_patterns):
+            if _is_excluded(md_file, exclude_patterns):
                 continue
             added = self.populate_from_note(md_file, vault_path)
             total += added
