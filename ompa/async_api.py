@@ -32,7 +32,9 @@ import logging
 from concurrent.futures import ThreadPoolExecutor
 from functools import partial
 from pathlib import Path
-from typing import Any, List, Optional
+from typing import Callable, Optional, TypeVar
+
+_T = TypeVar("_T")
 
 logger = logging.getLogger(__name__)
 
@@ -81,8 +83,8 @@ class AsyncOmpa:
         agent_name: str = "async-agent",
         enable_semantic: bool = False,
         embedding_backend=None,
-        shared_vault_path: str | Path = None,
-        personal_vault_path: str | Path = None,
+        shared_vault_path: str | Path | None = None,
+        personal_vault_path: str | Path | None = None,
         isolation_mode: str = "strict",
         max_workers: int = 4,
     ):
@@ -102,7 +104,7 @@ class AsyncOmpa:
             thread_name_prefix=f"ompa-{agent_name}",
         )
 
-    async def _run(self, fn, *args, **kwargs) -> Any:
+    async def _run(self, fn: Callable[..., _T], *args, **kwargs) -> _T:
         """Run a sync function in the executor without blocking the event loop."""
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(self._executor, partial(fn, *args, **kwargs))

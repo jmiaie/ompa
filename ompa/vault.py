@@ -90,7 +90,7 @@ class Note:
                 text = path.read_text(encoding="utf-8")
                 return cls(path=path, content=text, links=cls._extract_wikilinks(text))
             except Exception as e:
-                logger.debug("Could not read %s: %s", path, e)
+                logger.warning("Could not read %s: %s", path, e)
                 return cls(path=path)
 
     @staticmethod

@@ -20,6 +20,29 @@ try:
 except ImportError:
     HYPOTHESIS_AVAILABLE = False
 
+    # Stub decorators/strategies so class bodies parse when hypothesis is not installed.
+    # All tests are skipped via pytestmark below.
+    def given(*args, **kwargs):
+        return lambda f: f
+
+    def settings(*args, **kwargs):
+        return lambda f: f
+
+    def assume(cond):
+        pass
+
+    class _StubModule:
+        def __getattr__(self, name):
+            return self
+        def __call__(self, *a, **kw):
+            return self
+        def filter(self, *a, **kw):
+            return self
+        def map(self, *a, **kw):
+            return self
+
+    st = _StubModule()
+
 pytestmark = pytest.mark.skipif(
     not HYPOTHESIS_AVAILABLE,
     reason="hypothesis not installed (pip install hypothesis)",

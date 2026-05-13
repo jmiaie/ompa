@@ -333,7 +333,7 @@ class KnowledgeGraph:
                 content = note_path.read_text(encoding="utf-8")
                 metadata = {}
             except Exception as e:
-                logger.debug("Could not read %s: %s", note_path, e)
+                logger.warning("Could not read %s: %s", note_path, e)
                 return 0
 
         # 1. Wikilinks → links_to triples

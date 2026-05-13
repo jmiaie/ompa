@@ -154,7 +154,7 @@ class SessionStartHook(Hook):
                         )
                         lines.append("")
                 except Exception as e:
-                    logger.debug("KG stats unavailable: %s", e)
+                    logger.warning("KG stats unavailable: %s", e)
 
             # File listing (truncated)
             lines.append("### Vault Files")
@@ -387,7 +387,7 @@ class StopHook(Hook):
                             "**WARNING:** KG is empty — run `ao kg-populate` or `ao sync`"
                         )
                 except Exception as e:
-                    logger.debug("KG stats unavailable in wrap-up: %s", e)
+                    logger.warning("KG stats unavailable in wrap-up: %s", e)
 
             output = "\n".join(lines)
             return HookResult(
