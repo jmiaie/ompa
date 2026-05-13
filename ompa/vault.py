@@ -38,6 +38,15 @@ def _safe_resolve(base: Path, untrusted: str) -> Path:
 
 @dataclass
 class VaultConfig:
+    """
+    Configuration for a Vault instance.
+
+    The folder fields are always set to non-None values — either explicitly or
+    by __post_init__ — so downstream code can use them without None guards.
+    They are typed as Optional only so the dataclass constructor accepts None
+    as a sentinel meaning "use the default relative to vault_path".
+    """
+
     vault_path: Path
     brain_folder: Optional[Path] = None
     work_folder: Optional[Path] = None
@@ -46,7 +55,7 @@ class VaultConfig:
     thinking_folder: Optional[Path] = None
     templates_folder: Optional[Path] = None
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if self.brain_folder is None:
             self.brain_folder = self.vault_path / "brain"
         if self.work_folder is None:
@@ -243,6 +252,8 @@ class Vault:
         if "/" in name or "\\" in name or ".." in name:
             raise ValueError(f"Invalid brain note name: {name!r}")
         safe_name = Path(name).name  # Strip any directory components
+        # brain_folder is always set by VaultConfig.__post_init__
+        assert self.config.brain_folder is not None
         path = (self.config.brain_folder / f"{safe_name}.md").resolve()
         try:
             path.relative_to(self.config.brain_folder.resolve())
@@ -276,6 +287,8 @@ class Vault:
         """Create a new note from a template. Both names are sanitized."""
         # Sanitize template name
         safe_template = Path(template_name).name
+        # templates_folder is always set by VaultConfig.__post_init__
+        assert self.config.templates_folder is not None
         template_path = self.config.templates_folder / f"{safe_template}.md"
         if not template_path.exists():
             raise FileNotFoundError(f"Template not found: {template_name}")
@@ -326,6 +339,8 @@ class Vault:
                 brain_count += 1
 
         # Also count brain folder files not yet in notes list (e.g., empty ones)
+        # brain_folder is always set by VaultConfig.__post_init__
+        assert self.config.brain_folder is not None
         if self.config.brain_folder.exists():
             folder_brain = len(list(self.config.brain_folder.glob("*.md")))
             brain_count = max(brain_count, folder_brain)

@@ -65,8 +65,14 @@ class DualVaultMixin:
         palace: "Palace"
         dual_config: "DualVaultConfig"
         classifier: "MessageClassifier"
-        # is_dual_vault is a @property on Ompa — not declared here to avoid
-        # the "cannot override writeable attribute with read-only property" error.
+
+    # is_dual_vault is a read-only property on Ompa. Declare it here as a
+    # property so mypy treats it as a property (not a plain writable attribute),
+    # which lets Ompa's @property override it without a conflict.
+    @property
+    def is_dual_vault(self) -> bool:  # pragma: no cover
+        """Provided by the host class (Ompa)."""
+        raise NotImplementedError("is_dual_vault must be provided by the host class")
 
     def write(
         self,
