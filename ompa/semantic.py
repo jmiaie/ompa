@@ -47,6 +47,15 @@ def _cosine_similarity(a, b) -> float:
         return 0.0
 
 
+def _hybrid_boost(query: str, text: str) -> float:
+    """Compute the keyword overlap boost for hybrid search (0.0 – 0.3)."""
+    query_words = set(query.lower().split())
+    if not query_words:
+        return 0.0
+    overlap = query_words & set(text.lower().split())
+    return len(overlap) / len(query_words) * 0.3 if overlap else 0.0
+
+
 @dataclass
 class SearchResult:
     path: str
@@ -258,16 +267,7 @@ class SemanticIndex:
                 similarity = _cosine_similarity(query_embedding, chunk_embedding)
 
                 # Keyword boost
-                keyword_boost = 0.0
-                if hybrid:
-                    query_lower = query.lower()
-                    chunk_lower = chunk["text"].lower()
-                    query_words = set(query_lower.split())
-                    chunk_words = set(chunk_lower.split())
-                    overlap = query_words & chunk_words
-                    if overlap:
-                        keyword_boost = len(overlap) / len(query_words) * 0.3
-
+                keyword_boost = _hybrid_boost(query, chunk["text"]) if hybrid else 0.0
                 combined_score = similarity + keyword_boost
 
                 best_results.append(

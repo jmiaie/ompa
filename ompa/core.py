@@ -68,6 +68,12 @@ class Ompa(DualVaultMixin):
             isolation_mode=IsolationMode(isolation_mode),
         )
 
+        # Declare Optional personal-vault attributes unconditionally so mypy
+        # sees a single consistent type regardless of which branch runs.
+        self.personal_vault: Optional[Vault] = None
+        self.personal_palace: Optional[Palace] = None
+        self.personal_kg: Optional[KnowledgeGraph] = None
+
         if shared_vault_path and personal_vault_path:
             # Dual-vault mode
             self.dual_config.shared_path = Path(shared_vault_path).expanduser()
@@ -101,9 +107,6 @@ class Ompa(DualVaultMixin):
             self.kg = KnowledgeGraph(
                 db_path=str(self.vault_path / ".palace" / "knowledge_graph.sqlite3")
             )
-            self.personal_vault: Optional[Vault] = None
-            self.personal_palace: Optional[Palace] = None
-            self.personal_kg: Optional[KnowledgeGraph] = None
 
         self.classifier = MessageClassifier()
         self.hooks = HookManager(self.vault_path, agent_name=self.agent_name)
@@ -430,6 +433,7 @@ class Ompa(DualVaultMixin):
         self.vault.update_brain_note(note_name, content, append)
 
         # Sync brain note to KG and search index
+        assert self.vault.config.brain_folder is not None
         brain_path = self.vault.config.brain_folder / f"{note_name}.md"
         if brain_path.exists():
             self._auto_update_kg(brain_path)
@@ -494,7 +498,8 @@ class Ompa(DualVaultMixin):
         }
 
         # Sync personal vault too if in dual mode
-        if self.is_dual_vault:
+        if self.is_dual_vault and self.personal_kg and self.personal_palace:
+            assert self.dual_config.personal_path is not None
             p_kg = self.personal_kg.populate_from_vault(self.dual_config.personal_path)
             p_palace = self.personal_palace.auto_build_from_vault(
                 self.dual_config.personal_path

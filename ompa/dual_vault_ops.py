@@ -65,7 +65,8 @@ class DualVaultMixin:
         palace: "Palace"
         dual_config: "DualVaultConfig"
         classifier: "MessageClassifier"
-        is_dual_vault: bool
+        # is_dual_vault is a @property on Ompa — not declared here to avoid
+        # the "cannot override writeable attribute with read-only property" error.
 
     def write(
         self,
@@ -97,22 +98,21 @@ class DualVaultMixin:
             target_vault = self.vault
         elif vault:
             target = VaultTarget(vault)
-            target_vault = (
-                self.vault if target == VaultTarget.SHARED else self.personal_vault
-            )
+            target_vault = self.vault if target == VaultTarget.SHARED else self.personal_vault
         elif self.dual_config.isolation_mode == IsolationMode.MANUAL:
             target = self.dual_config.default_vault
-            target_vault = (
-                self.vault if target == VaultTarget.SHARED else self.personal_vault
-            )
+            target_vault = self.vault if target == VaultTarget.SHARED else self.personal_vault
         else:
             # Auto-classify
             target = self.dual_config.classify_content(
                 content, tags=tags, file_path=file_path
             )
-            target_vault = (
-                self.vault if target == VaultTarget.SHARED else self.personal_vault
-            )
+            target_vault = self.vault if target == VaultTarget.SHARED else self.personal_vault
+
+        # In dual-vault mode, personal_vault may be None if config is incomplete.
+        # Fall back to shared vault so writes are never silently dropped.
+        if target_vault is None:
+            target_vault = self.vault
 
         # Build file path if not provided
         if not file_path:
