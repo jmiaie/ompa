@@ -166,6 +166,9 @@ class DualVaultMixin:
         if not self.is_dual_vault:
             return {"success": False, "error": "Not in dual-vault mode"}
 
+        if not self.dual_config.personal_path or not self.dual_config.shared_path:
+            return {"success": False, "error": "Dual-vault paths not configured"}
+
         try:
             source = _safe_resolve(self.dual_config.personal_path, note_path)
             target = _safe_resolve(self.dual_config.shared_path, note_path)
@@ -228,6 +231,9 @@ class DualVaultMixin:
         if not self.is_dual_vault:
             return {"success": False, "error": "Not in dual-vault mode"}
 
+        if not self.dual_config.shared_path or not self.dual_config.personal_path:
+            return {"success": False, "error": "Dual-vault paths not configured"}
+
         try:
             source = _safe_resolve(self.dual_config.shared_path, note_path)
             target = _safe_resolve(self.dual_config.personal_path, note_path)
@@ -248,6 +254,7 @@ class DualVaultMixin:
         note.save()
 
         if self.personal_kg:
+            assert self.dual_config.personal_path is not None
             self.personal_kg.populate_from_note(target, self.dual_config.personal_path)
 
         logger.info("Imported %s to personal vault", note_path)
@@ -286,9 +293,11 @@ class DualVaultMixin:
         notes = self.vault.list_notes()
         for note in notes:
             if classification_rules == "auto":
+                raw_tags = note.frontmatter.get("tags")
+                tags_list = raw_tags if isinstance(raw_tags, list) else []
                 target = self.dual_config.classify_content(
                     note.content,
-                    tags=[str(t) for t in (note.frontmatter.get("tags") or [])],
+                    tags=[str(t) for t in tags_list],
                     file_path=str(note.path),
                 )
             else:
