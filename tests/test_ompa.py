@@ -1228,11 +1228,8 @@ class TestSemanticIndex:
             assert result["personal_kg_triples"] > 0
 
 
-class TestSemanticIndex:
-    """Test semantic index behavior."""
-
-    def test_index_vault_initializes_model(self):
-        """index_vault should lazy-init the model if not yet initialized."""
+    def test_lazy_init_triggered_on_index_vault(self):
+        """index_vault should trigger lazy model init if not yet initialized."""
         from ompa.semantic import SemanticIndex
         from pathlib import Path
 
@@ -1240,7 +1237,6 @@ class TestSemanticIndex:
             idx = SemanticIndex(index_path=Path(tmpdir) / "idx")
             assert idx._initialized is False
 
-            # Monkeypatch _init_model to track that it was called
             called = []
 
             def fake_init():
@@ -1255,5 +1251,5 @@ class TestSemanticIndex:
             (vault / "test.md").write_text("Hello world content here", encoding="utf-8")
 
             count = idx.index_vault(vault)
-            assert len(called) == 1  # _init_model was triggered
+            assert len(called) == 1
             assert count >= 1

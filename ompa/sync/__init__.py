@@ -6,9 +6,9 @@ git (default), S3/R2, or rsync — critical for multi-node deployments.
 
     from ompa.sync import GitSyncBackend, S3SyncBackend, RsyncBackend
 
-    # Git (default — already used internally)
-    sync = GitSyncBackend(vault_path="./vault", remote="origin", branch="main")
-    sync.push("chore: session wrap-up")
+    # Git
+    sync = GitSyncBackend(remote="origin", branch="main")
+    sync.push("./vault", message="chore: session wrap-up")
 
     # S3 / Cloudflare R2
     sync = S3SyncBackend(bucket="my-vault", prefix="ompa/", endpoint_url="https://...")

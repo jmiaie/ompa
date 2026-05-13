@@ -86,7 +86,6 @@ class SemanticIndex:
         self.embeddings = None
         self.chunks: list[ChunkDict] = []
         self._initialized = False
-        # Accept a pre-built backend (e.g. NIMEmbeddingBackend) or load lazily
         self._model: Optional[EmbeddingBackend] = embedding_backend
         if embedding_backend is not None:
             self._initialized = True
@@ -134,7 +133,6 @@ class SemanticIndex:
             self.chunks = [c for c in self.chunks if c["path"] != path_str]
 
             content = path.read_text(encoding="utf-8")
-            # Split into chunks (512 tokens each)
             chunk_size = 512
             words = content.split()
 
@@ -304,11 +302,10 @@ class SemanticIndex:
             return self._keyword_search(query, limit)
 
     def _keyword_search(self, query: str, limit: int) -> list[SearchResult]:
-        """Fallback keyword search using pure Python (no subprocess)."""
+        """Fallback keyword search — used when embeddings are unavailable."""
         query_lower = query.lower()
         results = []
 
-        # Search through indexed chunks first
         if self.chunks:
             for chunk in self.chunks:
                 if query_lower in chunk["text"].lower():
@@ -324,8 +321,9 @@ class SemanticIndex:
                         break
             return results
 
-        # Fallback: scan the vault directory
-        vault_path = self.index_path.parent.parent  # .palace/semantic_index -> vault
+        # No indexed chunks — derive vault root from index path convention:
+        # .palace/semantic_index → vault root is two levels up
+        vault_path = self.index_path.parent.parent
         if vault_path.exists():
             for md_file in vault_path.rglob("*.md"):
                 if _is_excluded(md_file, DEFAULT_EXCLUDE_PATTERNS):

@@ -125,7 +125,6 @@ class OmpaMemory:
         self._started = False
         self._session_context = ""
 
-    # LangChain duck-typing compatibility
     def dict(self, **kwargs) -> dict:
         return {"memory_key": self.memory_key, "vault_path": str(self.vault_path)}
 
@@ -181,6 +180,5 @@ class OmpaRetriever:
         """Async variant — delegates to sync (OMPA search is synchronous)."""
         return self.get_relevant_documents(query)
 
-    # BaseRetriever duck-typing
     def invoke(self, input: str, config: Any = None, **kwargs) -> list:
         return self.get_relevant_documents(input)

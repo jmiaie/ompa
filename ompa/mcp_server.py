@@ -335,8 +335,6 @@ def handle_call_tool(name: str, arguments: dict) -> dict:
         vault_path = str(arguments.get("vault_path", "."))
         if ".." in vault_path or vault_path in ("/", "C:\\", "C:/"):
             return {"error": "Invalid vault_path"}
-
-        # Cap limit parameters
         if "limit" in arguments:
             arguments = {**arguments, "limit": min(int(arguments["limit"]), 100)}
 
@@ -432,7 +430,7 @@ def main():
     MCP server main loop.
     Reads JSON-RPC requests from stdin, writes responses to stdout.
     """
-    request = None  # Initialize to prevent NameError on malformed JSON
+    request = None  # must be initialized so the except block can read request.id safely
     while True:
         try:
             line = sys.stdin.readline()
@@ -484,7 +482,7 @@ def main():
             error_response = _make_error_response(req_id, f"{type(e).__name__}: {e}")
             sys.stdout.write(json.dumps(error_response) + "\n")
             sys.stdout.flush()
-            request = None  # Reset for next iteration
+            request = None
 
 
 if __name__ == "__main__":

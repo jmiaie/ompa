@@ -216,7 +216,6 @@ class KnowledgeGraph:
         object_id = self._entity_id(object)
 
         with self._conn() as conn:
-            # Ensure entities exist (single transaction)
             conn.execute(
                 "INSERT OR IGNORE INTO entities (id, name, type) VALUES (?, ?, ?)",
                 (subject_id, subject, "unknown"),
@@ -336,16 +335,13 @@ class KnowledgeGraph:
                 logger.warning("Could not read %s: %s", note_path, e)
                 return 0
 
-        # 1. Wikilinks → links_to triples
         wikilinks = re.findall(r"\[\[([^\]]+)\]\]", content)
         for link in wikilinks:
-            # Strip display text from piped links: [[target|display]]
-            target = link.split("|")[0].strip()
+            target = link.split("|")[0].strip()  # [[target|display]] → target
             if target:
                 self.add_triple(note_name, "links_to", target, source=source)
                 count += 1
 
-        # 2. Frontmatter tags → has_tag triples
         tags = metadata.get("tags", [])
         if isinstance(tags, str):
             tags = [t.strip() for t in tags.split(",") if t.strip()]
@@ -355,16 +351,14 @@ class KnowledgeGraph:
                     self.add_triple(note_name, "has_tag", tag.strip(), source=source)
                     count += 1
 
-        # 3. Folder membership
         if vault_path:
             try:
                 rel = note_path.relative_to(vault_path)
                 parts = rel.parts
                 if len(parts) > 1:
-                    folder = parts[0]  # top-level: brain, work, org, perf
+                    folder = parts[0]
                     self.add_triple(note_name, "in_folder", folder, source=source)
                     count += 1
-                    # Sub-folder (e.g., work/active, org/people)
                     if len(parts) > 2:
                         subfolder = f"{parts[0]}/{parts[1]}"
                         self.add_triple(
@@ -374,7 +368,6 @@ class KnowledgeGraph:
             except ValueError:
                 pass
 
-        # 4. Frontmatter date → created_on
         date_val = metadata.get("date")
         if date_val:
             date_str = str(date_val)[:10]  # YYYY-MM-DD
@@ -387,7 +380,6 @@ class KnowledgeGraph:
             )
             count += 1
 
-        # 5. Frontmatter description → has_description (for search context)
         desc = metadata.get("description")
         if desc and isinstance(desc, str) and len(desc) > 10:
             self.add_entity(note_name, entity_type="note")

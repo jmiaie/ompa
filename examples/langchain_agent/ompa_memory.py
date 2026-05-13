@@ -23,7 +23,7 @@ from ompa import Ompa
 
 try:
     from langchain.memory.chat_memory import BaseChatMemory
-    from langchain.schema import BaseMessage, HumanMessage, AIMessage
+    from langchain.schema import HumanMessage
     LANGCHAIN_AVAILABLE = True
 except ImportError:
     LANGCHAIN_AVAILABLE = False
@@ -56,7 +56,6 @@ class OmpaMemory(BaseChatMemory if LANGCHAIN_AVAILABLE else object):
 
     def load_memory_variables(self, inputs: dict[str, Any]) -> dict[str, Any]:
         """Return vault context as memory variable."""
-        # Inject session context on first load, routing hints on subsequent
         message = inputs.get("input", "")
         if message:
             hint = self._ao.handle_message(message)
@@ -73,7 +72,6 @@ class OmpaMemory(BaseChatMemory if LANGCHAIN_AVAILABLE else object):
         human_input = inputs.get("input", "")
         ai_output = outputs.get("response", outputs.get("output", ""))
 
-        # Classify and route
         if human_input:
             c = self._ao.classify(human_input)
             self._ao.write(

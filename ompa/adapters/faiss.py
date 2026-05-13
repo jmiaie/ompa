@@ -74,8 +74,8 @@ class FAISSSemanticIndex:
         self._model = None
         self._initialized = False
 
-        self._faiss_index = None     # faiss.Index
-        self._metadata: list[dict] = []   # parallel list: one dict per vector
+        self._faiss_index = None  # faiss.Index; populated by _build_index()
+        self._metadata: list[dict] = []  # one entry per vector; parallel to FAISS index
 
     # ------------------------------------------------------------------
     # Model / backend init
@@ -137,7 +137,8 @@ class FAISSSemanticIndex:
                 quantizer, self.embedding_dim, self.ivf_nlist
             )
         else:
-            self._faiss_index = faiss.IndexFlatIP(self.embedding_dim)  # inner product ≈ cosine for normalized vecs
+            # IndexFlatIP with normalized vectors gives cosine similarity
+            self._faiss_index = faiss.IndexFlatIP(self.embedding_dim)
 
     def _add_vector(self, embedding: list[float]) -> None:
         import numpy as np

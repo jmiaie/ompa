@@ -63,7 +63,6 @@ class Ompa(DualVaultMixin):
         self._session_started = False
         self._last_classification: Optional[Classification] = None
 
-        # Dual-vault config
         self.dual_config = DualVaultConfig(
             isolation_mode=IsolationMode(isolation_mode),
         )
@@ -80,7 +79,6 @@ class Ompa(DualVaultMixin):
             self.dual_config.personal_path = Path(personal_vault_path).expanduser()
             self.vault_path = self.dual_config.shared_path  # primary for hooks
 
-            # Shared vault systems
             self.vault = Vault(self.dual_config.shared_path)
             self.palace = Palace(self.dual_config.shared_path / ".palace")
             self.kg = KnowledgeGraph(
@@ -89,7 +87,6 @@ class Ompa(DualVaultMixin):
                 )
             )
 
-            # Personal vault systems
             self.personal_vault = Vault(self.dual_config.personal_path)
             self.personal_palace = Palace(self.dual_config.personal_path / ".palace")
             self.personal_kg = KnowledgeGraph(
@@ -111,6 +108,7 @@ class Ompa(DualVaultMixin):
         self.classifier = MessageClassifier()
         self.hooks = HookManager(self.vault_path, agent_name=self.agent_name)
 
+        # Explicit type annotation needed for mypy to narrow Optional[SemanticIndex]
         self._semantic: Optional[SemanticIndex] = None
         self._personal_semantic: Optional[SemanticIndex] = None
 
@@ -170,7 +168,6 @@ class Ompa(DualVaultMixin):
         except Exception as e:
             logger.warning("KG auto-population failed: %s", e)
 
-        # Trigger semantic index build if needed (lazy property handles this)
         if self._enable_semantic:
             try:
                 _ = self.semantic  # triggers lazy build
@@ -198,7 +195,6 @@ class Ompa(DualVaultMixin):
         """
         result = self.hooks.run_post_tool(tool_name, tool_input, self)
 
-        # Auto-update on file writes
         if tool_name in ("write", "edit", "create_file"):
             file_path = tool_input.get("file_path") or tool_input.get("path")
             if file_path:
@@ -321,7 +317,6 @@ class Ompa(DualVaultMixin):
                     ["shared", "personal"]. Default: ["shared"] in dual mode,
                     or the single vault in legacy mode.
         """
-        # Determine which vaults to search
         if not self.is_dual_vault:
             vaults = ["shared"]  # single vault acts as shared
         elif vaults is None:
@@ -329,7 +324,6 @@ class Ompa(DualVaultMixin):
 
         all_results = []
 
-        # Search shared vault
         if "shared" in vaults:
             all_results.extend(
                 self._search_vault(
@@ -337,7 +331,6 @@ class Ompa(DualVaultMixin):
                 )
             )
 
-        # Search personal vault
         if "personal" in vaults and self.personal_vault:
             personal_results = self._search_vault(
                 self.personal_vault,
@@ -353,7 +346,6 @@ class Ompa(DualVaultMixin):
                 r.match_type = f"personal:{r.match_type}"
             all_results.extend(personal_results)
 
-        # Sort by score and limit
         all_results.sort(key=lambda r: r.score, reverse=True)
         return all_results[:limit]
 
@@ -400,7 +392,7 @@ class Ompa(DualVaultMixin):
 
     def rebuild_index(self) -> int:
         """Rebuild the semantic index."""
-        semantic = self.semantic  # access property once; narrows Optional
+        semantic = self.semantic  # access once to narrow Optional for mypy
         if semantic is None:
             return 0
         semantic.clear()
