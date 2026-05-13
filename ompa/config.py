@@ -85,7 +85,7 @@ class DualVaultConfig:
         return self.shared_path is not None and self.personal_path is not None
 
     def classify_content(
-        self, content: str, tags: list[str] = None, file_path: str = None
+        self, content: str, tags: list[str] | None = None, file_path: str | None = None
     ) -> VaultTarget:
         """
         Classify content as shared or personal.
@@ -208,9 +208,9 @@ class DualVaultConfig:
 
 
 def make_ompa(
-    vault_path: str | Path = None,
-    shared_vault_path: str | Path = None,
-    personal_vault_path: str | Path = None,
+    vault_path: str | Path | None = None,
+    shared_vault_path: str | Path | None = None,
+    personal_vault_path: str | Path | None = None,
     isolation_mode: str = "strict",
     enable_semantic: bool = False,
 ) -> Ompa:
