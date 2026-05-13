@@ -125,6 +125,8 @@ class SessionStartHook(Hook):
 
             # Active work
             lines.append("### Active Work")
+            # work_folder is always set by VaultConfig.__post_init__
+            assert vault.config.work_folder is not None
             active_notes = list(vault.config.work_folder.glob("active/*.md"))
             if active_notes:
                 for note in active_notes[:5]:

@@ -98,7 +98,9 @@ class DualVaultMixin:
         """
         tags = tags or []
 
-        # Determine target vault
+        # Determine target vault. personal_vault may be None in single-vault mode,
+        # so we use Optional here then narrow below.
+        target_vault: Optional["Vault"] = None
         if not self.is_dual_vault:
             target = VaultTarget.SHARED
             target_vault = self.vault
@@ -115,8 +117,7 @@ class DualVaultMixin:
             )
             target_vault = self.vault if target == VaultTarget.SHARED else self.personal_vault
 
-        # In dual-vault mode, personal_vault may be None if config is incomplete.
-        # Fall back to shared vault so writes are never silently dropped.
+        # Fall back to shared vault if personal_vault is not configured.
         if target_vault is None:
             target_vault = self.vault
 
