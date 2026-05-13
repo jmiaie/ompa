@@ -24,6 +24,9 @@ env/
 # Agent memory index (regenerated on rebuild)
 .agent-memory/
 
+# Vault palace metadata (generated at runtime — not source)
+.palace/
+
 # OS
 .DS_Store
 Thumbs.db
