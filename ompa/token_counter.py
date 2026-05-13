@@ -58,7 +58,3 @@ def count_tokens(text: str, model: str = "cl100k_base") -> int:
     return int(len(text.split()) * 1.3)
 
 
-def format_budget(used: int, budget: int) -> str:
-    """Return a compact budget string, e.g. '1842 / 2000 (92%)'."""
-    pct = int(used / budget * 100) if budget > 0 else 0
-    return f"{used} / {budget} ({pct}%)"

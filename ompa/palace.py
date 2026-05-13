@@ -5,8 +5,6 @@ Inspired by MemPalace. Manages the structured metadata that accelerates retrieva
 
 import json
 from pathlib import Path
-from dataclasses import dataclass, field
-from typing import cast
 from typing import Optional
 
 HALL_TYPES = [
@@ -16,30 +14,6 @@ HALL_TYPES = [
     "hall_preferences",  # habits, likes, opinions
     "hall_advice",  # recommendations
 ]
-
-
-@dataclass
-class Wing:
-    name: str
-    type: str  # "person" or "project"
-    keywords: list[str] = field(default_factory=list)
-    rooms: dict = field(default_factory=dict)
-
-
-@dataclass
-class Drawer:
-    wing: str
-    room: str
-    path: str
-
-
-@dataclass
-class Tunnel:
-    wing_a: str
-    wing_b: str
-    room: str
-    hall_a: str
-    hall_b: str
 
 
 class Palace:
@@ -211,37 +185,6 @@ class Palace:
     def find_tunnels_by_room(self, room: str) -> list[dict]:
         """Find all tunnels that pass through a room."""
         return [t for t in self._data.get("tunnels", []) if t.get("room") == room]
-
-    # Traversal
-
-    def traverse(self, wing: str, room: str) -> dict:
-        """Walk the palace from a room across all connected wings via tunnels."""
-        result = {
-            "wing": wing,
-            "room": room,
-            "room_data": self.get_room(wing, room),
-            "tunnels": self.find_tunnels_by_room(room),
-            "connected": [],
-        }
-        for tunnel in result["tunnels"]:
-            other_wing = (
-                tunnel["wing_b"] if tunnel["wing_a"] == wing else tunnel["wing_a"]
-            )
-            connected_room = self.get_room(other_wing, room)
-            if connected_room:
-                cast("list", result["connected"]).append(
-                    {
-                        "wing": other_wing,
-                        "room": room,
-                        "room_data": connected_room,
-                        "hall": (
-                            tunnel["hall_b"]
-                            if tunnel["wing_a"] == wing
-                            else tunnel["hall_a"]
-                        ),
-                    }
-                )
-        return result
 
     # Auto-build from vault
 

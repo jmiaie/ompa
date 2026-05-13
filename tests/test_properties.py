@@ -51,13 +51,6 @@ iso_date = st.dates(
     max_value=__import__("datetime").date(2030, 12, 31),
 ).map(str)
 
-message_type_str = st.sampled_from([
-    "DECISION", "INCIDENT", "WIN", "LOSS", "BLOCKER",
-    "QUESTION", "SUGGESTION", "REVIEW", "BUG", "FEATURE",
-    "LEARN", "RETROSPECTIVE", "ALERT", "STATUS", "CHORE",
-])
-
-
 # ---------------------------------------------------------------------------
 # KnowledgeGraph properties
 # ---------------------------------------------------------------------------
