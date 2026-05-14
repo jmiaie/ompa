@@ -120,7 +120,7 @@ def search(
     vaults = [vault] if vault and vault != "both" else None
     if vault == "both":
         vaults = ["shared", "personal"]
-    results = ao.search(query, limit=limit, vaults=vaults)
+    results = ao.search(query, limit=limit, vaults=list(vaults) if vaults else None)
 
     table = Table(title=f"Search: {query}")
     table.add_column("Score")
@@ -227,7 +227,7 @@ def tunnel(
 @app.command()
 def kg_query(
     entity: str,
-    as_of: str = None,
+    as_of: Optional[str] = None,
     vault_path: Path = Path("."),
 ):
     """Query the knowledge graph."""
@@ -374,7 +374,7 @@ def write_note(
     """Write content to the appropriate vault (auto-classifies in dual mode)."""
     ao = make_ompa(vault_path, shared_vault, personal_vault, enable_semantic=False)
     tag_list = [t.strip() for t in tags.split(",")] if tags else []
-    result = ao.write(content, file_path=file_path, tags=tag_list, vault=vault)
+    result = ao.write(content, file_path=file_path or None, tags=tag_list, vault=vault or None)
     console.print(f"[green]Written to {result['vault']} vault[/green]")
     console.print(f"  Path: {result['path']}")
     console.print(f"  Classified as: {result['classified_as']}")

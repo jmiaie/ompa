@@ -33,12 +33,12 @@ def _safe_resolve(base: Path, untrusted: str) -> Path:
 @dataclass
 class VaultConfig:
     vault_path: Path
-    brain_folder: Optional[Path] = None
-    work_folder: Optional[Path] = None
-    org_folder: Optional[Path] = None
-    perf_folder: Optional[Path] = None
-    thinking_folder: Optional[Path] = None
-    templates_folder: Optional[Path] = None
+    brain_folder: Path = None  # type: ignore[assignment]
+    work_folder: Path = None  # type: ignore[assignment]
+    org_folder: Path = None  # type: ignore[assignment]
+    perf_folder: Path = None  # type: ignore[assignment]
+    thinking_folder: Path = None  # type: ignore[assignment]
+    templates_folder: Path = None  # type: ignore[assignment]
 
     def __post_init__(self):
         if self.brain_folder is None:

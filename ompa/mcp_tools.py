@@ -200,11 +200,13 @@ def ao_write(arguments: dict) -> dict:
     content = arguments.get("content", "")
     tags_raw = arguments.get("tags", "")
     tags = [t.strip() for t in tags_raw.split(",") if t.strip()] if tags_raw else []
+    file_path: Optional[str] = arguments.get("file_path")
+    vault: Optional[str] = arguments.get("vault")
     result = ao.write(
         content,
-        file_path=arguments.get("file_path"),
+        file_path=file_path,
         tags=tags,
-        vault=arguments.get("vault"),
+        vault=vault,
     )
     return result
 
