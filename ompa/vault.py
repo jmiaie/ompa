@@ -78,7 +78,6 @@ class Note:
                 links=cls._extract_wikilinks(content),
             )
         except Exception as e:
-            # Fallback: read raw content if frontmatter parsing fails
             logger.debug("Frontmatter parse failed for %s: %s", path, e)
             try:
                 text = path.read_text(encoding="utf-8")
@@ -94,8 +93,8 @@ class Note:
         normalized = []
         for link in raw:
             # Strip display text: [[target|display]] → target
+            # Strip .md extension — resolution adds it back as needed
             target = link.split("|")[0].strip()
-            # Strip .md extension if present (will be re-added during resolution)
             if target.lower().endswith(".md"):
                 target = target[:-3]
             if target:
@@ -162,7 +161,6 @@ class Vault:
         notes = []
 
         for path in self.vault_path.rglob("*.md"):
-            # Check exclusions
             if any(excl in str(path) for excl in exclude_patterns):
                 continue
             notes.append(Note.from_file(path))
@@ -173,10 +171,7 @@ class Vault:
         """Build a case-insensitive filename → path index for wikilink resolution."""
         index = {}
         for note in notes:
-            # Index by stem (without .md) — case-insensitive
-            key = note.path.stem.lower()
-            index[key] = note.path
-            # Also index by full filename
+            index[note.path.stem.lower()] = note.path
             index[note.path.name.lower()] = note.path
         return index
 
@@ -186,17 +181,14 @@ class Vault:
         """Resolve a wikilink to a file path using multiple strategies."""
         link_lower = link.lower()
 
-        # 1. Direct filename match (case-insensitive)
         if link_lower in filename_index:
             return filename_index[link_lower]
 
-        # 2. Try with .md extension stripped
         if link_lower.endswith(".md"):
             stem = link_lower[:-3]
             if stem in filename_index:
                 return filename_index[stem]
 
-        # 3. Try exact path from vault root
         direct = self.vault_path / link
         if direct.exists():
             return direct
@@ -235,10 +227,9 @@ class Vault:
         # Reject names with path separators or parent-dir references
         if "/" in name or "\\" in name or ".." in name:
             raise ValueError(f"Invalid brain note name: {name!r}")
-        safe_name = Path(name).name  # Strip any directory components
+        safe_name = Path(name).name
         path = self.config.brain_folder / f"{safe_name}.md"
         path = path.resolve()
-        # Ensure we stay within brain folder
         try:
             path.relative_to(self.config.brain_folder.resolve())
         except ValueError:
@@ -249,10 +240,9 @@ class Vault:
 
     def update_brain_note(self, name: str, content: str, append: bool = False) -> None:
         """Update a brain note. Name is sanitized to prevent path traversal."""
-        # Reject names with path separators or parent-dir references
         if "/" in name or "\\" in name or ".." in name:
             raise ValueError(f"Invalid brain note name: {name!r}")
-        safe_name = Path(name).name  # Strip any directory components
+        safe_name = Path(name).name
         path = self.config.brain_folder / f"{safe_name}.md"
         path = path.resolve()
         try:
@@ -273,15 +263,12 @@ class Vault:
         self, template_name: str, target_name: str, **kwargs
     ) -> Note:
         """Create a new note from a template. Both names are sanitized."""
-        # Sanitize template name
         safe_template = Path(template_name).name
         template_path = self.config.templates_folder / f"{safe_template}.md"
         if not template_path.exists():
             raise FileNotFoundError(f"Template not found: {template_name}")
 
         template = Note.from_file(template_path)
-
-        # Replace placeholders
         content = template.content
         for key, value in kwargs.items():
             content = content.replace(f"{{{{{key}}}}}", str(value))
