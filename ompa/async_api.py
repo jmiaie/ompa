@@ -32,7 +32,7 @@ import logging
 from concurrent.futures import ThreadPoolExecutor
 from functools import partial
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 

@@ -20,6 +20,30 @@ try:
 except ImportError:
     HYPOTHESIS_AVAILABLE = False
 
+    def given(*args, **kwargs):  # type: ignore[misc]
+        return lambda f: f
+
+    def settings(*args, **kwargs):  # type: ignore[misc]
+        return lambda f: f
+
+    def assume(cond: bool) -> None:  # type: ignore[misc]
+        pass
+
+    class _StStub:
+        def __getattr__(self, name: str) -> "_StStub":  # type: ignore[override]
+            return self
+
+        def __call__(self, *args, **kwargs) -> "_StStub":
+            return self
+
+        def filter(self, *args, **kwargs) -> "_StStub":
+            return self
+
+        def map(self, *args, **kwargs) -> "_StStub":
+            return self
+
+    st = _StStub()  # type: ignore[assignment]
+
 pytestmark = pytest.mark.skipif(
     not HYPOTHESIS_AVAILABLE,
     reason="hypothesis not installed (pip install hypothesis)",

@@ -35,7 +35,7 @@ import logging
 from pathlib import Path
 from typing import Optional
 
-from ..semantic import SearchResult, EmbeddingBackend, _cosine_similarity
+from ..semantic import SearchResult, EmbeddingBackend
 
 logger = logging.getLogger(__name__)
 
@@ -129,7 +129,6 @@ class FAISSSemanticIndex:
     def _build_index(self) -> None:
         """Create or reset the FAISS index."""
         faiss = self._require_faiss()
-        import numpy as np
 
         if self.use_ivf and len(self._metadata) >= self.ivf_nlist * 39:
             quantizer = faiss.IndexFlatL2(self.embedding_dim)
