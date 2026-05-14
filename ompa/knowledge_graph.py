@@ -55,10 +55,10 @@ def _row_to_triple(row: sqlite3.Row) -> Triple:
 
 
 class KnowledgeGraph:
-    def __init__(self, db_path: str = None):
+    def __init__(self, db_path: Optional[str] = None):
         self.db_path = Path(db_path or DEFAULT_KG_PATH).expanduser()
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
-        self._local = threading.local()  # per-thread connection cache
+        self._local = threading.local()
         self._init_db()
 
     def _get_connection(self) -> sqlite3.Connection:
@@ -147,7 +147,7 @@ class KnowledgeGraph:
                 (entity_id, name, entity_type),
             )
 
-    def query_entity(self, name: str, as_of: str = None) -> list[Triple]:
+    def query_entity(self, name: str, as_of: Optional[str] = None) -> list[Triple]:
         """
         Query all current triples for an entity.
 
@@ -157,7 +157,6 @@ class KnowledgeGraph:
         """
         as_of = as_of or self._now()
 
-        # Filter in SQL for performance
         query = """
             SELECT subject, predicate, object, valid_from, valid_to, confidence, source_file
             FROM triples
@@ -214,7 +213,6 @@ class KnowledgeGraph:
         object_id = self._entity_id(object)
 
         with self._conn() as conn:
-            # Ensure entities exist (single transaction)
             conn.execute(
                 "INSERT OR IGNORE INTO entities (id, name, type) VALUES (?, ?, ?)",
                 (subject_id, subject, "unknown"),
@@ -274,7 +272,6 @@ class KnowledgeGraph:
 
         timeline = []
         for row in rows:
-            # Determine direction and label
             if row["subject"] == entity:
                 direction = "outbound"
                 label = f"{entity} --{row['predicate']}--> {row['object']}"
@@ -333,16 +330,14 @@ class KnowledgeGraph:
                 logger.debug("Could not read %s: %s", note_path, e)
                 return 0
 
-        # 1. Wikilinks → links_to triples
+        # Wikilinks: [[target|display]] — strip the display part
         wikilinks = re.findall(r"\[\[([^\]]+)\]\]", content)
         for link in wikilinks:
-            # Strip display text from piped links: [[target|display]]
             target = link.split("|")[0].strip()
             if target:
                 self.add_triple(note_name, "links_to", target, source=source)
                 count += 1
 
-        # 2. Frontmatter tags → has_tag triples
         tags = metadata.get("tags", [])
         if isinstance(tags, str):
             tags = [t.strip() for t in tags.split(",") if t.strip()]
@@ -352,7 +347,6 @@ class KnowledgeGraph:
                     self.add_triple(note_name, "has_tag", tag.strip(), source=source)
                     count += 1
 
-        # 3. Folder membership
         if vault_path:
             try:
                 rel = note_path.relative_to(vault_path)
@@ -361,7 +355,6 @@ class KnowledgeGraph:
                     folder = parts[0]  # top-level: brain, work, org, perf
                     self.add_triple(note_name, "in_folder", folder, source=source)
                     count += 1
-                    # Sub-folder (e.g., work/active, org/people)
                     if len(parts) > 2:
                         subfolder = f"{parts[0]}/{parts[1]}"
                         self.add_triple(
@@ -371,7 +364,6 @@ class KnowledgeGraph:
             except ValueError:
                 pass
 
-        # 4. Frontmatter date → created_on
         date_val = metadata.get("date")
         if date_val:
             date_str = str(date_val)[:10]  # YYYY-MM-DD
@@ -384,7 +376,6 @@ class KnowledgeGraph:
             )
             count += 1
 
-        # 5. Frontmatter description → has_description (for search context)
         desc = metadata.get("description")
         if desc and isinstance(desc, str) and len(desc) > 10:
             self.add_entity(note_name, entity_type="note")

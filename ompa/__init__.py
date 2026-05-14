@@ -38,12 +38,12 @@ from .config import DualVaultConfig, IsolationMode, VaultTarget
 from .token_counter import count_tokens
 from .async_api import AsyncOmpa
 
-# Backward compatibility alias
+# Renamed from AgnosticObsidian in v0.2.0; alias preserved for downstream users.
 AgnosticObsidian = Ompa
 
 __all__ = [
     "Ompa",
-    "AgnosticObsidian",  # backward compat
+    "AgnosticObsidian",
     "Vault",
     "Note",
     "VaultConfig",

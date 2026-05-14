@@ -57,7 +57,7 @@ safe_text = st.text(
     alphabet=st.characters(whitelist_categories=("Lu", "Ll", "Nd", "Zs")),
     min_size=1,
     max_size=50,
-).filter(lambda s: s.strip())
+).filter(lambda s: s == s.strip() and s)
 
 entity_name = st.text(
     alphabet="abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-",
