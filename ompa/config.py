@@ -29,7 +29,6 @@ class VaultTarget(Enum):
     PERSONAL = "personal"
 
 
-# Default classification indicators
 DEFAULT_SHARED_INDICATORS = [
     "@team",
     "@shared",
@@ -54,10 +53,7 @@ DEFAULT_PERSONAL_INDICATORS = [
     "AKIA",
 ]
 
-# Folders that always route to shared
 SHARED_FOLDERS = {"brain", "org", "work", "perf"}
-
-# Folders that always route to personal
 PERSONAL_FOLDERS = {"personal", "private", ".secrets"}
 
 
@@ -100,21 +96,18 @@ class DualVaultConfig:
         content_lower = content.lower()
         tags_lower = [t.lower() for t in tags]
 
-        # 1. Personal indicators (check first — safety)
         for indicator in self.personal_indicators:
             if indicator.lower() in content_lower:
                 return VaultTarget.PERSONAL
             if indicator.lower() in tags_lower:
                 return VaultTarget.PERSONAL
 
-        # 2. Shared indicators
         for indicator in self.shared_indicators:
             if indicator.lower() in content_lower:
                 return VaultTarget.SHARED
             if indicator.lower() in tags_lower:
                 return VaultTarget.SHARED
 
-        # 3. Folder-based rules
         if file_path:
             path_parts = set(Path(file_path).parts)
             if path_parts & PERSONAL_FOLDERS:
@@ -122,7 +115,6 @@ class DualVaultConfig:
             if path_parts & SHARED_FOLDERS:
                 return VaultTarget.SHARED
 
-        # 4. Default
         return self.default_vault
 
     @classmethod
@@ -229,17 +221,15 @@ def make_ompa(
     Returns:
         Ompa instance configured for the selected mode
     """
-    from .core import Ompa  # Import here to avoid circular imports
+    from .core import Ompa  # deferred to avoid circular imports
 
     if shared_vault_path and personal_vault_path:
-        # Dual-vault mode
         return Ompa(
             shared_vault_path=shared_vault_path,
             personal_vault_path=personal_vault_path,
             isolation_mode=isolation_mode,
             enable_semantic=enable_semantic,
         )
-    # Single-vault mode (legacy / backward compatible)
     return Ompa(
         vault_path=vault_path or Path("."),
         enable_semantic=enable_semantic,

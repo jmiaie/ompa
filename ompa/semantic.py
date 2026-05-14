@@ -111,13 +111,11 @@ class SemanticIndex:
             return
 
         try:
-            # Remove existing chunks for this file (incremental update)
             path_str = str(path)
             self.chunks = [c for c in self.chunks if c["path"] != path_str]
 
             content = path.read_text(encoding="utf-8")
-            # Split into chunks (512 tokens each)
-            chunk_size = 512
+            chunk_size = 512  # ~512 tokens per chunk
             words = content.split()
 
             for i in range(0, len(words), chunk_size):
@@ -244,11 +242,9 @@ class SemanticIndex:
             best_results = []
 
             for chunk in self.chunks:
-                # Semantic similarity
                 chunk_embedding = chunk["embedding"]
                 similarity = _cosine_similarity(query_embedding, chunk_embedding)
 
-                # Keyword boost
                 keyword_boost = 0.0
                 if hybrid:
                     query_lower = query.lower()
@@ -276,7 +272,6 @@ class SemanticIndex:
                     )
                 )
 
-            # Sort by score and dedupe by path
             best_results.sort(key=lambda r: r.score, reverse=True)
 
             seen_paths = set()
@@ -299,7 +294,6 @@ class SemanticIndex:
         query_lower = query.lower()
         results = []
 
-        # Search through indexed chunks first
         if self.chunks:
             for chunk in self.chunks:
                 if query_lower in chunk["text"].lower():
@@ -315,8 +309,7 @@ class SemanticIndex:
                         break
             return results
 
-        # Fallback: scan the vault directory
-        vault_path = self.index_path.parent.parent  # .palace/semantic_index -> vault
+        vault_path = self.index_path.parent.parent  # .palace/semantic_index → vault root
         if vault_path.exists():
             for md_file in vault_path.rglob("*.md"):
                 if any(excl in str(md_file) for excl in DEFAULT_EXCLUDE_PATTERNS):

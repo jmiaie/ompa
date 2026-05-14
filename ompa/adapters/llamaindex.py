@@ -82,12 +82,10 @@ class OmpaReader:
         documents = []
 
         for note in notes:
-            # Folder filter
             parts = set(note.path.parts)
             if self._include_folders and not (parts & self._include_folders):
                 continue
 
-            # Tags filter
             if self._tags_filter:
                 raw_tags = note.frontmatter.get("tags", [])
                 note_tags: set[str] = set(raw_tags) if isinstance(raw_tags, list) else set()
