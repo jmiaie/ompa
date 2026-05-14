@@ -32,7 +32,9 @@ def _cosine_similarity(a, b) -> float:
         b = np.array(b, dtype=float)
         norm = np.linalg.norm(a) * np.linalg.norm(b)
         return float(np.dot(a, b) / norm) if norm > 1e-9 else 0.0
-    except Exception:
+    except ImportError:
+        return 0.0
+    except (ValueError, TypeError, FloatingPointError):
         return 0.0
 
 

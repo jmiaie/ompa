@@ -623,7 +623,7 @@ def handle_call_tool(name: str, arguments: dict) -> dict:
     except KeyError as e:
         return {"error": f"Missing required argument: {e}"}
     except Exception as e:
-        return {"error": type(e).__name__}
+        return {"error": f"{type(e).__name__}: {e}"}
 
 
 # ---------------------------------------------------------------------------
