@@ -5,9 +5,10 @@ Handles note organization, templates, wikilinks, and frontmatter validation.
 
 import logging
 import re
-from pathlib import Path
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Optional
+
 import frontmatter
 
 logger = logging.getLogger(__name__)
@@ -155,7 +156,7 @@ class Vault:
             folder_path = self.vault_path / folder
             folder_path.mkdir(parents=True, exist_ok=True)
 
-    def list_notes(self, exclude_patterns: Optional[list[str]] = None) -> list[Note]:
+    def list_notes(self, exclude_patterns: list[str] | None = None) -> list[Note]:
         """List all markdown notes in the vault."""
         exclude_patterns = exclude_patterns or DEFAULT_EXCLUDE_PATTERNS
         notes = []
@@ -177,7 +178,7 @@ class Vault:
 
     def _resolve_wikilink(
         self, link: str, filename_index: dict[str, Path]
-    ) -> Optional[Path]:
+    ) -> Path | None:
         """Resolve a wikilink to a file path using multiple strategies."""
         link_lower = link.lower()
 
@@ -238,7 +239,7 @@ class Vault:
             raise ValueError(f"Invalid brain note name: {name!r}")
         return path
 
-    def get_brain_note(self, name: str) -> Optional[Note]:
+    def get_brain_note(self, name: str) -> Note | None:
         """Get a brain note by name. Name is sanitized to prevent path traversal."""
         path = self._resolve_brain_note_path(name)
         if path.exists():

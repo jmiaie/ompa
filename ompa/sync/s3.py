@@ -45,10 +45,10 @@ class S3SyncBackend(SyncBackend):
         self,
         bucket: str,
         prefix: str = "ompa-vault/",
-        endpoint_url: Optional[str] = None,
+        endpoint_url: str | None = None,
         region_name: str = "auto",
-        aws_access_key_id: Optional[str] = None,
-        aws_secret_access_key: Optional[str] = None,
+        aws_access_key_id: str | None = None,
+        aws_secret_access_key: str | None = None,
         include_palace: bool = True,
         storage_class: str = "STANDARD",
     ):

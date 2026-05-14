@@ -54,7 +54,7 @@ class OmpaReader:
         include_work: bool = True,
         include_org: bool = True,
         include_perf: bool = True,
-        tags_filter: Optional[list[str]] = None,
+        tags_filter: list[str] | None = None,
     ):
         from ompa import Vault
 

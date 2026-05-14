@@ -5,15 +5,14 @@ Handles session_start, user_message, post_tool, pre_compact, and stop events.
 
 import json
 import logging
-from datetime import datetime
 from dataclasses import dataclass
-from typing import Optional
+from datetime import datetime
 from pathlib import Path
+from typing import TYPE_CHECKING, Optional
 
-from .vault import Vault, Note
 from .classifier import MessageClassifier
 from .token_counter import count_tokens
-from typing import TYPE_CHECKING
+from .vault import Note, Vault
 
 if TYPE_CHECKING:
     from .core import Ompa
@@ -40,7 +39,7 @@ class HookResult:
     success: bool
     output: str = ""
     tokens_hint: int = 0
-    error: Optional[str] = None
+    error: str | None = None
 
 
 class Hook:

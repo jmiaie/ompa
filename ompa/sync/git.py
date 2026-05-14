@@ -6,6 +6,7 @@ import logging
 import shutil
 import subprocess  # noqa: S404
 from pathlib import Path
+
 from .base import SyncBackend, SyncResult
 
 logger = logging.getLogger(__name__)

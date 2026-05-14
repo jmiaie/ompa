@@ -56,9 +56,9 @@ class RsyncBackend(SyncBackend):
     def __init__(
         self,
         remote: str,
-        ssh_key: Optional[str] = None,
+        ssh_key: str | None = None,
         ssh_port: int = 22,
-        excludes: Optional[list[str]] = None,
+        excludes: list[str] | None = None,
         compress: bool = True,
         delete: bool = False,         # True = exact mirror (destructive)
         dry_run_on_status: bool = True,

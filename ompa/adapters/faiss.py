@@ -35,7 +35,7 @@ import logging
 from pathlib import Path
 from typing import Optional
 
-from ..semantic import SearchResult, EmbeddingBackend
+from ..semantic import EmbeddingBackend, SearchResult
 
 logger = logging.getLogger(__name__)
 
@@ -59,7 +59,7 @@ class FAISSSemanticIndex:
         index_path: Path,
         model_name: str = "all-MiniLM-L6-v2",
         embedding_dim: int = 384,
-        embedding_backend: Optional[EmbeddingBackend] = None,
+        embedding_backend: EmbeddingBackend | None = None,
         use_ivf: bool = False,
         ivf_nlist: int = 100,
     ):
@@ -105,7 +105,7 @@ class FAISSSemanticIndex:
         self._initialized = True
         return False
 
-    def _encode(self, text: str) -> "list[float]":
+    def _encode(self, text: str) -> list[float]:
         if self._embedding_backend:
             return self._embedding_backend.encode(text)
         if self._model:
@@ -212,7 +212,7 @@ class FAISSSemanticIndex:
         except Exception as e:
             logger.warning("Error indexing %s: %s", path, e)
 
-    def index_vault(self, vault_path: Path, exclude_patterns: Optional[list] = None) -> int:
+    def index_vault(self, vault_path: Path, exclude_patterns: list | None = None) -> int:
         """Index all markdown files in a vault. Returns file count."""
         from ..vault import DEFAULT_EXCLUDE_PATTERNS
 

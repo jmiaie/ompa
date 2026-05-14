@@ -61,7 +61,7 @@ class OmpaAgentHooks:
         self.vault_path = Path(vault_path)
         self.inject_context_in_system = inject_context_in_system
         self._ao = Ompa(vault_path=vault_path, agent_name=agent_name, enable_semantic=enable_semantic)
-        self._session_context: Optional[str] = None
+        self._session_context: str | None = None
 
     # ------------------------------------------------------------------
     # OpenAI Agents SDK AgentHooks interface

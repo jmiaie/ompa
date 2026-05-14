@@ -71,7 +71,7 @@ def ao_search(query: str, vault_path: str = ".", limit: int = 5) -> dict:
     }
 
 
-def ao_kg_query(entity: str, vault_path: str = ".", as_of: Optional[str] = None) -> dict:
+def ao_kg_query(entity: str, vault_path: str = ".", as_of: str | None = None) -> dict:
     """Query the knowledge graph for an entity."""
     ao = Ompa(vault_path=vault_path, enable_semantic=False)
     triples = ao.kg.query_entity(entity, as_of=as_of)
@@ -94,8 +94,8 @@ def ao_kg_add(
     subject: str,
     predicate: str,
     object_: str,
-    valid_from: Optional[str] = None,
-    source: Optional[str] = None,
+    valid_from: str | None = None,
+    source: str | None = None,
     vault_path: str = ".",
 ) -> dict:
     """Add a fact to the knowledge graph."""
@@ -200,8 +200,8 @@ def ao_write(arguments: dict) -> dict:
     content = arguments.get("content", "")
     tags_raw = arguments.get("tags", "")
     tags = [t.strip() for t in tags_raw.split(",") if t.strip()] if tags_raw else []
-    file_path: Optional[str] = arguments.get("file_path")
-    vault: Optional[str] = arguments.get("vault")
+    file_path: str | None = arguments.get("file_path")
+    vault: str | None = arguments.get("vault")
     result = ao.write(
         content,
         file_path=file_path,

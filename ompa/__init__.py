@@ -27,16 +27,16 @@ Sync backends:
 
 __version__ = "1.0.8"
 
-from .core import Ompa
-from .vault import Vault, Note, VaultConfig
-from .palace import Palace
-from .knowledge_graph import KnowledgeGraph
-from .classifier import MessageClassifier, Classification, MessageType
-from .hooks import HookManager, HookContext, HookResult, Hook
-from .semantic import SemanticIndex, SearchResult
-from .config import DualVaultConfig, IsolationMode, VaultTarget
-from .token_counter import count_tokens
 from .async_api import AsyncOmpa
+from .classifier import Classification, MessageClassifier, MessageType
+from .config import DualVaultConfig, IsolationMode, VaultTarget
+from .core import Ompa
+from .hooks import Hook, HookContext, HookManager, HookResult
+from .knowledge_graph import KnowledgeGraph
+from .palace import Palace
+from .semantic import SearchResult, SemanticIndex
+from .token_counter import count_tokens
+from .vault import Note, Vault, VaultConfig
 
 # Renamed from AgnosticObsidian in v0.2.0; alias preserved for downstream users.
 AgnosticObsidian = Ompa

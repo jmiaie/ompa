@@ -4,8 +4,8 @@ Inspired by MemPalace. Manages the structured metadata that accelerates retrieva
 """
 
 import json
-from pathlib import Path
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Optional
 
 HALL_TYPES = [
@@ -73,7 +73,7 @@ class Palace:
     # Wing operations
 
     def create_wing(
-        self, name: str, type: str = "project", keywords: Optional[list[str]] = None
+        self, name: str, type: str = "project", keywords: list[str] | None = None
     ) -> None:
         """Create a new wing."""
         if keywords is None:
@@ -94,7 +94,7 @@ class Palace:
             for w in self._data.get("wings", {}).values()
         ]
 
-    def get_wing(self, name: str) -> Optional[dict]:
+    def get_wing(self, name: str) -> dict | None:
         """Get a wing by name."""
         return self._data.get("wings", {}).get(name)
 
@@ -119,7 +119,7 @@ class Palace:
             return []
         return list(wing_data.get("rooms", {}).keys())
 
-    def get_room(self, wing: str, room_name: str) -> Optional[dict]:
+    def get_room(self, wing: str, room_name: str) -> dict | None:
         """Get a room."""
         wing_data = self._data.get("wings", {}).get(wing)
         if not wing_data:
@@ -162,7 +162,7 @@ class Palace:
         ] = content
         self._save()
 
-    def get_hall(self, wing: str, room: str, hall_type: str) -> Optional[str]:
+    def get_hall(self, wing: str, room: str, hall_type: str) -> str | None:
         """Get hall content."""
         room_data = self.get_room(wing, room)
         if not room_data:
