@@ -6,7 +6,6 @@ import logging
 import shutil
 import subprocess  # noqa: S404
 from pathlib import Path
-from typing import Optional
 
 from .base import SyncBackend, SyncResult
 
@@ -69,31 +68,21 @@ class GitSyncBackend(SyncBackend):
 
     def push(self, vault_path: Path, message: str = "chore: vault sync") -> SyncResult:
         vault_path = Path(vault_path)
-        env_extras = {
-            "GIT_AUTHOR_NAME": self.author_name,
-            "GIT_AUTHOR_EMAIL": self.author_email,
-            "GIT_COMMITTER_NAME": self.author_name,
-            "GIT_COMMITTER_EMAIL": self.author_email,
-        }
 
-        # Stage changes
         rc, _, err = _git(["add", self.add_pattern], vault_path)
         if rc != 0:
             return SyncResult(success=False, backend=self.name, direction="push", error=f"git add failed: {err}")
 
-        # Check if there's anything to commit
         rc, stdout, _ = _git(["status", "--porcelain"], vault_path)
         if not stdout.strip():
             return SyncResult(success=True, backend=self.name, direction="push", message="nothing to commit", files_changed=0)
 
-        files_changed = len([l for l in stdout.splitlines() if l.strip()])
+        files_changed = len([line for line in stdout.splitlines() if line.strip()])
 
-        # Commit
         rc, _, err = _git(["commit", "-m", message or "chore: vault sync"], vault_path)
         if rc != 0:
             return SyncResult(success=False, backend=self.name, direction="push", error=f"git commit failed: {err}")
 
-        # Push
         rc, _, err = _git(["push", self.remote, self.branch], vault_path)
         if rc != 0:
             return SyncResult(success=False, backend=self.name, direction="push", error=f"git push failed: {err}")
@@ -113,7 +102,7 @@ class GitSyncBackend(SyncBackend):
         if rc != 0:
             return SyncResult(success=False, backend=self.name, direction="pull", error=err)
 
-        files_changed = len([l for l in stdout.splitlines() if l.strip() and not l.startswith("Already")])
+        files_changed = len([line for line in stdout.splitlines() if line.strip() and not line.startswith("Already")])
         return SyncResult(
             success=True,
             backend=self.name,
@@ -128,7 +117,7 @@ class GitSyncBackend(SyncBackend):
         if rc != 0:
             return SyncResult(success=False, backend=self.name, direction="status", error=err)
 
-        lines = [l for l in stdout.splitlines() if l.strip()]
+        lines = [line for line in stdout.splitlines() if line.strip()]
         return SyncResult(
             success=True,
             backend=self.name,

@@ -30,7 +30,6 @@ from __future__ import annotations
 
 import logging
 import os
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -62,7 +61,7 @@ class NIMEmbeddingBackend:
 
     def __init__(
         self,
-        api_key: Optional[str] = None,
+        api_key: str | None = None,
         model: str = _NIM_DEFAULT_MODEL,
         endpoint_url: str = _NIM_DEFAULT_ENDPOINT,
         batch_size: int = 32,
@@ -152,7 +151,7 @@ class NIMEmbeddingBackend:
         self.close()
 
     @classmethod
-    def from_env(cls, **kwargs) -> "NIMEmbeddingBackend":
+    def from_env(cls, **kwargs) -> NIMEmbeddingBackend:
         """
         Create a NIMEmbeddingBackend from environment variables.
 

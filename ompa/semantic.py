@@ -5,12 +5,12 @@ Supports a pluggable embedding backend (sentence-transformers by default,
 or any object with an encode(text: str) -> array interface).
 """
 
+import hashlib
 import json
 import logging
-import hashlib
-from pathlib import Path
 from dataclasses import dataclass
-from typing import Any, Optional, Protocol, runtime_checkable
+from pathlib import Path
+from typing import Any, Protocol, runtime_checkable
 
 from .vault import DEFAULT_EXCLUDE_PATTERNS, iter_markdown_files
 
@@ -54,7 +54,7 @@ class SemanticIndex:
         index_path: Path,
         model_name: str = "all-MiniLM-L6-v2",
         embedding_dim: int = 384,
-        embedding_backend: Optional[EmbeddingBackend] = None,
+        embedding_backend: EmbeddingBackend | None = None,
     ):
         self.index_path = Path(index_path)
         self.index_path.mkdir(parents=True, exist_ok=True)
@@ -64,7 +64,7 @@ class SemanticIndex:
         self.chunks: list[dict[str, Any]] = []
         self._initialized = False
         # Accept a pre-built backend (e.g. NIMEmbeddingBackend) or load lazily
-        self._model: Optional[EmbeddingBackend] = embedding_backend
+        self._model: EmbeddingBackend | None = embedding_backend
         if embedding_backend is not None:
             self._initialized = True
 
@@ -187,7 +187,7 @@ class SemanticIndex:
             return False
 
         try:
-            with open(index_file, "r", encoding="utf-8") as f:
+            with open(index_file, encoding="utf-8") as f:
                 data = json.load(f)
 
             self.chunks = data["chunks"]

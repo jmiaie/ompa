@@ -5,7 +5,12 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
+from typing import Literal
+
+# All valid sync directions across every backend.
+# Using a TypeAlias keeps the single source of truth here rather than
+# scattered string literals in git.py / rsync.py / s3.py.
+SyncDirection = Literal["push", "pull", "status"]
 
 
 @dataclass
@@ -14,10 +19,10 @@ class SyncResult:
 
     success: bool
     backend: str
-    direction: str              # "push" | "pull" | "status"
+    direction: SyncDirection
     files_changed: int = 0
     message: str = ""
-    error: Optional[str] = None
+    error: str | None = None
     details: dict = field(default_factory=dict)
 
     def __str__(self) -> str:

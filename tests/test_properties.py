@@ -17,45 +17,65 @@ try:
     from hypothesis import strategies as st
 
     HYPOTHESIS_AVAILABLE = True
+
+    # ---------------------------------------------------------------------------
+    # Strategies — defined only when hypothesis is available; module-level
+    # definitions would crash on import when hypothesis is absent.
+    # ---------------------------------------------------------------------------
+
+    safe_text = st.text(
+        alphabet=st.characters(whitelist_categories=("Lu", "Ll", "Nd", "Zs")),
+        min_size=1,
+        max_size=50,
+    ).filter(lambda s: s.strip())
+
+    entity_name = st.text(
+        alphabet="abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-",
+        min_size=1,
+        max_size=30,
+    )
+
+    predicate_name = st.sampled_from([
+        "works_on", "knows", "created", "links_to", "has_tag",
+        "in_folder", "depends_on", "blocks", "owns", "manages",
+    ])
+
+    iso_date = st.dates(
+        min_value=__import__("datetime").date(2020, 1, 1),
+        max_value=__import__("datetime").date(2030, 12, 31),
+    ).map(str)
+
+    message_type_str = st.sampled_from([
+        "DECISION", "INCIDENT", "WIN", "LOSS", "BLOCKER",
+        "QUESTION", "SUGGESTION", "REVIEW", "BUG", "FEATURE",
+        "LEARN", "RETROSPECTIVE", "ALERT", "STATUS", "CHORE",
+    ])
+
 except ImportError:
     HYPOTHESIS_AVAILABLE = False
+    # No-op stubs so class bodies don't raise NameError when hypothesis is absent.
+    def given(*a, **kw):
+        return lambda f: f
+    def settings(*a, **kw):
+        return lambda f: f
+    def assume(cond):
+        pass
+
+    class _StStub:
+        def __getattr__(self, name):
+            return lambda *a, **kw: None
+
+    st = _StStub()
+    entity_name = None
+    predicate_name = None
+    iso_date = None
+    safe_text = None
+    message_type_str = None
 
 pytestmark = pytest.mark.skipif(
     not HYPOTHESIS_AVAILABLE,
     reason="hypothesis not installed (pip install hypothesis)",
 )
-
-# ---------------------------------------------------------------------------
-# Strategies
-# ---------------------------------------------------------------------------
-
-safe_text = st.text(
-    alphabet=st.characters(whitelist_categories=("Lu", "Ll", "Nd", "Zs")),
-    min_size=1,
-    max_size=50,
-).filter(lambda s: s.strip())
-
-entity_name = st.text(
-    alphabet="abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-",
-    min_size=1,
-    max_size=30,
-)
-
-predicate_name = st.sampled_from([
-    "works_on", "knows", "created", "links_to", "has_tag",
-    "in_folder", "depends_on", "blocks", "owns", "manages",
-])
-
-iso_date = st.dates(
-    min_value=__import__("datetime").date(2020, 1, 1),
-    max_value=__import__("datetime").date(2030, 12, 31),
-).map(str)
-
-message_type_str = st.sampled_from([
-    "DECISION", "INCIDENT", "WIN", "LOSS", "BLOCKER",
-    "QUESTION", "SUGGESTION", "REVIEW", "BUG", "FEATURE",
-    "LEARN", "RETROSPECTIVE", "ALERT", "STATUS", "CHORE",
-])
 
 
 # ---------------------------------------------------------------------------

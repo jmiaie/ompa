@@ -5,15 +5,14 @@ Handles session_start, user_message, post_tool, pre_compact, and stop events.
 
 import json
 import logging
-from datetime import datetime
 from dataclasses import dataclass
-from typing import Optional
+from datetime import datetime
 from pathlib import Path
+from typing import TYPE_CHECKING, Optional
 
-from .vault import Vault, Note
 from .classifier import MessageClassifier
 from .token_counter import count_tokens
-from typing import TYPE_CHECKING
+from .vault import Note, Vault
 
 if TYPE_CHECKING:
     from .core import Ompa
@@ -40,7 +39,7 @@ class HookResult:
     success: bool
     output: str = ""
     tokens_hint: int = 0
-    error: Optional[str] = None
+    error: str | None = None
 
 
 class Hook:
@@ -426,34 +425,29 @@ class HookManager:
         )
 
     def run_session_start(self, memory=None) -> HookResult:
-        """Run session start hook."""
         context = self._create_context(memory)
         return self.hooks["session_start"].execute(context)
 
     def run_user_message(self, message: str, memory=None) -> HookResult:
-        """Run user message hook."""
         context = self._create_context(memory)
         return self.hooks["user_message"].execute(context, message=message)
 
     def run_post_tool(
         self, tool_name: str, tool_input: dict, memory=None
     ) -> HookResult:
-        """Run post tool hook."""
         context = self._create_context(memory)
         return self.hooks["post_tool"].execute(
             context, tool_name=tool_name, tool_input=tool_input
         )
 
     def run_pre_compact(self, transcript: str, memory=None) -> HookResult:
-        """Run pre-compact hook."""
         context = self._create_context(memory)
         return self.hooks["pre_compact"].execute(context, transcript=transcript)
 
     def run_stop(self, memory=None) -> HookResult:
-        """Run stop hook."""
         context = self._create_context(memory)
         return self.hooks["stop"].execute(context)
 
     def register_hook(self, name: str, hook: Hook) -> None:
-        """Register a custom hook."""
+        """Register a custom hook, overriding any built-in with the same name."""
         self.hooks[name] = hook

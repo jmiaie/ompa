@@ -5,9 +5,9 @@ Handles note organization, templates, wikilinks, and frontmatter validation.
 
 import logging
 import re
-from pathlib import Path
 from dataclasses import dataclass, field
-from typing import Optional
+from pathlib import Path
+
 import frontmatter
 
 logger = logging.getLogger(__name__)
@@ -44,15 +44,24 @@ def _safe_resolve(base: Path, untrusted: str) -> Path:
 
 @dataclass
 class VaultConfig:
-    vault_path: Path
-    brain_folder: Optional[Path] = None
-    work_folder: Optional[Path] = None
-    org_folder: Optional[Path] = None
-    perf_folder: Optional[Path] = None
-    thinking_folder: Optional[Path] = None
-    templates_folder: Optional[Path] = None
+    """Resolved folder layout for a vault.
 
-    def __post_init__(self):
+    All folder paths are always non-None after construction: if a caller does not
+    supply a value the path is derived from *vault_path* in ``__post_init__``.
+    The ``Optional`` annotations on the mutable fields exist only so that callers
+    may pass ``None`` to accept the default; after ``__post_init__`` runs they are
+    guaranteed to be ``Path`` objects.
+    """
+
+    vault_path: Path
+    brain_folder: Path = field(default=None)  # type: ignore[assignment]
+    work_folder: Path = field(default=None)  # type: ignore[assignment]
+    org_folder: Path = field(default=None)  # type: ignore[assignment]
+    perf_folder: Path = field(default=None)  # type: ignore[assignment]
+    thinking_folder: Path = field(default=None)  # type: ignore[assignment]
+    templates_folder: Path = field(default=None)  # type: ignore[assignment]
+
+    def __post_init__(self) -> None:
         if self.brain_folder is None:
             self.brain_folder = self.vault_path / "brain"
         if self.work_folder is None:
@@ -164,7 +173,7 @@ class Vault:
             folder_path = self.vault_path / folder
             folder_path.mkdir(parents=True, exist_ok=True)
 
-    def list_notes(self, exclude_patterns: Optional[list[str]] = None) -> list[Note]:
+    def list_notes(self, exclude_patterns: list[str] | None = None) -> list[Note]:
         """List all markdown notes in the vault."""
         return [
             Note.from_file(path)
@@ -196,7 +205,7 @@ class Vault:
 
     def _resolve_wikilink(
         self, link: str, filename_index: dict[str, Path]
-    ) -> Optional[Path]:
+    ) -> Path | None:
         """Resolve a wikilink to a file path using multiple strategies."""
         link_lower = link.lower()
 
@@ -252,7 +261,7 @@ class Vault:
             raise ValueError(f"Invalid brain note name: {name!r}")
         return path
 
-    def get_brain_note(self, name: str) -> Optional[Note]:
+    def get_brain_note(self, name: str) -> Note | None:
         """Get a brain note by name. Name is sanitized to prevent path traversal."""
         path = self._resolve_brain_path(name)
         if path.exists():
@@ -315,9 +324,7 @@ class Vault:
             folder_counts[folder] = folder_counts.get(folder, 0) + 1
 
             # Count brain notes: in brain/ folder OR wing=brain in frontmatter
-            if "brain" in note.path.parts:
-                brain_count += 1
-            elif str(note.frontmatter.get("wing", "")).lower() == "brain":
+            if "brain" in note.path.parts or str(note.frontmatter.get("wing", "")).lower() == "brain":
                 brain_count += 1
 
         # Also count brain folder files not yet in notes list (e.g., empty ones)

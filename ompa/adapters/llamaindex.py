@@ -22,7 +22,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -54,7 +54,7 @@ class OmpaReader:
         include_work: bool = True,
         include_org: bool = True,
         include_perf: bool = True,
-        tags_filter: Optional[list[str]] = None,
+        tags_filter: list[str] | None = None,
     ):
         from ompa import Vault
 

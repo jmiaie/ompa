@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +61,7 @@ class OmpaAgentHooks:
         self.vault_path = Path(vault_path)
         self.inject_context_in_system = inject_context_in_system
         self._ao = Ompa(vault_path=vault_path, agent_name=agent_name, enable_semantic=enable_semantic)
-        self._session_context: Optional[str] = None
+        self._session_context: str | None = None
 
     # ------------------------------------------------------------------
     # OpenAI Agents SDK AgentHooks interface
@@ -78,7 +78,7 @@ class OmpaAgentHooks:
                 existing = getattr(agent, "instructions", "") or ""
                 agent.instructions = existing + "\n\n---\n" + self._session_context
             except Exception as e:
-                logger.debug("Could not inject context into agent instructions: %s", e)
+                logger.warning("Could not inject context into agent instructions: %s", e)
 
     async def on_end(self, context: Any, agent: Any, output: Any) -> None:
         """Called when the agent finishes. Persists session summary."""
@@ -96,7 +96,7 @@ class OmpaAgentHooks:
                 tool_input = tool.input if isinstance(tool.input, dict) else {"input": str(tool.input)}
             self._ao.post_tool(tool_name, tool_input)
         except Exception as e:
-            logger.debug("OmpaAgentHooks.on_tool_call_result failed: %s", e)
+            logger.warning("OmpaAgentHooks.on_tool_call_result failed: %s", e)
 
     async def on_handoff(self, context: Any, agent: Any, source: Any) -> None:
         """Called on agent handoff. Classifies the handoff event."""
@@ -104,7 +104,7 @@ class OmpaAgentHooks:
             msg = f"Handoff from {getattr(source, 'name', 'unknown')} to {getattr(agent, 'name', 'unknown')}"
             self._ao.handle_message(msg)
         except Exception as e:
-            logger.debug("OmpaAgentHooks.on_handoff failed: %s", e)
+            logger.warning("OmpaAgentHooks.on_handoff failed: %s", e)
 
     # ------------------------------------------------------------------
     # Convenience: use as a context manager

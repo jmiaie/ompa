@@ -19,14 +19,15 @@ git (default), S3/R2, or rsync — critical for multi-node deployments.
     sync.push("./vault")
 """
 
-from .base import SyncBackend, SyncResult
+from .base import SyncBackend, SyncDirection, SyncResult
 from .git import GitSyncBackend
-from .s3 import S3SyncBackend
 from .rsync import RsyncBackend
+from .s3 import S3SyncBackend
 
 __all__ = [
     "SyncBackend",
     "SyncResult",
+    "SyncDirection",
     "GitSyncBackend",
     "S3SyncBackend",
     "RsyncBackend",

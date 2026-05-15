@@ -1044,42 +1044,8 @@ class TestDualVault:
             assert "Invalid note_path" in result["error"]
 
 
-class TestSemanticIndex:
-    """Test semantic index lazy initialization behavior."""
-
-    def test_index_vault_initializes_model(self, monkeypatch):
-        """index_vault() should initialize the model before indexing."""
-        from pathlib import Path
-        from ompa.semantic import SemanticIndex
-
-        class DummyEmbedding(list):
-            def tolist(self):
-                return list(self)
-
-        class DummyModel:
-            def encode(self, _text):
-                return DummyEmbedding([0.1, 0.2, 0.3])
-
-        def fake_init(self):
-            self._model = DummyModel()
-            self._initialized = True
-
-        monkeypatch.setattr(SemanticIndex, "_init_model", fake_init)
-
-        with tempfile.TemporaryDirectory() as tmpdir:
-            vault_path = Path(tmpdir)
-            note = vault_path / "brain" / "Semantic.md"
-            note.parent.mkdir(parents=True, exist_ok=True)
-            note.write_text(
-                "This is a sufficiently long semantic indexing note with many words.",
-                encoding="utf-8",
-            )
-
-            index = SemanticIndex(index_path=vault_path / ".palace" / "semantic_index")
-            indexed = index.index_vault(vault_path)
-
-            assert indexed >= 1
-            assert len(index.chunks) >= 1
+class TestDualVaultExtra:
+    """Additional dual-vault, cross-vault, and MCP tests."""
 
     def test_cross_vault_search(self):
         """search() with vaults=['shared','personal'] should search both."""
@@ -1257,3 +1223,37 @@ class TestSemanticIndex:
             count = idx.index_vault(vault)
             assert len(called) == 1  # _init_model was triggered
             assert count >= 1
+
+    def test_index_vault_with_dummy_backend(self, monkeypatch):
+        """index_vault() should use the model backend to produce embeddings."""
+        from pathlib import Path
+        from ompa.semantic import SemanticIndex
+
+        class DummyEmbedding(list):
+            def tolist(self):
+                return list(self)
+
+        class DummyModel:
+            def encode(self, _text):
+                return DummyEmbedding([0.1, 0.2, 0.3])
+
+        def fake_init(self):
+            self._model = DummyModel()
+            self._initialized = True
+
+        monkeypatch.setattr(SemanticIndex, "_init_model", fake_init)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            vault_path = Path(tmpdir)
+            note = vault_path / "brain" / "Semantic.md"
+            note.parent.mkdir(parents=True, exist_ok=True)
+            note.write_text(
+                "This is a sufficiently long semantic indexing note with many words.",
+                encoding="utf-8",
+            )
+
+            index = SemanticIndex(index_path=vault_path / ".palace" / "semantic_index")
+            indexed = index.index_vault(vault_path)
+
+            assert indexed >= 1
+            assert len(index.chunks) >= 1
