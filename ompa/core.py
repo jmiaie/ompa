@@ -8,7 +8,6 @@ import logging
 import re
 import shutil
 from pathlib import Path
-from typing import Any
 
 from .classifier import Classification, MessageClassifier
 from .config import DualVaultConfig, IsolationMode, VaultTarget
@@ -518,7 +517,7 @@ class Ompa:
         target, target_vault = self._resolve_write_target(content, tags, file_path, vault)
         file_path = file_path or self._build_file_path(content)
 
-        frontmatter: dict[str, Any] = {
+        frontmatter: dict[str, object] = {
             "date": datetime.now().strftime("%Y-%m-%d"),
             "tags": tags,
             "vault": target.value,
@@ -779,9 +778,10 @@ class Ompa:
     def _classify_note_for_migration(self, note: Note, classification_rules: str) -> VaultTarget:
         """Return VaultTarget for a note during migration, respecting rules."""
         if classification_rules == "auto":
+            raw_tags = note.frontmatter.get("tags")
             return self.dual_config.classify_content(
                 note.content,
-                tags=[str(t) for t in (note.frontmatter.get("tags") or [])],
+                tags=[str(t) for t in (raw_tags if isinstance(raw_tags, list) else [])],
                 file_path=str(note.path),
             )
         return VaultTarget.SHARED
