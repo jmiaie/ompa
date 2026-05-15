@@ -69,11 +69,11 @@ class S3SyncBackend(SyncBackend):
         if self._client is None:
             try:
                 import boto3
-            except ImportError:
+            except ImportError as e:
                 raise ImportError(
                     "boto3 is required for the S3 backend. "
                     "Install with: pip install ompa[s3]"
-                )
+                ) from e
             kwargs = {"region_name": self.region_name}
             if self.endpoint_url:
                 kwargs["endpoint_url"] = self.endpoint_url
@@ -95,10 +95,8 @@ class S3SyncBackend(SyncBackend):
             # Always include .md files; include .palace/ if enabled
             if f.suffix == ".md":
                 files.append(f)
-            elif self.include_palace and parts and parts[0] == ".palace":
-                # Skip large binary/model files in semantic_index
-                if "semantic_index" not in str(rel):
-                    files.append(f)
+            elif self.include_palace and parts and parts[0] == ".palace" and "semantic_index" not in str(rel):
+                files.append(f)
         return files
 
     def push(self, vault_path: Path, message: str = "") -> SyncResult:

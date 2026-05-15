@@ -8,15 +8,15 @@ import logging
 import re
 import shutil
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
-from .classifier import Classification, MessageClassifier
-from .config import DualVaultConfig, IsolationMode, VaultTarget
-from .hooks import HookManager, HookResult
-from .knowledge_graph import KnowledgeGraph
+from .vault import Vault, Note, _safe_resolve
 from .palace import Palace
-from .semantic import SearchResult, SemanticIndex
-from .vault import Note, Vault, _safe_resolve
+from .knowledge_graph import KnowledgeGraph
+from .hooks import HookManager, HookResult
+from .classifier import MessageClassifier, Classification
+from .semantic import SemanticIndex, SearchResult
+from .config import DualVaultConfig, IsolationMode, VaultTarget
 
 logger = logging.getLogger(__name__)
 
@@ -59,18 +59,12 @@ class Ompa:
         self._enable_semantic = enable_semantic
         self._embedding_backend = embedding_backend  # optional custom backend
         self._session_started = False
-        self._last_classification: Classification | None = None
+        self._last_classification: Optional[Classification] = None
 
         # Dual-vault config
         self.dual_config = DualVaultConfig(
             isolation_mode=IsolationMode(isolation_mode),
         )
-
-        # Declare optional personal-vault attributes so mypy sees the types
-        # regardless of which _init_* branch is taken.
-        self.personal_vault: Vault | None = None
-        self.personal_palace: Palace | None = None
-        self.personal_kg: KnowledgeGraph | None = None
 
         if shared_vault_path and personal_vault_path:
             self._init_dual_vault(shared_vault_path, personal_vault_path)
@@ -81,8 +75,8 @@ class Ompa:
         self.hooks = HookManager(self.vault_path, agent_name=self.agent_name)
 
         # Semantic search (lazy-loaded); annotated explicitly to help mypy
-        self._semantic: SemanticIndex | None = None
-        self._personal_semantic: SemanticIndex | None = None
+        self._semantic: Optional[SemanticIndex] = None
+        self._personal_semantic: Optional[SemanticIndex] = None
 
     def _init_dual_vault(
         self,
@@ -120,9 +114,9 @@ class Ompa:
         self.kg = KnowledgeGraph(
             db_path=str(self.vault_path / ".palace" / "knowledge_graph.sqlite3")
         )
-        self.personal_vault: Vault | None = None
-        self.personal_palace: Palace | None = None
-        self.personal_kg: KnowledgeGraph | None = None
+        self.personal_vault: Optional[Vault] = None
+        self.personal_palace: Optional[Palace] = None
+        self.personal_kg: Optional[KnowledgeGraph] = None
 
     @property
     def is_dual_vault(self) -> bool:
@@ -130,7 +124,7 @@ class Ompa:
         return self.dual_config.is_dual_vault
 
     @property
-    def semantic(self) -> SemanticIndex | None:
+    def semantic(self) -> Optional[SemanticIndex]:
         """Lazy-load semantic index on first access."""
         if self._semantic is None and self._enable_semantic:
             self._semantic = SemanticIndex(
@@ -144,7 +138,7 @@ class Ompa:
         return self._semantic
 
     @property
-    def personal_semantic(self) -> SemanticIndex | None:
+    def personal_semantic(self) -> Optional[SemanticIndex]:
         """Lazy-load personal semantic index."""
         if (
             self._personal_semantic is None
@@ -170,9 +164,18 @@ class Ompa:
 
     def session_start(self) -> HookResult:
         """
-        Load session context (~2K tokens): vault listing, North Star, active work, KG stats.
-        Populates KG on first run (when empty) and builds semantic index lazily.
+        Run session start hook.
+        Loads ~2K tokens: vault listing, North Star, active work, palace wings, KG stats.
+        Auto-populates KG from vault if empty. Builds semantic index if missing.
         """
+        self._ensure_kg_populated()
+        self._ensure_semantic_index()
+        result = self.hooks.run_session_start(self)
+        self._session_started = True
+        return result
+
+    def _ensure_kg_populated(self) -> None:
+        """Auto-populate KG from vault on session start if it is empty."""
         try:
             kg_stats = self.kg.stats()
             if kg_stats["triple_count"] == 0:
@@ -181,18 +184,19 @@ class Ompa:
         except Exception as e:
             logger.warning("KG auto-population failed: %s", e)
 
+    def _ensure_semantic_index(self) -> None:
+        """Trigger semantic index build on session start if needed."""
         if self._enable_semantic:
             try:
-                _ = self.semantic  # property triggers lazy index build
+                _ = self.semantic  # triggers lazy build via property
             except Exception as e:
                 logger.warning("Semantic index build failed: %s", e)
 
-        result = self.hooks.run_session_start(self)
-        self._session_started = True
-        return result
-
     def handle_message(self, message: str) -> HookResult:
-        """Classify a user message and return routing hints (~100 tokens)."""
+        """
+        Handle a user message.
+        Classifies the message and returns routing hints (~100 tokens).
+        """
         result = self.hooks.run_user_message(message, self)
         if result.success:
             self._last_classification = self.classifier.classify(message)
@@ -241,6 +245,22 @@ class Ompa:
         self._auto_update_kg(path)
         self._auto_update_index(path)
 
+    def _infer_wing_and_room(self, path: Path) -> tuple[str, str] | None:
+        """
+        Infer palace wing and room from a note's file path.
+
+        Returns a (wing, room) tuple, or None if the path doesn't map to a
+        known wing (brain / work / people-under-org).
+        """
+        parts = path.parts
+        if "brain" in parts:
+            return "brain", path.stem.lower().replace(" ", "-")
+        if "work" in parts:
+            return "work", path.stem.lower().replace(" ", "-")
+        if "org" in parts and "people" in parts:
+            return path.stem, "context"  # person name -> wing
+        return None
+
     def _auto_add_to_palace(self, file_path: str) -> None:
         """Auto-add a written file to the palace metadata layer."""
         path = Path(file_path)
@@ -248,20 +268,10 @@ class Ompa:
             return
 
         try:
-            # Determine wing and room from path
-            parts = path.parts
-            if "brain" in parts:
-                wing = "brain"
-                room = path.stem.lower().replace(" ", "-")
-            elif "work" in parts:
-                wing = "work"
-                room = path.stem.lower().replace(" ", "-")
-            elif "org" in parts and "people" in parts:
-                wing = path.stem  # person name
-                room = "context"
-            else:
+            location = self._infer_wing_and_room(path)
+            if location is None:
                 return
-
+            wing, room = location
             self.palace.create_room(wing, room)
             self.palace.link_drawer(wing, room, str(path))
         except Exception as e:
@@ -302,7 +312,7 @@ class Ompa:
         return self.classifier.get_routing_hint(message)
 
     @property
-    def last_classification(self) -> Classification | None:
+    def last_classification(self) -> Optional[Classification]:
         """Get the last classification result."""
         return self._last_classification
 
@@ -338,9 +348,8 @@ class Ompa:
         elif vaults is None:
             vaults = ["shared"]
 
-        all_results = []
+        all_results: list[SearchResult] = []
 
-        # Search shared vault
         if "shared" in vaults:
             all_results.extend(
                 self._search_vault(
@@ -348,7 +357,6 @@ class Ompa:
                 )
             )
 
-        # Search personal vault
         if "personal" in vaults and self.personal_vault:
             personal_results = self._search_vault(
                 self.personal_vault,
@@ -359,26 +367,25 @@ class Ompa:
                 wing,
                 room,
             )
-            # Tag personal results
+            # Tag personal results so callers can distinguish origin
             for r in personal_results:
                 r.match_type = f"personal:{r.match_type}"
             all_results.extend(personal_results)
 
-        # Sort by score and limit
         all_results.sort(key=lambda r: r.score, reverse=True)
         return all_results[:limit]
 
     def _search_vault(
         self,
         vault: Vault,
-        semantic: SemanticIndex | None,
+        semantic: Optional[SemanticIndex],
         query: str,
         limit: int,
         hybrid: bool,
         wing: str | None = None,
         room: str | None = None,
     ) -> list[SearchResult]:
-        """Search a single vault."""
+        """Search a single vault, falling back to name search when no index exists."""
         if semantic is None:
             notes = vault.search_by_name(query)
             return [
@@ -394,13 +401,11 @@ class Ompa:
         results = semantic.search(query, limit, hybrid)
 
         if wing or room:
-            filtered = []
-            for r in results:
-                if wing and wing not in r.path:
-                    continue
-                if room and room not in r.path:
-                    continue
-                filtered.append(r)
+            filtered = [
+                r for r in results
+                if (not wing or wing in r.path)
+                and (not room or room in r.path)
+            ]
             results = filtered or results[:limit]
 
         return results
@@ -448,7 +453,7 @@ class Ompa:
         if brain_path.exists():
             self._sync_note(brain_path)
 
-    def get_brain_note(self, name: str) -> object | None:
+    def get_brain_note(self, name: str) -> Optional[object]:
         """Get a brain note by name."""
         return self.vault.get_brain_note(name)
 
@@ -543,11 +548,11 @@ class Ompa:
         Returns:
             dict with {vault, path, classified_as}
         """
+        from datetime import datetime
+
         tags = tags or []
         target, target_vault = self._resolve_write_target(content, tags, file_path, vault)
         file_path = file_path or self._build_file_path(content)
-
-        from datetime import datetime
 
         frontmatter: dict[str, Any] = {
             "date": datetime.now().strftime("%Y-%m-%d"),
@@ -559,7 +564,6 @@ class Ompa:
         note = Note(path=full_path, frontmatter=frontmatter, content=content)
         note.save()
 
-        # Update KG + index
         target_kg = self.kg if target == VaultTarget.SHARED else self.personal_kg
         if target_kg:
             target_kg.populate_from_note(full_path, target_vault.vault_path)
@@ -619,10 +623,6 @@ class Ompa:
         if not self.is_dual_vault:
             return {"success": False, "error": "Not in dual-vault mode"}
 
-        assert self.dual_config.personal_path is not None  # guaranteed by is_dual_vault
-        assert self.dual_config.shared_path is not None  # guaranteed by is_dual_vault
-
-        # Validate paths upfront to prevent traversal
         try:
             source = _safe_resolve(self.dual_config.personal_path, note_path)
             target = _safe_resolve(self.dual_config.shared_path, note_path)
@@ -692,10 +692,6 @@ class Ompa:
         if not self.is_dual_vault:
             return {"success": False, "error": "Not in dual-vault mode"}
 
-        assert self.dual_config.shared_path is not None  # guaranteed by is_dual_vault
-        assert self.dual_config.personal_path is not None  # guaranteed by is_dual_vault
-
-        # Validate paths upfront to prevent traversal
         try:
             source = _safe_resolve(self.dual_config.shared_path, note_path)
             target = _safe_resolve(self.dual_config.personal_path, note_path)
@@ -715,7 +711,6 @@ class Ompa:
         note.path = target
         note.save()
 
-        # Update personal KG
         if self.personal_kg:
             self.personal_kg.populate_from_note(target, self.dual_config.personal_path)
 
@@ -728,11 +723,8 @@ class Ompa:
 
     def _sanitize_content(self, content: str) -> str:
         """Remove sensitive markers and credentials from content."""
-        # Remove personal tags
         content = re.sub(r"@private\b", "", content)
         content = re.sub(r"#personal\b", "", content)
-
-        # Redact credential-like patterns
         content = re.sub(r"(sk-[a-zA-Z0-9]{20,})", "[REDACTED]", content)
         content = re.sub(r"(AKIA[A-Z0-9]{16})", "[REDACTED]", content)
         content = re.sub(
@@ -741,7 +733,6 @@ class Ompa:
             content,
             flags=re.IGNORECASE,
         )
-
         return content
 
     def migrate_to_dual_vault(
@@ -767,19 +758,37 @@ class Ompa:
         shared_path.mkdir(parents=True, exist_ok=True)
         personal_path.mkdir(parents=True, exist_ok=True)
 
+        shared_count, personal_count = self._copy_notes_to_vaults(
+            shared_path, personal_path, classification_rules
+        )
+
+        self.dual_config.shared_path = shared_path
+        self.dual_config.personal_path = personal_path
+        config_path = Path("~/.ompa/config.yaml").expanduser()
+        self.dual_config.to_yaml(config_path)
+
+        return {
+            "shared_notes": shared_count,
+            "personal_notes": personal_count,
+            "config_saved": str(config_path),
+        }
+
+    def _copy_notes_to_vaults(
+        self,
+        shared_path: Path,
+        personal_path: Path,
+        classification_rules: str,
+    ) -> tuple[int, int]:
+        """
+        Classify and copy each vault note to the appropriate destination path.
+
+        Returns (shared_count, personal_count).
+        """
         shared_count = 0
         personal_count = 0
 
-        notes = self.vault.list_notes()
-        for note in notes:
-            if classification_rules == "auto":
-                target = self.dual_config.classify_content(
-                    note.content,
-                    tags=[str(t) for t in (note.frontmatter.get("tags") or [])],  # type: ignore[attr-defined]
-                    file_path=str(note.path),
-                )
-            else:
-                target = VaultTarget.SHARED
+        for note in self.vault.list_notes():
+            target = self._classify_note_for_migration(note, classification_rules)
 
             try:
                 rel_path = note.path.relative_to(self.vault_path)
@@ -796,14 +805,14 @@ class Ompa:
             dest.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(note.path, dest)
 
-        # Save config
-        self.dual_config.shared_path = shared_path
-        self.dual_config.personal_path = personal_path
-        config_path = Path("~/.ompa/config.yaml").expanduser()
-        self.dual_config.to_yaml(config_path)
+        return shared_count, personal_count
 
-        return {
-            "shared_notes": shared_count,
-            "personal_notes": personal_count,
-            "config_saved": str(config_path),
-        }
+    def _classify_note_for_migration(self, note: Any, classification_rules: str) -> Any:
+        """Return VaultTarget for a note during migration, respecting rules."""
+        if classification_rules == "auto":
+            return self.dual_config.classify_content(
+                note.content,
+                tags=[str(t) for t in (note.frontmatter.get("tags") or [])],  # type: ignore[attr-defined]
+                file_path=str(note.path),
+            )
+        return VaultTarget.SHARED

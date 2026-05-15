@@ -257,8 +257,8 @@ class Vault:
         path = (self.config.brain_folder / f"{safe_name}.md").resolve()
         try:
             path.relative_to(self.config.brain_folder.resolve())
-        except ValueError:
-            raise ValueError(f"Invalid brain note name: {name!r}")
+        except ValueError as e:
+            raise ValueError(f"Invalid brain note name: {name!r}") from e
         return path
 
     def get_brain_note(self, name: str) -> Note | None:

@@ -224,7 +224,7 @@ def tunnel(
 @app.command()
 def kg_query(
     entity: str,
-    as_of: str = None,
+    as_of: str | None = None,
     vault_path: Path = Path("."),
 ):
     """Query the knowledge graph."""

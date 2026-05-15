@@ -83,11 +83,11 @@ class NIMEmbeddingBackend:
             try:
                 import httpx
                 self._client = httpx.Client(timeout=self.timeout)
-            except ImportError:
+            except ImportError as e:
                 raise ImportError(
                     "httpx is required for the NIM backend. "
                     "Install with: pip install ompa[nim]"
-                )
+                ) from e
         return self._client
 
     def encode(self, text: str) -> list[float]:

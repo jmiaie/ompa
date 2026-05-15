@@ -119,11 +119,11 @@ class FAISSSemanticIndex:
         try:
             import faiss
             return faiss
-        except ImportError:
+        except ImportError as e:
             raise ImportError(
                 "faiss-cpu (or faiss-gpu) is required. "
                 "Install with: pip install ompa[faiss]"
-            )
+            ) from e
 
     def _build_index(self) -> None:
         """Create or reset the FAISS index."""
@@ -274,7 +274,7 @@ class FAISSSemanticIndex:
             results = []
             seen_paths = set()
 
-            for score, idx in zip(scores[0], indices[0]):
+            for score, idx in zip(scores[0], indices[0], strict=True):
                 if idx < 0 or idx >= len(self._metadata):
                     continue
 
@@ -381,7 +381,7 @@ class FAISSSemanticIndex:
             if emb_file.exists():
                 import numpy as np
                 embeddings = np.load(str(emb_file)).tolist()
-                for chunk, emb in zip(chunks, embeddings):
+                for chunk, emb in zip(chunks, embeddings, strict=True):
                     chunk["embedding"] = emb
             else:
                 for chunk in chunks:

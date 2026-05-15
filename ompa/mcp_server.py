@@ -24,7 +24,7 @@ from ompa import Ompa, __version__
 from ompa.config import make_ompa
 
 
-def _make_ompa(arguments: dict, enable_semantic: bool = False) -> Ompa:
+def _make_ompa(arguments: "dict[str, object]", enable_semantic: bool = False) -> Ompa:
     return make_ompa(
         vault_path=arguments.get("vault_path", "."),
         shared_vault_path=arguments.get("shared_vault_path"),
@@ -206,37 +206,39 @@ def ao_sync(vault_path: str = ".") -> dict:
     return {"success": True, **result}
 
 
-def ao_write(arguments: dict) -> dict:
+def ao_write(arguments: "dict[str, object]") -> dict:
     """Write content to the appropriate vault (auto-classifies in dual mode)."""
     ao = _make_ompa(arguments, enable_semantic=False)
-    content = arguments.get("content", "")
-    tags_raw = arguments.get("tags", "")
+    content = str(arguments.get("content", ""))
+    tags_raw = str(arguments.get("tags", "") or "")
     tags = [t.strip() for t in tags_raw.split(",") if t.strip()] if tags_raw else []
+    file_path_raw = arguments.get("file_path")
+    vault_raw = arguments.get("vault")
     result = ao.write(
         content,
-        file_path=arguments.get("file_path"),
+        file_path=str(file_path_raw) if file_path_raw is not None else None,
         tags=tags,
-        vault=arguments.get("vault"),
+        vault=str(vault_raw) if vault_raw is not None else None,
     )
     return result
 
 
-def ao_export(arguments: dict) -> dict:
+def ao_export(arguments: "dict[str, object]") -> dict:
     """Export a note from personal vault to shared vault."""
     ao = _make_ompa(arguments, enable_semantic=False)
     return ao.export_to_shared(
-        note_path=arguments["note_path"],
-        confirm=arguments.get("confirm", True),
-        sanitize=arguments.get("sanitize", True),
+        note_path=str(arguments["note_path"]),
+        confirm=bool(arguments.get("confirm", True)),
+        sanitize=bool(arguments.get("sanitize", True)),
     )
 
 
-def ao_import(arguments: dict) -> dict:
+def ao_import(arguments: "dict[str, object]") -> dict:
     """Import a note from shared vault to personal vault."""
     ao = _make_ompa(arguments, enable_semantic=False)
     return ao.import_to_personal(
-        note_path=arguments["note_path"],
-        link_back=arguments.get("link_back", True),
+        note_path=str(arguments["note_path"]),
+        link_back=bool(arguments.get("link_back", True)),
     )
 
 
@@ -561,18 +563,21 @@ def handle_call_tool(name: str, arguments: "dict[str, object]") -> dict:
                 limit=arguments.get("limit", 5),
             )
         elif name == "ao_kg_query":
+            as_of_raw = arguments.get("as_of")
             result = ao_kg_query(
-                entity=arguments["entity"],
+                entity=str(arguments["entity"]),
                 vault_path=vault_path,
-                as_of=arguments.get("as_of"),
+                as_of=str(as_of_raw) if as_of_raw is not None else None,
             )
         elif name == "ao_kg_add":
+            valid_from_raw = arguments.get("valid_from")
+            source_raw = arguments.get("source")
             result = ao_kg_add(
-                subject=arguments["subject"],
-                predicate=arguments["predicate"],
-                object_=arguments["object"],
-                valid_from=arguments.get("valid_from"),
-                source=arguments.get("source"),
+                subject=str(arguments["subject"]),
+                predicate=str(arguments["predicate"]),
+                object_=str(arguments["object"]),
+                valid_from=str(valid_from_raw) if valid_from_raw is not None else None,
+                source=str(source_raw) if source_raw is not None else None,
                 vault_path=vault_path,
             )
         elif name == "ao_kg_stats":
