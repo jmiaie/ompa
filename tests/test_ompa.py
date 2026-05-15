@@ -532,7 +532,7 @@ class TestKGPopulation:
                 "---\ndate: 2026-04-10\ntags: [auth, security]\n---\nContent here.",
                 encoding="utf-8",
             )
-            count = kg.populate_from_note(note_path, vault_path)
+            kg.populate_from_note(note_path, vault_path)
             triples = kg.query_entity("Tagged")
             tag_triples = [t for t in triples if t.predicate == "has_tag"]
             assert len(tag_triples) == 2
@@ -555,7 +555,7 @@ class TestKGPopulation:
                 "---\ndate: 2026-04-10\n---\nAuth work note.",
                 encoding="utf-8",
             )
-            count = kg.populate_from_note(note_path, vault_path)
+            kg.populate_from_note(note_path, vault_path)
             triples = kg.query_entity("Auth")
             folder_triples = [t for t in triples if t.predicate == "in_folder"]
             assert len(folder_triples) == 1
