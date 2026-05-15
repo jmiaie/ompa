@@ -26,14 +26,11 @@ class EmbeddingBackend(Protocol):
 
 def _cosine_similarity(a, b) -> float:
     """Pure-numpy cosine similarity — no sentence_transformers.util needed."""
-    try:
-        import numpy as np
-        a = np.array(a, dtype=float)
-        b = np.array(b, dtype=float)
-        norm = np.linalg.norm(a) * np.linalg.norm(b)
-        return float(np.dot(a, b) / norm) if norm > 1e-9 else 0.0
-    except Exception:
-        return 0.0
+    import numpy as np
+    a = np.array(a, dtype=float)
+    b = np.array(b, dtype=float)
+    norm = np.linalg.norm(a) * np.linalg.norm(b)
+    return float(np.dot(a, b) / norm) if norm > 1e-9 else 0.0
 
 
 @dataclass
@@ -170,17 +167,15 @@ class SemanticIndex:
 
     def index_vault(self, vault_path: Path, exclude_patterns: list = None) -> int:
         """Index all markdown files in a vault."""
-        exclude_patterns = exclude_patterns or DEFAULT_EXCLUDE_PATTERNS
-        count = 0
-
         if not self._initialized:
             self._init_model()
         if self._model is None:
             return 0
 
-        for path in vault_path.rglob("*.md"):
-            if any(excl in str(path) for excl in exclude_patterns):
-                continue
+        from .vault import iter_markdown_files
+
+        count = 0
+        for path in iter_markdown_files(vault_path, exclude_patterns):
             self.index_file(path)
             count += 1
 
@@ -192,7 +187,7 @@ class SemanticIndex:
 
         serializable = {
             "model": self.model_name,
-            "chunks": [{**c, "embedding": c["embedding"]} for c in self.chunks],
+            "chunks": list(self.chunks),
         }
 
         with open(index_file, "w", encoding="utf-8") as f:

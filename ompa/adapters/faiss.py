@@ -215,18 +215,15 @@ class FAISSSemanticIndex:
 
     def index_vault(self, vault_path: Path, exclude_patterns: list = None) -> int:
         """Index all markdown files in a vault. Returns file count."""
-        from ..vault import DEFAULT_EXCLUDE_PATTERNS
+        from ..vault import iter_markdown_files
 
-        exclude_patterns = exclude_patterns or DEFAULT_EXCLUDE_PATTERNS
         count = 0
         self._metadata = []
 
         if not self._ensure_model():
             return 0
 
-        for path in Path(vault_path).rglob("*.md"):
-            if any(excl in str(path) for excl in exclude_patterns):
-                continue
+        for path in iter_markdown_files(Path(vault_path), exclude_patterns):
             self.index_file(path)
             count += 1
 

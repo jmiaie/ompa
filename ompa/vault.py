@@ -16,6 +16,18 @@ logger = logging.getLogger(__name__)
 DEFAULT_EXCLUDE_PATTERNS = [".git", ".claude", "thinking"]
 
 
+def iter_markdown_files(vault_path: Path, exclude_patterns: list[str] | None = None):
+    """
+    Yield all .md files under vault_path, skipping excluded directories.
+    Single source of truth for the rglob + exclude filter used across
+    vault, knowledge_graph, and semantic modules.
+    """
+    exclude_patterns = exclude_patterns or DEFAULT_EXCLUDE_PATTERNS
+    for path in vault_path.rglob("*.md"):
+        if not any(excl in str(path) for excl in exclude_patterns):
+            yield path
+
+
 def _safe_resolve(base: Path, untrusted: str) -> Path:
     """
     Resolve an untrusted path relative to a base directory.
@@ -33,12 +45,12 @@ def _safe_resolve(base: Path, untrusted: str) -> Path:
 @dataclass
 class VaultConfig:
     vault_path: Path
-    brain_folder: Path = None
-    work_folder: Path = None
-    org_folder: Path = None
-    perf_folder: Path = None
-    thinking_folder: Path = None
-    templates_folder: Path = None
+    brain_folder: Optional[Path] = None
+    work_folder: Optional[Path] = None
+    org_folder: Optional[Path] = None
+    perf_folder: Optional[Path] = None
+    thinking_folder: Optional[Path] = None
+    templates_folder: Optional[Path] = None
 
     def __post_init__(self):
         if self.brain_folder is None:
@@ -80,12 +92,8 @@ class Note:
         except Exception as e:
             # Fallback: read raw content if frontmatter parsing fails
             logger.debug("Frontmatter parse failed for %s: %s", path, e)
-            try:
-                text = path.read_text(encoding="utf-8")
-                return cls(path=path, content=text, links=cls._extract_wikilinks(text))
-            except Exception as e:
-                logger.debug("Could not read %s: %s", path, e)
-                return cls(path=path)
+            text = path.read_text(encoding="utf-8")
+            return cls(path=path, content=text, links=cls._extract_wikilinks(text))
 
     @staticmethod
     def _extract_wikilinks(text: str) -> list[str]:
@@ -156,18 +164,12 @@ class Vault:
             folder_path = self.vault_path / folder
             folder_path.mkdir(parents=True, exist_ok=True)
 
-    def list_notes(self, exclude_patterns: list[str] = None) -> list[Note]:
+    def list_notes(self, exclude_patterns: Optional[list[str]] = None) -> list[Note]:
         """List all markdown notes in the vault."""
-        exclude_patterns = exclude_patterns or DEFAULT_EXCLUDE_PATTERNS
-        notes = []
-
-        for path in self.vault_path.rglob("*.md"):
-            # Check exclusions
-            if any(excl in str(path) for excl in exclude_patterns):
-                continue
-            notes.append(Note.from_file(path))
-
-        return notes
+        return [
+            Note.from_file(path)
+            for path in iter_markdown_files(self.vault_path, exclude_patterns)
+        ]
 
     def _build_filename_index(self, notes: list[Note]) -> dict[str, Path]:
         """Build a case-insensitive filename → path index for wikilink resolution."""
@@ -179,6 +181,18 @@ class Vault:
             # Also index by full filename
             index[note.path.name.lower()] = note.path
         return index
+
+    def _build_linked_files(
+        self, notes: list[Note], filename_index: dict[str, Path]
+    ) -> set[Path]:
+        """Return the set of paths that have at least one incoming wikilink."""
+        linked: set[Path] = set()
+        for note in notes:
+            for link in note.links:
+                resolved = self._resolve_wikilink(link, filename_index)
+                if resolved:
+                    linked.add(resolved)
+        return linked
 
     def _resolve_wikilink(
         self, link: str, filename_index: dict[str, Path]
@@ -210,14 +224,7 @@ class Vault:
         """Find notes with no incoming links from other notes."""
         all_notes = self.list_notes()
         filename_index = self._build_filename_index(all_notes)
-        linked_files = set()
-
-        for note in all_notes:
-            for link in note.links:
-                resolved = self._resolve_wikilink(link, filename_index)
-                if resolved:
-                    linked_files.add(resolved)
-
+        linked_files = self._build_linked_files(all_notes, filename_index)
         return [
             n
             for n in all_notes
@@ -230,35 +237,31 @@ class Vault:
         query_lower = query.lower()
         return [n for n in self.list_notes() if query_lower in n.path.stem.lower()]
 
-    def get_brain_note(self, name: str) -> Optional[Note]:
-        """Get a brain note by name. Name is sanitized to prevent path traversal."""
-        # Reject names with path separators or parent-dir references
+    def _resolve_brain_path(self, name: str) -> Path:
+        """
+        Validate and resolve a brain note name to an absolute path.
+        Raises ValueError for names that contain path separators or escape the brain folder.
+        """
         if "/" in name or "\\" in name or ".." in name:
             raise ValueError(f"Invalid brain note name: {name!r}")
-        safe_name = Path(name).name  # Strip any directory components
-        path = self.config.brain_folder / f"{safe_name}.md"
-        path = path.resolve()
-        # Ensure we stay within brain folder
+        safe_name = Path(name).name  # strip any directory components
+        path = (self.config.brain_folder / f"{safe_name}.md").resolve()
         try:
             path.relative_to(self.config.brain_folder.resolve())
         except ValueError:
             raise ValueError(f"Invalid brain note name: {name!r}")
+        return path
+
+    def get_brain_note(self, name: str) -> Optional[Note]:
+        """Get a brain note by name. Name is sanitized to prevent path traversal."""
+        path = self._resolve_brain_path(name)
         if path.exists():
             return Note.from_file(path)
         return None
 
     def update_brain_note(self, name: str, content: str, append: bool = False) -> None:
         """Update a brain note. Name is sanitized to prevent path traversal."""
-        # Reject names with path separators or parent-dir references
-        if "/" in name or "\\" in name or ".." in name:
-            raise ValueError(f"Invalid brain note name: {name!r}")
-        safe_name = Path(name).name  # Strip any directory components
-        path = self.config.brain_folder / f"{safe_name}.md"
-        path = path.resolve()
-        try:
-            path.relative_to(self.config.brain_folder.resolve())
-        except ValueError:
-            raise ValueError(f"Invalid brain note name: {name!r}")
+        path = self._resolve_brain_path(name)
         path.parent.mkdir(parents=True, exist_ok=True)
 
         if append and path.exists():
@@ -296,14 +299,7 @@ class Vault:
         """Get vault statistics."""
         notes = self.list_notes()
         filename_index = self._build_filename_index(notes)
-
-        # Build linked set using smart wikilink resolution
-        linked_files = set()
-        for note in notes:
-            for link in note.links:
-                resolved = self._resolve_wikilink(link, filename_index)
-                if resolved:
-                    linked_files.add(resolved)
+        linked_files = self._build_linked_files(notes, filename_index)
 
         orphan_count = sum(
             1

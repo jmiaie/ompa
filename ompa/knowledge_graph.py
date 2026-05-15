@@ -16,7 +16,6 @@ Usage:
 
 import hashlib
 import logging
-import re
 import sqlite3
 import threading
 from contextlib import contextmanager
@@ -55,7 +54,7 @@ def _row_to_triple(row: sqlite3.Row) -> Triple:
 
 
 class KnowledgeGraph:
-    def __init__(self, db_path: str = None):
+    def __init__(self, db_path: Optional[str] = None):
         self.db_path = Path(db_path or DEFAULT_KG_PATH).expanduser()
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._local = threading.local()  # per-thread connection cache
@@ -147,7 +146,7 @@ class KnowledgeGraph:
                 (entity_id, name, entity_type),
             )
 
-    def query_entity(self, name: str, as_of: str = None) -> list[Triple]:
+    def query_entity(self, name: str, as_of: Optional[str] = None) -> list[Triple]:
         """
         Query all current triples for an entity.
 
@@ -191,10 +190,10 @@ class KnowledgeGraph:
         subject: str,
         predicate: str,
         object: str,
-        valid_from: str = None,
-        valid_to: str = None,
+        valid_from: Optional[str] = None,
+        valid_to: Optional[str] = None,
         confidence: float = 1.0,
-        source: str = None,
+        source: Optional[str] = None,
     ) -> None:
         """
         Add a fact triple to the knowledge graph.
@@ -240,7 +239,7 @@ class KnowledgeGraph:
             )
 
     def invalidate(
-        self, subject: str, predicate: str, obj: str, ended: str = None
+        self, subject: str, predicate: str, obj: str, ended: Optional[str] = None
     ) -> None:
         """
         Invalidate a triple by setting its valid_to date.
@@ -300,7 +299,7 @@ class KnowledgeGraph:
     # Auto-population from vault
     # -------------------------------------------------------------------------
 
-    def populate_from_note(self, note_path: Path, vault_path: Path = None) -> int:
+    def populate_from_note(self, note_path: Path, vault_path: Optional[Path] = None) -> int:
         """
         Extract and store triples from a single vault note.
 
@@ -334,13 +333,10 @@ class KnowledgeGraph:
                 return 0
 
         # 1. Wikilinks → links_to triples
-        wikilinks = re.findall(r"\[\[([^\]]+)\]\]", content)
-        for link in wikilinks:
-            # Strip display text from piped links: [[target|display]]
-            target = link.split("|")[0].strip()
-            if target:
-                self.add_triple(note_name, "links_to", target, source=source)
-                count += 1
+        from .vault import Note as _Note
+        for target in _Note._extract_wikilinks(content):
+            self.add_triple(note_name, "links_to", target, source=source)
+            count += 1
 
         # 2. Frontmatter tags → has_tag triples
         tags = metadata.get("tags", [])
@@ -393,7 +389,7 @@ class KnowledgeGraph:
         return count
 
     def populate_from_vault(
-        self, vault_path: Path, exclude_patterns: list = None
+        self, vault_path: Path, exclude_patterns: Optional[list[str]] = None
     ) -> int:
         """
         Scan all vault notes and populate the knowledge graph.
@@ -405,15 +401,12 @@ class KnowledgeGraph:
         Returns:
             Total number of triples added.
         """
-        from .vault import DEFAULT_EXCLUDE_PATTERNS
+        from .vault import iter_markdown_files
 
-        exclude_patterns = exclude_patterns or DEFAULT_EXCLUDE_PATTERNS
         total = 0
         vault_path = Path(vault_path)
 
-        for md_file in vault_path.rglob("*.md"):
-            if any(excl in str(md_file) for excl in exclude_patterns):
-                continue
+        for md_file in iter_markdown_files(vault_path, exclude_patterns):
             added = self.populate_from_note(md_file, vault_path)
             total += added
 
