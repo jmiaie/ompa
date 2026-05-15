@@ -19,7 +19,6 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -67,7 +66,7 @@ class OmpaAgentHooks:
     # OpenAI Agents SDK AgentHooks interface
     # ------------------------------------------------------------------
 
-    async def on_start(self, context: Any, agent: Any) -> None:
+    async def on_start(self, context: object, agent: object) -> None:
         """Called when the agent starts. Injects vault context."""
         result = self._ao.session_start()
         self._session_context = result.output
@@ -76,29 +75,30 @@ class OmpaAgentHooks:
             try:
                 # Append vault context to the agent's system instructions
                 existing = getattr(agent, "instructions", "") or ""
-                agent.instructions = existing + "\n\n---\n" + self._session_context
+                agent.instructions = existing + "\n\n---\n" + self._session_context  # type: ignore[attr-defined]
             except Exception as e:
                 logger.warning("Could not inject context into agent instructions: %s", e)
 
-    async def on_end(self, context: Any, agent: Any, output: Any) -> None:
+    async def on_end(self, context: object, agent: object, output: object) -> None:
         """Called when the agent finishes. Persists session summary."""
         self._ao.stop()
         self._session_context = None
 
     async def on_tool_call_result(
-        self, context: Any, agent: Any, tool: Any, result: Any
+        self, context: object, agent: object, tool: object, result: object
     ) -> None:
         """Called after each tool call. Syncs file writes to palace and KG."""
         try:
             tool_name = getattr(tool, "name", str(tool))
-            tool_input: dict[str, Any] = {}
-            if hasattr(tool, "input"):
-                tool_input = tool.input if isinstance(tool.input, dict) else {"input": str(tool.input)}
+            raw_input = getattr(tool, "input", None)
+            tool_input: dict[str, object] = {}
+            if raw_input is not None:
+                tool_input = raw_input if isinstance(raw_input, dict) else {"input": str(raw_input)}
             self._ao.post_tool(tool_name, tool_input)
         except Exception as e:
             logger.warning("OmpaAgentHooks.on_tool_call_result failed: %s", e)
 
-    async def on_handoff(self, context: Any, agent: Any, source: Any) -> None:
+    async def on_handoff(self, context: object, agent: object, source: object) -> None:
         """Called on agent handoff. Classifies the handoff event."""
         try:
             msg = f"Handoff from {getattr(source, 'name', 'unknown')} to {getattr(agent, 'name', 'unknown')}"

@@ -182,5 +182,5 @@ class OmpaRetriever:
         return self.get_relevant_documents(query)
 
     # BaseRetriever duck-typing
-    def invoke(self, input: str, config: Any = None, **kwargs) -> list:
+    def invoke(self, input: str, config: object = None, **kwargs) -> list:
         return self.get_relevant_documents(input)
