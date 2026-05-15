@@ -13,7 +13,7 @@ import tempfile
 import pytest
 
 try:
-    from hypothesis import given, settings, assume
+    from hypothesis import assume, given, settings
     from hypothesis import strategies as st
 
     HYPOTHESIS_AVAILABLE = True
@@ -133,8 +133,9 @@ class TestKGProperties:
         assume(subject != obj)
 
         with tempfile.TemporaryDirectory() as tmp:
-            from ompa import KnowledgeGraph
             import datetime
+
+            from ompa import KnowledgeGraph
 
             kg = KnowledgeGraph(db_path=os.path.join(tmp, "kg.sqlite3"))
             kg.add_triple(subject, predicate, obj, valid_from=valid_from)

@@ -4,7 +4,6 @@ Run with: ao <command> or ao-mcp <command>
 """
 
 from pathlib import Path
-from typing import Optional
 
 import typer
 from rich.console import Console
@@ -20,8 +19,8 @@ console = Console()
 @app.command()
 def init(
     vault_path: Path = Path("."),
-    shared_vault: Optional[Path] = typer.Option(None, help="Shared vault path"),
-    personal_vault: Optional[Path] = typer.Option(None, help="Personal vault path"),
+    shared_vault: Path | None = typer.Option(None, help="Shared vault path"),
+    personal_vault: Path | None = typer.Option(None, help="Personal vault path"),
 ):
     """Initialize vault + palace structure."""
     from ompa import Vault
@@ -107,15 +106,15 @@ def search(
     query: str,
     vault_path: Path = Path("."),
     limit: int = 5,
-    vault: Optional[str] = typer.Option(
+    vault: str | None = typer.Option(
         None, help="Which vault: shared, personal, or both"
     ),
-    shared_vault: Optional[Path] = typer.Option(None, help="Shared vault path"),
-    personal_vault: Optional[Path] = typer.Option(None, help="Personal vault path"),
+    shared_vault: Path | None = typer.Option(None, help="Shared vault path"),
+    personal_vault: Path | None = typer.Option(None, help="Personal vault path"),
 ):
     """Search the vault semantically."""
     ao = make_ompa(vault_path, shared_vault, personal_vault, enable_semantic=True)
-    vaults: Optional[list[str]] = None
+    vaults: list[str] | None = None
     if vault == "both":
         vaults = ["shared", "personal"]
     elif vault:
@@ -336,13 +335,13 @@ def kg_populate(
 @app.command()
 def sync(
     vault_path: Path = Path("."),
-    shared_vault: Optional[Path] = typer.Option(None, help="Shared vault path"),
-    personal_vault: Optional[Path] = typer.Option(None, help="Personal vault path"),
-    backend: Optional[str] = typer.Option(
+    shared_vault: Path | None = typer.Option(None, help="Shared vault path"),
+    personal_vault: Path | None = typer.Option(None, help="Personal vault path"),
+    backend: str | None = typer.Option(
         None,
         help="Sync backend: git | s3 | rsync. Omits remote push if not set.",
     ),
-    remote: Optional[str] = typer.Option(None, help="Remote target (git remote, S3 bucket, rsync host)"),
+    remote: str | None = typer.Option(None, help="Remote target (git remote, S3 bucket, rsync host)"),
     message: str = typer.Option("chore: vault sync", help="Commit/sync message"),
     push: bool = typer.Option(True, help="Push to remote after local sync"),
 ):
@@ -364,11 +363,11 @@ def sync(
 @app.command()
 def write_note(
     content: str,
-    vault: Optional[str] = typer.Option(None, help="Target vault: shared or personal"),
-    tags: Optional[str] = typer.Option(None, help="Comma-separated tags"),
-    file_path: Optional[str] = typer.Option(None, help="Target file path"),
-    shared_vault: Optional[Path] = typer.Option(None, help="Shared vault path"),
-    personal_vault: Optional[Path] = typer.Option(None, help="Personal vault path"),
+    vault: str | None = typer.Option(None, help="Target vault: shared or personal"),
+    tags: str | None = typer.Option(None, help="Comma-separated tags"),
+    file_path: str | None = typer.Option(None, help="Target file path"),
+    shared_vault: Path | None = typer.Option(None, help="Shared vault path"),
+    personal_vault: Path | None = typer.Option(None, help="Personal vault path"),
     vault_path: Path = Path("."),
 ):
     """Write content to the appropriate vault (auto-classifies in dual mode)."""
@@ -436,12 +435,12 @@ def migrate(
     console.print(f"  Config saved: {result['config_saved']}")
 
 
-def _sync_remote(vault_path: Path, backend: str, remote: Optional[str], message: str) -> None:
+def _sync_remote(vault_path: Path, backend: str, remote: str | None, message: str) -> None:
     """Push vault to a remote backend and print the result."""
-    from ompa.sync import GitSyncBackend, S3SyncBackend, RsyncBackend, SyncBackend
+    from ompa.sync import GitSyncBackend, RsyncBackend, S3SyncBackend, SyncBackend
 
     b = backend.lower()
-    syncer: Optional[SyncBackend] = None
+    syncer: SyncBackend | None = None
     try:
         if b == "git":
             parts = (remote or "origin/main").split("/", 1)

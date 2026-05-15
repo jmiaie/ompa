@@ -19,7 +19,7 @@ Usage:
 import json
 import sys
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from ompa import Ompa, __version__
 from ompa.config import make_ompa
