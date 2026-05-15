@@ -170,11 +170,11 @@ class OmpaVaultRetriever:
                 for r in results
             ]
 
-    def retrieve(self, query: Any) -> list:
+    def retrieve(self, query: object) -> list:
         """LlamaIndex BaseRetriever interface."""
         if hasattr(query, "query_str"):
-            query = query.query_str
+            query = query.query_str  # type: ignore[union-attr]
         return self._retrieve(str(query))
 
-    async def aretrieve(self, query: Any) -> list:
+    async def aretrieve(self, query: object) -> list:
         return self.retrieve(query)
