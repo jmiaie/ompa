@@ -4,6 +4,7 @@ Run with: ao <command> or ao-mcp <command>
 """
 
 from pathlib import Path
+from typing import Optional
 
 import typer
 from rich.console import Console
@@ -19,8 +20,8 @@ console = Console()
 @app.command()
 def init(
     vault_path: Path = Path("."),
-    shared_vault: Path | None = typer.Option(None, help="Shared vault path"),
-    personal_vault: Path | None = typer.Option(None, help="Personal vault path"),
+    shared_vault: Optional[Path] = typer.Option(None, help="Shared vault path"),
+    personal_vault: Optional[Path] = typer.Option(None, help="Personal vault path"),
 ):
     """Initialize vault + palace structure."""
     from ompa import Vault
@@ -106,17 +107,19 @@ def search(
     query: str,
     vault_path: Path = Path("."),
     limit: int = 5,
-    vault: str | None = typer.Option(
+    vault: Optional[str] = typer.Option(
         None, help="Which vault: shared, personal, or both"
     ),
-    shared_vault: Path | None = typer.Option(None, help="Shared vault path"),
-    personal_vault: Path | None = typer.Option(None, help="Personal vault path"),
+    shared_vault: Optional[Path] = typer.Option(None, help="Shared vault path"),
+    personal_vault: Optional[Path] = typer.Option(None, help="Personal vault path"),
 ):
     """Search the vault semantically."""
     ao = make_ompa(vault_path, shared_vault, personal_vault, enable_semantic=True)
-    vaults = [vault] if vault and vault != "both" else None
+    vaults: Optional[list[str]] = None
     if vault == "both":
         vaults = ["shared", "personal"]
+    elif vault:
+        vaults = [vault]
     results = ao.search(query, limit=limit, vaults=vaults)
 
     table = Table(title=f"Search: {query}")
@@ -333,13 +336,13 @@ def kg_populate(
 @app.command()
 def sync(
     vault_path: Path = Path("."),
-    shared_vault: Path | None = typer.Option(None, help="Shared vault path"),
-    personal_vault: Path | None = typer.Option(None, help="Personal vault path"),
-    backend: str | None = typer.Option(
+    shared_vault: Optional[Path] = typer.Option(None, help="Shared vault path"),
+    personal_vault: Optional[Path] = typer.Option(None, help="Personal vault path"),
+    backend: Optional[str] = typer.Option(
         None,
         help="Sync backend: git | s3 | rsync. Omits remote push if not set.",
     ),
-    remote: str | None = typer.Option(None, help="Remote target (git remote, S3 bucket, rsync host)"),
+    remote: Optional[str] = typer.Option(None, help="Remote target (git remote, S3 bucket, rsync host)"),
     message: str = typer.Option("chore: vault sync", help="Commit/sync message"),
     push: bool = typer.Option(True, help="Push to remote after local sync"),
 ):
@@ -361,11 +364,11 @@ def sync(
 @app.command()
 def write_note(
     content: str,
-    vault: str | None = typer.Option(None, help="Target vault: shared or personal"),
-    tags: str | None = typer.Option(None, help="Comma-separated tags"),
-    file_path: str | None = typer.Option(None, help="Target file path"),
-    shared_vault: Path | None = typer.Option(None, help="Shared vault path"),
-    personal_vault: Path | None = typer.Option(None, help="Personal vault path"),
+    vault: Optional[str] = typer.Option(None, help="Target vault: shared or personal"),
+    tags: Optional[str] = typer.Option(None, help="Comma-separated tags"),
+    file_path: Optional[str] = typer.Option(None, help="Target file path"),
+    shared_vault: Optional[Path] = typer.Option(None, help="Shared vault path"),
+    personal_vault: Optional[Path] = typer.Option(None, help="Personal vault path"),
     vault_path: Path = Path("."),
 ):
     """Write content to the appropriate vault (auto-classifies in dual mode)."""
@@ -433,12 +436,12 @@ def migrate(
     console.print(f"  Config saved: {result['config_saved']}")
 
 
-def _sync_remote(vault_path: Path, backend: str, remote: str | None, message: str) -> None:
+def _sync_remote(vault_path: Path, backend: str, remote: Optional[str], message: str) -> None:
     """Push vault to a remote backend and print the result."""
-    from ompa.sync import GitSyncBackend, RsyncBackend, S3SyncBackend, SyncBackend
+    from ompa.sync import GitSyncBackend, S3SyncBackend, RsyncBackend, SyncBackend
 
     b = backend.lower()
-    syncer: SyncBackend | None = None
+    syncer: Optional[SyncBackend] = None
     try:
         if b == "git":
             parts = (remote or "origin/main").split("/", 1)
@@ -469,23 +472,21 @@ def _sync_remote(vault_path: Path, backend: str, remote: str | None, message: st
         console.print(f"[red]Sync error: {e}[/red]")
 
 
-@app.command()
-def doctor(
-    vault_path: Path = Path("."),
-):
-    """Check vault health — structure, KG, palace, semantic index, orphans."""
-    from rich import box
+# ---------------------------------------------------------------------------
+# doctor helpers
+# ---------------------------------------------------------------------------
 
-    ao = Ompa(vault_path, enable_semantic=False)
-    checks: list[tuple[str, str, str]] = []
+_DoctorChecks = list[tuple[str, str, str]]
 
-    # Vault root
+
+def _doctor_check_vault_root(vault_path: Path) -> tuple[str, str, str]:
     if vault_path.exists():
-        checks.append(("OK", "Vault root", str(vault_path.absolute())))
-    else:
-        checks.append(("ERROR", "Vault root", f"Not found: {vault_path.absolute()}"))
+        return ("OK", "Vault root", str(vault_path.absolute()))
+    return ("ERROR", "Vault root", f"Not found: {vault_path.absolute()}")
 
-    # Folder structure
+
+def _doctor_check_folders(vault_path: Path) -> _DoctorChecks:
+    checks: _DoctorChecks = []
     for folder in ["brain", "work", "org", "perf"]:
         fp = vault_path / folder
         if fp.exists():
@@ -493,65 +494,72 @@ def doctor(
             checks.append(("OK", f"{folder}/", f"{note_count} notes"))
         else:
             checks.append(("WARN", f"{folder}/", "Missing — run `ao init` to create"))
+    return checks
 
-    # Palace metadata
+
+def _doctor_check_palace(vault_path: Path, ao: Ompa) -> tuple[str, str, str]:
     palace_dir = vault_path / ".palace"
     if palace_dir.exists():
         ps = ao.palace.stats()
-        checks.append(
-            ("OK", ".palace/", f"{ps['wing_count']} wings, {ps['room_count']} rooms")
-        )
-    else:
-        checks.append(("WARN", ".palace/", "Not built — run `ao init`"))
+        return ("OK", ".palace/", f"{ps['wing_count']} wings, {ps['room_count']} rooms")
+    return ("WARN", ".palace/", "Not built — run `ao init`")
 
-    # Knowledge graph
+
+def _doctor_check_kg(vault_path: Path, ao: Ompa) -> tuple[str, str, str]:
     kg_db = vault_path / ".palace" / "knowledge_graph.sqlite3"
-    if kg_db.exists():
-        ks = ao.kg.stats()
-        if ks["triple_count"] > 0:
-            checks.append(
-                (
-                    "OK",
-                    "Knowledge Graph",
-                    f"{ks['entity_count']} entities, {ks['triple_count']} triples",
-                )
-            )
-        else:
-            checks.append(
-                ("WARN", "Knowledge Graph", "Empty — run `ao kg-populate` to fill")
-            )
-    else:
-        checks.append(("WARN", "Knowledge Graph", "Not initialized — run `ao init`"))
+    if not kg_db.exists():
+        return ("WARN", "Knowledge Graph", "Not initialized — run `ao init`")
+    ks = ao.kg.stats()
+    if ks["triple_count"] > 0:
+        return (
+            "OK",
+            "Knowledge Graph",
+            f"{ks['entity_count']} entities, {ks['triple_count']} triples",
+        )
+    return ("WARN", "Knowledge Graph", "Empty — run `ao kg-populate` to fill")
 
-    # Semantic index
+
+def _doctor_check_semantic_index(vault_path: Path) -> tuple[str, str, str]:
     index_path = vault_path / ".palace" / "semantic_index"
     if index_path.exists() and any(index_path.iterdir()):
-        checks.append(("OK", "Semantic Index", "Present"))
-    else:
-        checks.append(
-            ("INFO", "Semantic Index", "Not built — run `ao rebuild-index` (optional)")
-        )
+        return ("OK", "Semantic Index", "Present")
+    return ("INFO", "Semantic Index", "Not built — run `ao rebuild-index` (optional)")
 
-    # Orphans
+
+def _doctor_check_orphans(ao: Ompa) -> tuple[str, str, str]:
     try:
         orphan_list = ao.find_orphans()
         if not orphan_list:
-            checks.append(("OK", "Orphan notes", "None"))
-        else:
-            checks.append(
-                ("WARN", "Orphan notes", f"{len(orphan_list)} notes with no wikilinks")
-            )
+            return ("OK", "Orphan notes", "None")
+        return ("WARN", "Orphan notes", f"{len(orphan_list)} notes with no wikilinks")
     except Exception as e:
-        checks.append(("WARN", "Orphan notes", f"Check failed: {e}"))
+        return ("WARN", "Orphan notes", f"Check failed: {e}")
 
-    # Total notes
+
+def _doctor_check_total_notes(ao: Ompa) -> tuple[str, str, str]:
     try:
         vs = ao.get_stats()
-        checks.append(("OK", "Total notes", str(vs["total_notes"])))
+        return ("OK", "Total notes", str(vs["total_notes"]))
     except Exception as e:
-        checks.append(("WARN", "Total notes", f"Could not read vault: {e}"))
+        return ("WARN", "Total notes", f"Could not read vault: {e}")
 
-    # Render
+
+def _collect_doctor_checks(vault_path: Path, ao: Ompa) -> _DoctorChecks:
+    """Gather all health-check tuples for the doctor command."""
+    checks: _DoctorChecks = [_doctor_check_vault_root(vault_path)]
+    checks.extend(_doctor_check_folders(vault_path))
+    checks.append(_doctor_check_palace(vault_path, ao))
+    checks.append(_doctor_check_kg(vault_path, ao))
+    checks.append(_doctor_check_semantic_index(vault_path))
+    checks.append(_doctor_check_orphans(ao))
+    checks.append(_doctor_check_total_notes(ao))
+    return checks
+
+
+def _render_doctor_table(checks: _DoctorChecks) -> None:
+    """Print the health-check table and summary line."""
+    from rich import box
+
     styles = {"OK": "green", "WARN": "yellow", "ERROR": "red", "INFO": "blue"}
     table = Table(title="OMPA Health Check", box=box.ROUNDED)
     table.add_column("Status", width=8)
@@ -575,6 +583,16 @@ def doctor(
         )
     else:
         console.print("\n[green]✓ Vault is healthy[/green]")
+
+
+@app.command()
+def doctor(
+    vault_path: Path = Path("."),
+):
+    """Check vault health — structure, KG, palace, semantic index, orphans."""
+    ao = Ompa(vault_path, enable_semantic=False)
+    checks = _collect_doctor_checks(vault_path, ao)
+    _render_doctor_table(checks)
 
 
 @app.command()

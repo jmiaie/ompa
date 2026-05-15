@@ -162,9 +162,6 @@ class Ompa:
                     self._personal_semantic.save_index()
         return self._personal_semantic
 
-    # -------------------------------------------------------------------------
-    # Lifecycle Hooks
-    # -------------------------------------------------------------------------
 
     def session_start(self) -> HookResult:
         """
@@ -214,11 +211,11 @@ class Ompa:
         return result
 
     def pre_compact(self, transcript: str) -> HookResult:
-        """Run pre-compact hook before context compaction."""
+        """Archive session transcript before context compaction."""
         return self.hooks.run_pre_compact(transcript, self)
 
     def stop(self) -> HookResult:
-        """Run stop hook (wrap-up checklist)."""
+        """Run wrap-up checklist and persist session state."""
         result = self.hooks.run_stop(self)
         self._session_started = False
         return result
@@ -231,9 +228,6 @@ class Ompa:
         """Alias for session_start()."""
         return self.session_start()
 
-    # -------------------------------------------------------------------------
-    # Auto palace population
-    # -------------------------------------------------------------------------
 
     def _sync_note(self, path: Path) -> None:
         """Update palace metadata, KG, and search index for a written/edited note."""
@@ -295,26 +289,17 @@ class Ompa:
         except Exception as e:
             logger.warning("Index auto-update failed for %s: %s", path, e)
 
-    # -------------------------------------------------------------------------
-    # Classification
-    # -------------------------------------------------------------------------
 
     def classify(self, message: str) -> Classification:
-        """Classify a user message."""
         return self.classifier.classify(message)
 
     def get_routing_hint(self, message: str) -> str:
-        """Get a one-line routing hint for a message."""
         return self.classifier.get_routing_hint(message)
 
     @property
     def last_classification(self) -> Classification | None:
-        """Get the last classification result."""
         return self._last_classification
 
-    # -------------------------------------------------------------------------
-    # Search
-    # -------------------------------------------------------------------------
 
     def search(
         self,
@@ -338,10 +323,7 @@ class Ompa:
                     ["shared", "personal"]. Default: ["shared"] in dual mode,
                     or the single vault in legacy mode.
         """
-        # Determine which vaults to search
-        if not self.is_dual_vault:
-            vaults = ["shared"]  # single vault acts as shared
-        elif vaults is None:
+        if not self.is_dual_vault or vaults is None:
             vaults = ["shared"]
 
         all_results: list[SearchResult] = []
@@ -407,12 +389,12 @@ class Ompa:
         return results
 
     def qsearch(self, query: str, limit: int = 5) -> list[SearchResult]:
-        """QMD-style semantic search. Convenience method."""
+        """Hybrid semantic+keyword search with default settings."""
         return self.search(query, limit, hybrid=True)
 
     def rebuild_index(self) -> int:
-        """Rebuild the semantic index."""
-        semantic = self.semantic  # access property once; narrows Optional
+        """Drop and rebuild the semantic index from scratch."""
+        semantic = self.semantic
         if semantic is None:
             return 0
         semantic.clear()
@@ -420,17 +402,11 @@ class Ompa:
         semantic.save_index()
         return count
 
-    # -------------------------------------------------------------------------
-    # Validation
-    # -------------------------------------------------------------------------
 
     def validate_write(self, file_path: str) -> dict:
         """Validate a markdown file for frontmatter and wikilinks."""
         return self.vault.validate_write(file_path)
 
-    # -------------------------------------------------------------------------
-    # Vault Management
-    # -------------------------------------------------------------------------
 
     def get_stats(self) -> dict:
         """Get vault statistics."""
@@ -444,7 +420,6 @@ class Ompa:
         """Update a brain note and sync to KG + search index."""
         self.vault.update_brain_note(note_name, content, append)
 
-        # Sync brain note to KG, search index, and palace
         brain_path = self.vault.config.brain_folder / f"{note_name}.md"
         if brain_path.exists():
             self._sync_note(brain_path)
@@ -453,17 +428,11 @@ class Ompa:
         """Get a brain note by name."""
         return self.vault.get_brain_note(name)
 
-    # -------------------------------------------------------------------------
-    # Palace shortcuts
-    # -------------------------------------------------------------------------
 
     def palace_build(self) -> int:
         """Auto-build palace metadata from vault structure."""
         return self.palace.auto_build_from_vault(self.vault_path)
 
-    # -------------------------------------------------------------------------
-    # KG shortcuts
-    # -------------------------------------------------------------------------
 
     def kg_add(
         self,
@@ -506,7 +475,6 @@ class Ompa:
             "indexed_files": index_count,
         }
 
-        # Sync personal vault too if in dual mode
         if self.is_dual_vault:
             assert self.dual_config.personal_path is not None  # guaranteed by is_dual_vault
             assert self.personal_kg is not None  # guaranteed by is_dual_vault
@@ -521,9 +489,6 @@ class Ompa:
         logger.info("Full sync complete: %s", result)
         return result
 
-    # -------------------------------------------------------------------------
-    # Dual-vault operations
-    # -------------------------------------------------------------------------
 
     def write(
         self,
@@ -622,6 +587,9 @@ class Ompa:
         if not self.is_dual_vault:
             return {"success": False, "error": "Not in dual-vault mode"}
 
+        assert self.dual_config.personal_path is not None, "personal_path set by is_dual_vault"
+        assert self.dual_config.shared_path is not None, "shared_path set by is_dual_vault"
+
         try:
             source = _safe_resolve(self.dual_config.personal_path, note_path)
             target = _safe_resolve(self.dual_config.shared_path, note_path)
@@ -691,6 +659,8 @@ class Ompa:
         if not self.is_dual_vault:
             return {"success": False, "error": "Not in dual-vault mode"}
 
+        assert self.dual_config.shared_path is not None
+        assert self.dual_config.personal_path is not None
         try:
             source = _safe_resolve(self.dual_config.shared_path, note_path)
             target = _safe_resolve(self.dual_config.personal_path, note_path)
@@ -806,12 +776,12 @@ class Ompa:
 
         return shared_count, personal_count
 
-    def _classify_note_for_migration(self, note: Any, classification_rules: str) -> Any:
+    def _classify_note_for_migration(self, note: Note, classification_rules: str) -> VaultTarget:
         """Return VaultTarget for a note during migration, respecting rules."""
         if classification_rules == "auto":
             return self.dual_config.classify_content(
                 note.content,
-                tags=[str(t) for t in (note.frontmatter.get("tags") or [])],  # type: ignore[attr-defined]
+                tags=[str(t) for t in (note.frontmatter.get("tags") or [])],
                 file_path=str(note.path),
             )
         return VaultTarget.SHARED
