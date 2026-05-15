@@ -93,9 +93,7 @@ class S3SyncBackend(SyncBackend):
             rel = f.relative_to(vault_path)
             parts = rel.parts
             # Always include .md files; include .palace/ if enabled
-            if f.suffix == ".md":
-                files.append(f)
-            elif self.include_palace and parts and parts[0] == ".palace" and "semantic_index" not in str(rel):
+            if f.suffix == ".md" or self.include_palace and parts and parts[0] == ".palace" and "semantic_index" not in str(rel):
                 files.append(f)
         return files
 
