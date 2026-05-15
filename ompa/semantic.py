@@ -12,7 +12,7 @@ from pathlib import Path
 from dataclasses import dataclass
 from typing import Any, Optional, Protocol, runtime_checkable
 
-from .vault import DEFAULT_EXCLUDE_PATTERNS
+from .vault import DEFAULT_EXCLUDE_PATTERNS, iter_markdown_files
 
 logger = logging.getLogger(__name__)
 
@@ -154,25 +154,12 @@ class SemanticIndex:
             logger.warning("Incremental index update failed for %s: %s", path, e)
             return False
 
-    def remove_file(self, path: Path) -> bool:
-        """Remove a file from the index (e.g., after deletion)."""
-        path_str = str(Path(path))
-        before = len(self.chunks)
-        self.chunks = [c for c in self.chunks if c["path"] != path_str]
-        removed = before - len(self.chunks)
-        if removed > 0:
-            self.save_index()
-            logger.debug("Removed %d chunks for %s", removed, path)
-        return removed > 0
-
-    def index_vault(self, vault_path: Path, exclude_patterns: list = None) -> int:
+    def index_vault(self, vault_path: Path, exclude_patterns: list[str] | None = None) -> int:
         """Index all markdown files in a vault."""
         if not self._initialized:
             self._init_model()
         if self._model is None:
             return 0
-
-        from .vault import iter_markdown_files
 
         count = 0
         for path in iter_markdown_files(vault_path, exclude_patterns):
@@ -340,14 +327,3 @@ class SemanticIndex:
         index_file = self.index_path / "semantic_index.json"
         if index_file.exists():
             index_file.unlink()
-
-
-def qmd_query(vault_path: str, query: str, limit: int = 5) -> list[SearchResult]:
-    """
-    Convenience function for QMD-style queries.
-    Mimics the qmd CLI behavior.
-    """
-    index_path = Path(vault_path) / ".palace" / "semantic_index"
-    index = SemanticIndex(index_path)
-    index.load_index()
-    return index.search(query, limit)
