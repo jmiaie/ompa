@@ -636,7 +636,6 @@ class Ompa:
                 "preview": content[:500],
             }
 
-        # Perform the export
         if not source.exists():
             return {"success": False, "error": f"Note not found: {note_path}"}
 
@@ -644,14 +643,12 @@ class Ompa:
         if sanitize:
             note.content = self._sanitize_content(note.content)
 
-        # Update frontmatter for shared vault
         note.frontmatter["vault"] = "shared"
         note.frontmatter.pop("@private", None)
 
         note.path = target
         note.save()
 
-        # Update shared KG
         self.kg.populate_from_note(target, self.dual_config.shared_path)
 
         logger.info("Exported %s to shared vault", note_path)
@@ -700,7 +697,6 @@ class Ompa:
         note.path = target
         note.save()
 
-        # Update personal KG
         if self.personal_kg:
             self.personal_kg.populate_from_note(target, self.dual_config.personal_path)
 
