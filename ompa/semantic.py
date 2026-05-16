@@ -32,7 +32,10 @@ def _cosine_similarity(a, b) -> float:
         b = np.array(b, dtype=float)
         norm = np.linalg.norm(a) * np.linalg.norm(b)
         return float(np.dot(a, b) / norm) if norm > 1e-9 else 0.0
-    except Exception:
+    except ImportError:
+        return 0.0
+    except Exception as e:
+        logger.debug("cosine_similarity failed: %s", e)
         return 0.0
 
 
@@ -192,7 +195,7 @@ class SemanticIndex:
 
         serializable = {
             "model": self.model_name,
-            "chunks": [{**c, "embedding": c["embedding"]} for c in self.chunks],
+            "chunks": list(self.chunks),
         }
 
         with open(index_file, "w", encoding="utf-8") as f:
