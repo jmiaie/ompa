@@ -6,7 +6,7 @@ Inspired by MemPalace. Manages the structured metadata that accelerates retrieva
 import json
 from pathlib import Path
 from dataclasses import dataclass, field
-from typing import cast
+from typing import Any, cast
 from typing import Optional
 
 HALL_TYPES = [
@@ -74,7 +74,7 @@ class Palace:
     # Wing operations
 
     def create_wing(
-        self, name: str, type: str = "project", keywords: list[str] = None
+        self, name: str, type: str = "project", keywords: Optional[list[str]] = None
     ) -> None:
         """Create a new wing."""
         if keywords is None:
@@ -214,22 +214,24 @@ class Palace:
 
     # Traversal
 
-    def traverse(self, wing: str, room: str) -> dict:
+    def traverse(self, wing: str, room: str) -> dict[str, Any]:
         """Walk the palace from a room across all connected wings via tunnels."""
-        result = {
+        tunnels: list[dict[str, Any]] = self.find_tunnels_by_room(room)
+        connected: list[dict[str, Any]] = []
+        result: dict[str, Any] = {
             "wing": wing,
             "room": room,
             "room_data": self.get_room(wing, room),
-            "tunnels": self.find_tunnels_by_room(room),
-            "connected": [],
+            "tunnels": tunnels,
+            "connected": connected,
         }
-        for tunnel in result["tunnels"]:
+        for tunnel in tunnels:
             other_wing = (
                 tunnel["wing_b"] if tunnel["wing_a"] == wing else tunnel["wing_a"]
             )
             connected_room = self.get_room(other_wing, room)
             if connected_room:
-                cast("list", result["connected"]).append(
+                connected.append(
                     {
                         "wing": other_wing,
                         "room": room,

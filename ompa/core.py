@@ -92,7 +92,7 @@ class Ompa:
                 )
             )
         else:
-            # Single-vault mode (legacy / backward compatible)
+            # Single-vault mode
             self.vault_path = Path(vault_path or ".")
             self.vault = Vault(self.vault_path)
             self.palace = Palace(self.vault_path / ".palace")
@@ -304,9 +304,9 @@ class Ompa:
         query: str,
         limit: int = 5,
         hybrid: bool = True,
-        wing: str = None,
-        room: str = None,
-        vaults: list[str] = None,
+        wing: Optional[str] = None,
+        room: Optional[str] = None,
+        vaults: Optional[list[str]] = None,
     ) -> list[SearchResult]:
         """
         Search the vault(s) semantically.
@@ -364,8 +364,8 @@ class Ompa:
         query: str,
         limit: int,
         hybrid: bool,
-        wing: str = None,
-        room: str = None,
+        wing: Optional[str] = None,
+        room: Optional[str] = None,
     ) -> list[SearchResult]:
         """Search a single vault."""
         if semantic is None:
@@ -400,7 +400,7 @@ class Ompa:
 
     def rebuild_index(self) -> int:
         """Rebuild the semantic index."""
-        semantic = self.semantic  # access property once; narrows Optional
+        semantic = self.semantic  # narrows Optional[SemanticIndex] for mypy
         if semantic is None:
             return 0
         semantic.clear()
@@ -460,15 +460,15 @@ class Ompa:
         subject: str,
         predicate: str,
         object: str,
-        valid_from: str = None,
-        source: str = None,
+        valid_from: Optional[str] = None,
+        source: Optional[str] = None,
     ) -> None:
         """Add a fact to the knowledge graph."""
         self.kg.add_triple(
             subject, predicate, object, valid_from=valid_from, source=source
         )
 
-    def kg_query(self, entity: str, as_of: str = None) -> list:
+    def kg_query(self, entity: str, as_of: Optional[str] = None) -> list:
         """Query the knowledge graph."""
         return self.kg.query_entity(entity, as_of=as_of)
 
@@ -515,9 +515,9 @@ class Ompa:
     def write(
         self,
         content: str,
-        file_path: str = None,
-        tags: list[str] = None,
-        vault: str = None,
+        file_path: Optional[str] = None,
+        tags: Optional[list[str]] = None,
+        vault: Optional[str] = None,
     ) -> dict:
         """
         Write content to the appropriate vault.

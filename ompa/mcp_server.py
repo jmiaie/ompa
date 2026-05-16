@@ -19,6 +19,7 @@ Usage:
 import json
 import sys
 from pathlib import Path
+from typing import Optional
 
 from ompa import Ompa, __version__
 from ompa.config import make_ompa
@@ -81,7 +82,7 @@ def ao_search(query: str, vault_path: str = ".", limit: int = 5) -> dict:
     }
 
 
-def ao_kg_query(entity: str, vault_path: str = ".", as_of: str = None) -> dict:
+def ao_kg_query(entity: str, vault_path: str = ".", as_of: Optional[str] = None) -> dict:
     """Query the knowledge graph for an entity."""
     ao = Ompa(vault_path=vault_path, enable_semantic=False)
     triples = ao.kg.query_entity(entity, as_of=as_of)
@@ -104,8 +105,8 @@ def ao_kg_add(
     subject: str,
     predicate: str,
     object_: str,
-    valid_from: str = None,
-    source: str = None,
+    valid_from: Optional[str] = None,
+    source: Optional[str] = None,
     vault_path: str = ".",
 ) -> dict:
     """
@@ -534,6 +535,47 @@ def handle_list_tools():
     return {"tools": tools}
 
 
+def _dispatch_tool(name: str, vault_path: str, arguments: dict) -> dict:
+    """
+    Dispatch a validated tool call to the appropriate handler.
+
+    Simple tools that only need vault_path are stored as plain callables.
+    Tools with additional arguments are stored as lambdas that unpack from
+    the arguments dict.  KeyError from a missing required argument propagates
+    to the caller.
+    """
+    dispatch: dict = {
+        "ao_session_start": lambda vp, a: ao_session_start(vp),
+        "ao_classify":      lambda vp, a: ao_classify(a["message"], vp),
+        "ao_search":        lambda vp, a: ao_search(a["query"], vp, a.get("limit", 5)),
+        "ao_kg_query":      lambda vp, a: ao_kg_query(a["entity"], vp, a.get("as_of")),
+        "ao_kg_add":        lambda vp, a: ao_kg_add(
+            a["subject"], a["predicate"], a["object"],
+            a.get("valid_from"), a.get("source"), vp,
+        ),
+        "ao_kg_stats":      lambda vp, a: ao_kg_stats(vp),
+        "ao_palace_wings":  lambda vp, a: ao_palace_wings(vp),
+        "ao_palace_rooms":  lambda vp, a: ao_palace_rooms(a["wing"], vp),
+        "ao_palace_tunnel": lambda vp, a: ao_palace_tunnel(
+            a["wing_a"], a["wing_b"], a.get("room", "shared"), vp,
+        ),
+        "ao_validate":      lambda vp, a: ao_validate(a["file_path"], vp),
+        "ao_wrap_up":       lambda vp, a: ao_wrap_up(vp),
+        "ao_status":        lambda vp, a: ao_status(vp),
+        "ao_orphans":       lambda vp, a: ao_orphans(vp),
+        "ao_kg_populate":   lambda vp, a: ao_kg_populate(vp),
+        "ao_sync":          lambda vp, a: ao_sync(vp),
+        "ao_write":         lambda vp, a: ao_write(a),
+        "ao_export":        lambda vp, a: ao_export(a),
+        "ao_import":        lambda vp, a: ao_import(a),
+        "ao_init":          lambda vp, a: ao_init(vp),
+    }
+    handler = dispatch.get(name)
+    if handler is None:
+        return {"error": f"Unhandled tool: {name}"}
+    return handler(vault_path, arguments)
+
+
 def handle_call_tool(name: str, arguments: dict) -> dict:
     """Handle tool call request."""
     if name not in TOOLS:
@@ -549,77 +591,7 @@ def handle_call_tool(name: str, arguments: dict) -> dict:
         if "limit" in arguments:
             arguments = {**arguments, "limit": min(int(arguments["limit"]), 100)}
 
-        if name == "ao_session_start":
-            result = ao_session_start(vault_path)
-        elif name == "ao_classify":
-            result = ao_classify(
-                message=arguments["message"],
-                vault_path=vault_path,
-            )
-        elif name == "ao_search":
-            result = ao_search(
-                query=arguments["query"],
-                vault_path=vault_path,
-                limit=arguments.get("limit", 5),
-            )
-        elif name == "ao_kg_query":
-            result = ao_kg_query(
-                entity=arguments["entity"],
-                vault_path=vault_path,
-                as_of=arguments.get("as_of"),
-            )
-        elif name == "ao_kg_add":
-            result = ao_kg_add(
-                subject=arguments["subject"],
-                predicate=arguments["predicate"],
-                object_=arguments["object"],
-                valid_from=arguments.get("valid_from"),
-                source=arguments.get("source"),
-                vault_path=vault_path,
-            )
-        elif name == "ao_kg_stats":
-            result = ao_kg_stats(vault_path)
-        elif name == "ao_palace_wings":
-            result = ao_palace_wings(vault_path)
-        elif name == "ao_palace_rooms":
-            result = ao_palace_rooms(
-                wing=arguments["wing"],
-                vault_path=vault_path,
-            )
-        elif name == "ao_palace_tunnel":
-            result = ao_palace_tunnel(
-                wing_a=arguments["wing_a"],
-                wing_b=arguments["wing_b"],
-                room=arguments.get("room", "shared"),
-                vault_path=vault_path,
-            )
-        elif name == "ao_validate":
-            result = ao_validate(
-                file_path=arguments["file_path"],
-                vault_path=vault_path,
-            )
-        elif name == "ao_wrap_up":
-            result = ao_wrap_up(vault_path)
-        elif name == "ao_status":
-            result = ao_status(vault_path)
-        elif name == "ao_orphans":
-            result = ao_orphans(vault_path)
-        elif name == "ao_kg_populate":
-            result = ao_kg_populate(vault_path)
-        elif name == "ao_sync":
-            result = ao_sync(vault_path)
-        elif name == "ao_write":
-            result = ao_write(arguments)
-        elif name == "ao_export":
-            result = ao_export(arguments)
-        elif name == "ao_import":
-            result = ao_import(arguments)
-        elif name == "ao_init":
-            result = ao_init(vault_path)
-        else:
-            result = {"error": f"Unhandled tool: {name}"}
-
-        return result
+        return _dispatch_tool(name, vault_path, arguments)
     except KeyError as e:
         return {"error": f"Missing required argument: {e}"}
     except Exception as e:

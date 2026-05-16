@@ -42,7 +42,6 @@ class Triple:
 
 
 def _row_to_triple(row: sqlite3.Row) -> Triple:
-    """Convert a SQLite Row to a Triple dataclass."""
     return Triple(
         subject=row["subject"],
         predicate=row["predicate"],
@@ -55,14 +54,14 @@ def _row_to_triple(row: sqlite3.Row) -> Triple:
 
 
 class KnowledgeGraph:
-    def __init__(self, db_path: str = None):
+    def __init__(self, db_path: Optional[str] = None):
         self.db_path = Path(db_path or DEFAULT_KG_PATH).expanduser()
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._local = threading.local()  # per-thread connection cache
         self._init_db()
 
     def _get_connection(self) -> sqlite3.Connection:
-        """Return a thread-local connection, creating one if needed."""
+        """Thread-local connection cache — one connection per thread avoids SQLite's same-thread check."""
         if not getattr(self._local, "conn", None):
             conn = sqlite3.connect(str(self.db_path), check_same_thread=False)
             conn.row_factory = sqlite3.Row
@@ -76,7 +75,7 @@ class KnowledgeGraph:
 
     @contextmanager
     def _conn(self):
-        """Yield the thread-local connection for a single transaction."""
+        """Wrap a block in a commit/rollback transaction."""
         conn = self._get_connection()
         try:
             yield conn
@@ -86,7 +85,6 @@ class KnowledgeGraph:
             raise
 
     def _init_db(self) -> None:
-        """Initialize the database schema and indexes."""
         with self._conn() as conn:
             conn.executescript("""
                 CREATE TABLE IF NOT EXISTS entities (
@@ -123,11 +121,11 @@ class KnowledgeGraph:
             """)
 
     def _entity_id(self, name: str) -> str:
-        """Generate a stable ID for an entity."""
+        """Stable 16-hex-char ID — truncated SHA-256 is collision-safe at vault scale."""
         return hashlib.sha256(name.encode()).hexdigest()[:16]
 
     def _triple_id(self, subject: str, predicate: str, obj: str) -> str:
-        """Generate a stable ID for a triple."""
+        """Stable 16-hex-char ID — same triple always gets the same ID, enabling INSERT OR REPLACE."""
         key = f"{subject}|{predicate}|{obj}"
         return hashlib.sha256(key.encode()).hexdigest()[:16]
 
@@ -139,7 +137,6 @@ class KnowledgeGraph:
     # -------------------------------------------------------------------------
 
     def add_entity(self, name: str, entity_type: str = "unknown") -> None:
-        """Add an entity."""
         entity_id = self._entity_id(name)
         with self._conn() as conn:
             conn.execute(
@@ -157,7 +154,6 @@ class KnowledgeGraph:
         """
         as_of = as_of or self._now()
 
-        # Filter in SQL for performance
         query = """
             SELECT subject, predicate, object, valid_from, valid_to, confidence, source_file
             FROM triples
