@@ -608,7 +608,9 @@ def main():
     MCP server main loop.
     Reads JSON-RPC requests from stdin, writes responses to stdout.
     """
-    request = None  # Initialize to prevent NameError on malformed JSON
+    # Pre-initialize so the except block can safely read request.get("id") even
+    # if json.loads() raises before assigning to request.
+    request = None
     while True:
         try:
             line = sys.stdin.readline()
@@ -681,7 +683,7 @@ def main():
             }
             sys.stdout.write(json.dumps(error_response) + "\n")
             sys.stdout.flush()
-            request = None  # Reset for next iteration
+            request = None  # Ensure next iteration can't accidentally re-read a stale request
 
 
 if __name__ == "__main__":

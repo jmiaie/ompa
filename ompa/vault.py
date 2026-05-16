@@ -161,7 +161,6 @@ class Vault:
         notes = []
 
         for path in self.vault_path.rglob("*.md"):
-            # Check exclusions
             if any(excl in str(path) for excl in exclude_patterns):
                 continue
             notes.append(Note.from_file(path))

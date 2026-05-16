@@ -197,7 +197,6 @@ class Ompa:
         """
         result = self.hooks.run_post_tool(tool_name, tool_input, self)
 
-        # Auto-update on file writes
         if tool_name in ("write", "edit", "create_file"):
             file_path = tool_input.get("file_path") or tool_input.get("path")
             if file_path:
@@ -348,12 +347,10 @@ class Ompa:
                 wing,
                 room,
             )
-            # Tag personal results
             for r in personal_results:
                 r.match_type = f"personal:{r.match_type}"
             all_results.extend(personal_results)
 
-        # Sort by score and limit
         all_results.sort(key=lambda r: r.score, reverse=True)
         return all_results[:limit]
 
@@ -432,7 +429,6 @@ class Ompa:
         """Update a brain note and sync to KG + search index."""
         self.vault.update_brain_note(note_name, content, append)
 
-        # Sync brain note to KG and search index
         brain_path = self.vault.config.brain_folder / f"{note_name}.md"
         if brain_path.exists():
             self._auto_update_kg(brain_path)
@@ -496,7 +492,6 @@ class Ompa:
             "indexed_files": index_count,
         }
 
-        # Sync personal vault too if in dual mode
         if self.is_dual_vault:
             p_kg = self.personal_kg.populate_from_vault(self.dual_config.personal_path)
             p_palace = self.personal_palace.auto_build_from_vault(
