@@ -531,7 +531,6 @@ class Ompa:
         """
         tags = tags or []
 
-        # Determine target vault
         if not self.is_dual_vault:
             target = VaultTarget.SHARED
             target_vault = self.vault
@@ -541,13 +540,13 @@ class Ompa:
                 self.vault if target == VaultTarget.SHARED else self.personal_vault
             )
         elif self.dual_config.isolation_mode == IsolationMode.MANUAL:
-            # In manual mode, default to personal (safe default)
+            # Manual mode: every write requires an explicit vault= arg. Fallback to
+            # the configured default rather than guessing (defaults to personal).
             target = self.dual_config.default_vault
             target_vault = (
                 self.vault if target == VaultTarget.SHARED else self.personal_vault
             )
         else:
-            # Auto-classify
             target = self.dual_config.classify_content(
                 content, tags=tags, file_path=file_path
             )
@@ -677,7 +676,6 @@ class Ompa:
         if not self.is_dual_vault:
             return {"success": False, "error": "Not in dual-vault mode"}
 
-        # Validate paths upfront to prevent traversal
         try:
             source = _safe_resolve(self.dual_config.shared_path, note_path)
             target = _safe_resolve(self.dual_config.personal_path, note_path)
