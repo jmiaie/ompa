@@ -609,7 +609,6 @@ class Ompa:
         if not self.is_dual_vault:
             return {"success": False, "error": "Not in dual-vault mode"}
 
-        # Validate paths upfront to prevent traversal
         try:
             source = _safe_resolve(self.dual_config.personal_path, note_path)
             target = _safe_resolve(self.dual_config.shared_path, note_path)
@@ -617,7 +616,8 @@ class Ompa:
             return {"success": False, "error": f"Invalid note_path: {note_path}"}
 
         if self.dual_config.isolation_mode == IsolationMode.STRICT and confirm:
-            # In strict mode, first call returns preview for confirmation
+            # In strict mode, first call returns a sanitized preview — caller must
+            # re-invoke with confirm=False to actually write to the shared vault.
             if not source.exists():
                 return {"success": False, "error": f"Note not found: {note_path}"}
 
