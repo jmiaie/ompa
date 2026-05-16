@@ -46,13 +46,13 @@ class Ompa:
 
     def __init__(
         self,
-        vault_path: str | Path = None,
+        vault_path: Optional[str | Path] = None,
         agent_name: str = "agent",
         enable_semantic: bool = True,
         embedding_backend=None,  # EmbeddingBackend protocol — e.g. NIMEmbeddingBackend
         # Dual-vault parameters
-        shared_vault_path: str | Path = None,
-        personal_vault_path: str | Path = None,
+        shared_vault_path: Optional[str | Path] = None,
+        personal_vault_path: Optional[str | Path] = None,
         isolation_mode: str = "strict",
     ):
         self.agent_name = agent_name
@@ -65,6 +65,11 @@ class Ompa:
         self.dual_config = DualVaultConfig(
             isolation_mode=IsolationMode(isolation_mode),
         )
+
+        # Declare optional personal-vault fields with explicit Optional types
+        self.personal_vault: Optional[Vault] = None
+        self.personal_palace: Optional[Palace] = None
+        self.personal_kg: Optional[KnowledgeGraph] = None
 
         if shared_vault_path and personal_vault_path:
             # Dual-vault mode
@@ -99,9 +104,6 @@ class Ompa:
             self.kg = KnowledgeGraph(
                 db_path=str(self.vault_path / ".palace" / "knowledge_graph.sqlite3")
             )
-            self.personal_vault = None
-            self.personal_palace = None
-            self.personal_kg = None
 
         self.classifier = MessageClassifier()
         self.hooks = HookManager(self.vault_path, agent_name=self.agent_name)
@@ -493,6 +495,9 @@ class Ompa:
         }
 
         if self.is_dual_vault:
+            assert self.personal_kg is not None
+            assert self.personal_palace is not None
+            assert self.dual_config.personal_path is not None
             p_kg = self.personal_kg.populate_from_vault(self.dual_config.personal_path)
             p_palace = self.personal_palace.auto_build_from_vault(
                 self.dual_config.personal_path
@@ -536,23 +541,20 @@ class Ompa:
             target_vault = self.vault
         elif vault:
             target = VaultTarget(vault)
-            target_vault = (
-                self.vault if target == VaultTarget.SHARED else self.personal_vault
-            )
+            personal = self.personal_vault  # narrowed: not None in dual-vault mode
+            target_vault = self.vault if target == VaultTarget.SHARED else personal  # type: ignore[assignment]
         elif self.dual_config.isolation_mode == IsolationMode.MANUAL:
             # Manual mode: every write requires an explicit vault= arg. Fallback to
             # the configured default rather than guessing (defaults to personal).
             target = self.dual_config.default_vault
-            target_vault = (
-                self.vault if target == VaultTarget.SHARED else self.personal_vault
-            )
+            personal = self.personal_vault  # narrowed: not None in dual-vault mode
+            target_vault = self.vault if target == VaultTarget.SHARED else personal  # type: ignore[assignment]
         else:
             target = self.dual_config.classify_content(
                 content, tags=tags, file_path=file_path
             )
-            target_vault = (
-                self.vault if target == VaultTarget.SHARED else self.personal_vault
-            )
+            personal = self.personal_vault  # narrowed: not None in dual-vault mode
+            target_vault = self.vault if target == VaultTarget.SHARED else personal  # type: ignore[assignment]
 
         # Build file path if not provided
         if not file_path:
@@ -608,6 +610,8 @@ class Ompa:
         if not self.is_dual_vault:
             return {"success": False, "error": "Not in dual-vault mode"}
 
+        assert self.dual_config.personal_path is not None
+        assert self.dual_config.shared_path is not None
         try:
             source = _safe_resolve(self.dual_config.personal_path, note_path)
             target = _safe_resolve(self.dual_config.shared_path, note_path)
@@ -676,6 +680,8 @@ class Ompa:
         if not self.is_dual_vault:
             return {"success": False, "error": "Not in dual-vault mode"}
 
+        assert self.dual_config.shared_path is not None
+        assert self.dual_config.personal_path is not None
         try:
             source = _safe_resolve(self.dual_config.shared_path, note_path)
             target = _safe_resolve(self.dual_config.personal_path, note_path)
