@@ -150,20 +150,20 @@ def ao_palace_tunnel(
     return {"success": True, "tunnel": f"{wing_a} <-> {wing_b} via {room}"}
 
 
-def ao_validate(file_path: str, vault_path: str = ".") -> dict:
+def ao_validate(file_path: str, vault_path: str = ".") -> dict[str, object]:
     """Validate a markdown file."""
     ao = Ompa(vault_path=vault_path, enable_semantic=False)
     return ao.validate_write(file_path)
 
 
-def ao_wrap_up(vault_path: str = ".") -> dict:
+def ao_wrap_up(vault_path: str = ".") -> dict[str, object]:
     """Run session wrap-up."""
     ao = Ompa(vault_path=vault_path, enable_semantic=False)
     result = ao.stop()
     return {"success": result.success, "output": result.output}
 
 
-def ao_status(vault_path: str = ".") -> dict:
+def ao_status(vault_path: str = ".") -> dict[str, object]:
     """Get full status (vault + palace + KG)."""
     ao = Ompa(vault_path=vault_path, enable_semantic=False)
     return {
@@ -173,7 +173,7 @@ def ao_status(vault_path: str = ".") -> dict:
     }
 
 
-def ao_orphans(vault_path: str = ".") -> dict:
+def ao_orphans(vault_path: str = ".") -> dict[str, object]:
     """Find orphan notes."""
     ao = Ompa(vault_path=vault_path, enable_semantic=False)
     orphans = ao.find_orphans()
@@ -183,7 +183,7 @@ def ao_orphans(vault_path: str = ".") -> dict:
     }
 
 
-def ao_kg_populate(vault_path: str = ".") -> dict:
+def ao_kg_populate(vault_path: str = ".") -> dict[str, object]:
     """
     Populate the knowledge graph from all vault notes.
     Extracts wikilinks, tags, folder structure, and dates into triples.
@@ -199,7 +199,7 @@ def ao_kg_populate(vault_path: str = ".") -> dict:
     }
 
 
-def ao_sync(vault_path: str = ".") -> dict:
+def ao_sync(vault_path: str = ".") -> dict[str, object]:
     """
     Full sync: rebuild KG, palace, and search index from vault.
     """

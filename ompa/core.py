@@ -1,7 +1,7 @@
 """
 OMPA — Universal AI Agent Memory Layer
 Core module integrating vault, palace, KG, hooks, classifier, and semantic search.
-Supports single-vault (legacy) and dual-vault (shared + personal) architecture.
+Supports single-vault and dual-vault (shared + personal) architecture.
 """
 
 import logging
@@ -33,7 +33,7 @@ class Ompa:
     - Classifier (15 message types with routing hints)
     - Semantic Search (local sentence-transformers)
 
-    Usage (single vault — legacy):
+    Usage (single vault):
         ao = Ompa(vault_path="./workspace")
 
     Usage (dual vault):
@@ -318,7 +318,7 @@ class Ompa:
             room: Filter by palace room
             vaults: Which vaults to search. Options: ["shared"], ["personal"],
                     ["shared", "personal"]. Default: ["shared"] in dual mode,
-                    or the single vault in legacy mode.
+                    or the single vault in single-vault mode.
         """
         # Determine which vaults to search
         if not self.is_dual_vault:
