@@ -66,6 +66,11 @@ class Ompa:
             isolation_mode=IsolationMode(isolation_mode),
         )
 
+        # Declare optional personal-vault attributes with explicit types
+        self.personal_vault: Vault | None = None
+        self.personal_palace: Palace | None = None
+        self.personal_kg: KnowledgeGraph | None = None
+
         if shared_vault_path and personal_vault_path:
             # Dual-vault mode
             self.dual_config.shared_path = Path(shared_vault_path).expanduser()
@@ -99,9 +104,6 @@ class Ompa:
             self.kg = KnowledgeGraph(
                 db_path=str(self.vault_path / ".palace" / "knowledge_graph.sqlite3")
             )
-            self.personal_vault: Vault | None = None
-            self.personal_palace: Palace | None = None
-            self.personal_kg: KnowledgeGraph | None = None
 
         self.classifier = MessageClassifier()
         self.hooks = HookManager(self.vault_path, agent_name=self.agent_name)
@@ -198,7 +200,8 @@ class Ompa:
 
         # Auto-update on file writes
         if tool_name in ("write", "edit", "create_file"):
-            file_path = tool_input.get("file_path") or tool_input.get("path")
+            raw_path = tool_input.get("file_path") or tool_input.get("path")
+            file_path = str(raw_path) if raw_path is not None else None
             if file_path:
                 path = Path(file_path)
                 self._auto_add_to_palace(file_path)
