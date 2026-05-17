@@ -548,13 +548,13 @@ class Ompa:
         elif vault:
             target = VaultTarget(vault)
             target_vault = (
-                self.vault if target == VaultTarget.SHARED else self.personal_vault
+                self.vault if target == VaultTarget.SHARED else (self.personal_vault or self.vault)
             )
         elif self.dual_config.isolation_mode == IsolationMode.MANUAL:
             # In manual mode, default to personal (safe default)
             target = self.dual_config.default_vault
             target_vault = (
-                self.vault if target == VaultTarget.SHARED else self.personal_vault
+                self.vault if target == VaultTarget.SHARED else (self.personal_vault or self.vault)
             )
         else:
             # Auto-classify
@@ -562,7 +562,7 @@ class Ompa:
                 content, tags=tags, file_path=file_path
             )
             target_vault = (
-                self.vault if target == VaultTarget.SHARED else self.personal_vault
+                self.vault if target == VaultTarget.SHARED else (self.personal_vault or self.vault)
             )
 
         # Build file path if not provided
