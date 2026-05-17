@@ -3,11 +3,10 @@ Palace — Wing/Room/Closet/Drawer metadata layer for OMPA.
 Inspired by MemPalace. Manages the structured metadata that accelerates retrieval.
 """
 
+from __future__ import annotations
+
 import json
 from pathlib import Path
-from dataclasses import dataclass, field
-from typing import cast
-from typing import Optional
 
 HALL_TYPES = [
     "hall_facts",  # decisions made, choices locked
@@ -16,30 +15,6 @@ HALL_TYPES = [
     "hall_preferences",  # habits, likes, opinions
     "hall_advice",  # recommendations
 ]
-
-
-@dataclass
-class Wing:
-    name: str
-    type: str  # "person" or "project"
-    keywords: list[str] = field(default_factory=list)
-    rooms: dict = field(default_factory=dict)
-
-
-@dataclass
-class Drawer:
-    wing: str
-    room: str
-    path: str
-
-
-@dataclass
-class Tunnel:
-    wing_a: str
-    wing_b: str
-    room: str
-    hall_a: str
-    hall_b: str
 
 
 class Palace:
@@ -74,7 +49,7 @@ class Palace:
     # Wing operations
 
     def create_wing(
-        self, name: str, type: str = "project", keywords: list[str] = None
+        self, name: str, type: str = "project", keywords: list[str] | None = None
     ) -> None:
         """Create a new wing."""
         if keywords is None:
@@ -95,7 +70,7 @@ class Palace:
             for w in self._data.get("wings", {}).values()
         ]
 
-    def get_wing(self, name: str) -> Optional[dict]:
+    def get_wing(self, name: str) -> dict | None:
         """Get a wing by name."""
         return self._data.get("wings", {}).get(name)
 
@@ -120,7 +95,7 @@ class Palace:
             return []
         return list(wing_data.get("rooms", {}).keys())
 
-    def get_room(self, wing: str, room_name: str) -> Optional[dict]:
+    def get_room(self, wing: str, room_name: str) -> dict | None:
         """Get a room."""
         wing_data = self._data.get("wings", {}).get(wing)
         if not wing_data:
@@ -163,7 +138,7 @@ class Palace:
         ] = content
         self._save()
 
-    def get_hall(self, wing: str, room: str, hall_type: str) -> Optional[str]:
+    def get_hall(self, wing: str, room: str, hall_type: str) -> str | None:
         """Get hall content."""
         room_data = self.get_room(wing, room)
         if not room_data:
@@ -216,20 +191,22 @@ class Palace:
 
     def traverse(self, wing: str, room: str) -> dict:
         """Walk the palace from a room across all connected wings via tunnels."""
-        result = {
+        tunnels: list[dict] = self.find_tunnels_by_room(room)
+        connected: list[dict] = []
+        result: dict = {
             "wing": wing,
             "room": room,
             "room_data": self.get_room(wing, room),
-            "tunnels": self.find_tunnels_by_room(room),
-            "connected": [],
+            "tunnels": tunnels,
+            "connected": connected,
         }
-        for tunnel in result["tunnels"]:
+        for tunnel in tunnels:
             other_wing = (
                 tunnel["wing_b"] if tunnel["wing_a"] == wing else tunnel["wing_a"]
             )
             connected_room = self.get_room(other_wing, room)
             if connected_room:
-                cast("list", result["connected"]).append(
+                connected.append(
                     {
                         "wing": other_wing,
                         "room": room,

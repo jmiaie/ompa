@@ -8,15 +8,15 @@ import logging
 import re
 import shutil
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
-from .vault import Vault, Note, _safe_resolve
-from .palace import Palace
-from .knowledge_graph import KnowledgeGraph
-from .hooks import HookManager, HookResult
-from .classifier import MessageClassifier, Classification
-from .semantic import SemanticIndex, SearchResult
+from .classifier import Classification, MessageClassifier
 from .config import DualVaultConfig, IsolationMode, VaultTarget
+from .hooks import HookManager, HookResult
+from .knowledge_graph import KnowledgeGraph, Triple
+from .palace import Palace
+from .semantic import EmbeddingBackend, SearchResult, SemanticIndex
+from .vault import Note, Vault, _safe_resolve
 
 logger = logging.getLogger(__name__)
 
@@ -46,20 +46,20 @@ class Ompa:
 
     def __init__(
         self,
-        vault_path: str | Path = None,
+        vault_path: str | Path | None = None,
         agent_name: str = "agent",
         enable_semantic: bool = True,
-        embedding_backend=None,  # EmbeddingBackend protocol — e.g. NIMEmbeddingBackend
+        embedding_backend: "EmbeddingBackend | None" = None,
         # Dual-vault parameters
-        shared_vault_path: str | Path = None,
-        personal_vault_path: str | Path = None,
+        shared_vault_path: str | Path | None = None,
+        personal_vault_path: str | Path | None = None,
         isolation_mode: str = "strict",
     ):
         self.agent_name = agent_name
         self._enable_semantic = enable_semantic
         self._embedding_backend = embedding_backend  # optional custom backend
         self._session_started = False
-        self._last_classification: Optional[Classification] = None
+        self._last_classification: Classification | None = None
 
         # Dual-vault config
         self.dual_config = DualVaultConfig(
@@ -99,16 +99,16 @@ class Ompa:
             self.kg = KnowledgeGraph(
                 db_path=str(self.vault_path / ".palace" / "knowledge_graph.sqlite3")
             )
-            self.personal_vault = None
-            self.personal_palace = None
-            self.personal_kg = None
+            self.personal_vault: Vault | None = None
+            self.personal_palace: Palace | None = None
+            self.personal_kg: KnowledgeGraph | None = None
 
         self.classifier = MessageClassifier()
         self.hooks = HookManager(self.vault_path, agent_name=self.agent_name)
 
         # Semantic search (lazy-loaded); annotated explicitly to help mypy
-        self._semantic: Optional[SemanticIndex] = None
-        self._personal_semantic: Optional[SemanticIndex] = None
+        self._semantic: SemanticIndex | None = None
+        self._personal_semantic: SemanticIndex | None = None
 
     @property
     def is_dual_vault(self) -> bool:
@@ -116,7 +116,7 @@ class Ompa:
         return self.dual_config.is_dual_vault
 
     @property
-    def semantic(self) -> Optional[SemanticIndex]:
+    def semantic(self) -> SemanticIndex | None:
         """Lazy-load semantic index on first access."""
         if self._semantic is None and self._enable_semantic:
             self._semantic = SemanticIndex(
@@ -130,7 +130,7 @@ class Ompa:
         return self._semantic
 
     @property
-    def personal_semantic(self) -> Optional[SemanticIndex]:
+    def personal_semantic(self) -> SemanticIndex | None:
         """Lazy-load personal semantic index."""
         if (
             self._personal_semantic is None
@@ -291,7 +291,7 @@ class Ompa:
         return self.classifier.get_routing_hint(message)
 
     @property
-    def last_classification(self) -> Optional[Classification]:
+    def last_classification(self) -> Classification | None:
         """Get the last classification result."""
         return self._last_classification
 
@@ -304,9 +304,9 @@ class Ompa:
         query: str,
         limit: int = 5,
         hybrid: bool = True,
-        wing: str = None,
-        room: str = None,
-        vaults: list[str] = None,
+        wing: str | None = None,
+        room: str | None = None,
+        vaults: list[str] | None = None,
     ) -> list[SearchResult]:
         """
         Search the vault(s) semantically.
@@ -360,12 +360,12 @@ class Ompa:
     def _search_vault(
         self,
         vault: Vault,
-        semantic: Optional[SemanticIndex],
+        semantic: SemanticIndex | None,
         query: str,
         limit: int,
         hybrid: bool,
-        wing: str = None,
-        room: str = None,
+        wing: str | None = None,
+        room: str | None = None,
     ) -> list[SearchResult]:
         """Search a single vault."""
         if semantic is None:
@@ -439,7 +439,7 @@ class Ompa:
             self._auto_update_index(brain_path)
             self._auto_add_to_palace(str(brain_path))
 
-    def get_brain_note(self, name: str) -> Optional[object]:
+    def get_brain_note(self, name: str) -> "Note | None":
         """Get a brain note by name."""
         return self.vault.get_brain_note(name)
 
@@ -460,19 +460,19 @@ class Ompa:
         subject: str,
         predicate: str,
         object: str,
-        valid_from: str = None,
-        source: str = None,
+        valid_from: str | None = None,
+        source: str | None = None,
     ) -> None:
         """Add a fact to the knowledge graph."""
         self.kg.add_triple(
             subject, predicate, object, valid_from=valid_from, source=source
         )
 
-    def kg_query(self, entity: str, as_of: str = None) -> list:
+    def kg_query(self, entity: str, as_of: str | None = None) -> list[Triple]:
         """Query the knowledge graph."""
         return self.kg.query_entity(entity, as_of=as_of)
 
-    def kg_timeline(self, entity: str) -> list:
+    def kg_timeline(self, entity: str) -> list[dict[str, str | None]]:
         """Get entity timeline."""
         return self.kg.timeline(entity)
 
@@ -480,7 +480,7 @@ class Ompa:
         """Populate KG from all vault notes (wikilinks, tags, folders)."""
         return self.kg.populate_from_vault(self.vault_path)
 
-    def sync(self) -> dict:
+    def sync(self) -> dict[str, int]:
         """
         Full sync: rebuild KG from vault, rebuild search index, rebuild palace.
 
@@ -490,7 +490,7 @@ class Ompa:
         palace_count = self.palace.auto_build_from_vault(self.vault_path)
         index_count = self.rebuild_index() if self._enable_semantic else 0
 
-        result = {
+        result: dict[str, int] = {
             "kg_triples": kg_count,
             "palace_wings": palace_count,
             "indexed_files": index_count,
@@ -498,6 +498,9 @@ class Ompa:
 
         # Sync personal vault too if in dual mode
         if self.is_dual_vault:
+            assert self.personal_kg is not None
+            assert self.personal_palace is not None
+            assert self.dual_config.personal_path is not None
             p_kg = self.personal_kg.populate_from_vault(self.dual_config.personal_path)
             p_palace = self.personal_palace.auto_build_from_vault(
                 self.dual_config.personal_path
@@ -515,10 +518,10 @@ class Ompa:
     def write(
         self,
         content: str,
-        file_path: str = None,
-        tags: list[str] = None,
-        vault: str = None,
-    ) -> dict:
+        file_path: str | None = None,
+        tags: list[str] | None = None,
+        vault: str | None = None,
+    ) -> dict[str, str]:
         """
         Write content to the appropriate vault.
 

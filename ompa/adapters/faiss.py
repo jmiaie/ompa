@@ -33,9 +33,8 @@ from __future__ import annotations
 import json
 import logging
 from pathlib import Path
-from typing import Optional
 
-from ..semantic import SearchResult, EmbeddingBackend, _cosine_similarity
+from ..semantic import EmbeddingBackend, SearchResult
 
 logger = logging.getLogger(__name__)
 
@@ -59,7 +58,7 @@ class FAISSSemanticIndex:
         index_path: Path,
         model_name: str = "all-MiniLM-L6-v2",
         embedding_dim: int = 384,
-        embedding_backend: Optional[EmbeddingBackend] = None,
+        embedding_backend: EmbeddingBackend | None = None,
         use_ivf: bool = False,
         ivf_nlist: int = 100,
     ):
@@ -105,7 +104,7 @@ class FAISSSemanticIndex:
         self._initialized = True
         return False
 
-    def _encode(self, text: str) -> "list[float]":
+    def _encode(self, text: str) -> list[float]:
         if self._embedding_backend:
             return self._embedding_backend.encode(text)
         if self._model:
@@ -120,16 +119,15 @@ class FAISSSemanticIndex:
         try:
             import faiss
             return faiss
-        except ImportError:
+        except ImportError as exc:
             raise ImportError(
                 "faiss-cpu (or faiss-gpu) is required. "
                 "Install with: pip install ompa[faiss]"
-            )
+            ) from exc
 
     def _build_index(self) -> None:
         """Create or reset the FAISS index."""
         faiss = self._require_faiss()
-        import numpy as np
 
         if self.use_ivf and len(self._metadata) >= self.ivf_nlist * 39:
             quantizer = faiss.IndexFlatL2(self.embedding_dim)
@@ -213,7 +211,7 @@ class FAISSSemanticIndex:
         except Exception as e:
             logger.warning("Error indexing %s: %s", path, e)
 
-    def index_vault(self, vault_path: Path, exclude_patterns: list = None) -> int:
+    def index_vault(self, vault_path: Path, exclude_patterns: list[str] | None = None) -> int:
         """Index all markdown files in a vault. Returns file count."""
         from ..vault import DEFAULT_EXCLUDE_PATTERNS
 
@@ -279,7 +277,7 @@ class FAISSSemanticIndex:
             results = []
             seen_paths = set()
 
-            for score, idx in zip(scores[0], indices[0]):
+            for score, idx in zip(scores[0], indices[0], strict=False):
                 if idx < 0 or idx >= len(self._metadata):
                     continue
 
@@ -386,7 +384,7 @@ class FAISSSemanticIndex:
             if emb_file.exists():
                 import numpy as np
                 embeddings = np.load(str(emb_file)).tolist()
-                for chunk, emb in zip(chunks, embeddings):
+                for chunk, emb in zip(chunks, embeddings, strict=False):
                     chunk["embedding"] = emb
             else:
                 for chunk in chunks:

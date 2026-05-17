@@ -32,7 +32,7 @@ import logging
 from concurrent.futures import ThreadPoolExecutor
 from functools import partial
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -80,9 +80,9 @@ class AsyncOmpa:
         vault_path: str | Path = ".",
         agent_name: str = "async-agent",
         enable_semantic: bool = False,
-        embedding_backend=None,
-        shared_vault_path: str | Path = None,
-        personal_vault_path: str | Path = None,
+        embedding_backend: "EmbeddingBackend | None" = None,
+        shared_vault_path: str | Path | None = None,
+        personal_vault_path: str | Path | None = None,
         isolation_mode: str = "strict",
         max_workers: int = 4,
     ):
@@ -249,7 +249,7 @@ class AsyncOmpa:
     # Context manager
     # ------------------------------------------------------------------
 
-    async def __aenter__(self) -> "AsyncOmpa":
+    async def __aenter__(self) -> AsyncOmpa:
         await self.session_start()
         return self
 

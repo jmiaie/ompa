@@ -5,12 +5,12 @@ Supports a pluggable embedding backend (sentence-transformers by default,
 or any object with an encode(text: str) -> array interface).
 """
 
+import hashlib
 import json
 import logging
-import hashlib
-from pathlib import Path
 from dataclasses import dataclass
-from typing import Any, Optional, Protocol, runtime_checkable
+from pathlib import Path
+from typing import Any, Protocol, runtime_checkable
 
 from .vault import DEFAULT_EXCLUDE_PATTERNS
 
@@ -24,7 +24,7 @@ class EmbeddingBackend(Protocol):
     def encode(self, text: str) -> "list[float]": ...
 
 
-def _cosine_similarity(a, b) -> float:
+def _cosine_similarity(a: list[float], b: list[float]) -> float:
     """Pure-numpy cosine similarity — no sentence_transformers.util needed."""
     try:
         import numpy as np
@@ -57,7 +57,7 @@ class SemanticIndex:
         index_path: Path,
         model_name: str = "all-MiniLM-L6-v2",
         embedding_dim: int = 384,
-        embedding_backend: Optional[EmbeddingBackend] = None,
+        embedding_backend: EmbeddingBackend | None = None,
     ):
         self.index_path = Path(index_path)
         self.index_path.mkdir(parents=True, exist_ok=True)
@@ -67,12 +67,12 @@ class SemanticIndex:
         self.chunks: list[dict[str, Any]] = []
         self._initialized = False
         # Accept a pre-built backend (e.g. NIMEmbeddingBackend) or load lazily
-        self._model: Optional[EmbeddingBackend] = embedding_backend
+        self._model: EmbeddingBackend | None = embedding_backend
         if embedding_backend is not None:
             self._initialized = True
 
     @property
-    def model(self):
+    def model(self) -> EmbeddingBackend | None:
         """Lazy-load the model on first access."""
         if self._model is None:
             self._init_model()
@@ -168,7 +168,7 @@ class SemanticIndex:
             logger.debug("Removed %d chunks for %s", removed, path)
         return removed > 0
 
-    def index_vault(self, vault_path: Path, exclude_patterns: list = None) -> int:
+    def index_vault(self, vault_path: Path, exclude_patterns: list[str] | None = None) -> int:
         """Index all markdown files in a vault."""
         exclude_patterns = exclude_patterns or DEFAULT_EXCLUDE_PATTERNS
         count = 0
@@ -205,7 +205,7 @@ class SemanticIndex:
             return False
 
         try:
-            with open(index_file, "r", encoding="utf-8") as f:
+            with open(index_file, encoding="utf-8") as f:
                 data = json.load(f)
 
             self.chunks = data["chunks"]
@@ -345,14 +345,3 @@ class SemanticIndex:
         index_file = self.index_path / "semantic_index.json"
         if index_file.exists():
             index_file.unlink()
-
-
-def qmd_query(vault_path: str, query: str, limit: int = 5) -> list[SearchResult]:
-    """
-    Convenience function for QMD-style queries.
-    Mimics the qmd CLI behavior.
-    """
-    index_path = Path(vault_path) / ".palace" / "semantic_index"
-    index = SemanticIndex(index_path)
-    index.load_index()
-    return index.search(query, limit)

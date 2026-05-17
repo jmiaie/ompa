@@ -3,11 +3,13 @@ Vault management for OMPA.
 Handles note organization, templates, wikilinks, and frontmatter validation.
 """
 
+from __future__ import annotations
+
 import logging
 import re
-from pathlib import Path
 from dataclasses import dataclass, field
-from typing import Optional
+from pathlib import Path
+
 import frontmatter
 
 logger = logging.getLogger(__name__)
@@ -33,26 +35,20 @@ def _safe_resolve(base: Path, untrusted: str) -> Path:
 @dataclass
 class VaultConfig:
     vault_path: Path
-    brain_folder: Path = None
-    work_folder: Path = None
-    org_folder: Path = None
-    perf_folder: Path = None
-    thinking_folder: Path = None
-    templates_folder: Path = None
+    brain_folder: Path = field(init=False)
+    work_folder: Path = field(init=False)
+    org_folder: Path = field(init=False)
+    perf_folder: Path = field(init=False)
+    thinking_folder: Path = field(init=False)
+    templates_folder: Path = field(init=False)
 
-    def __post_init__(self):
-        if self.brain_folder is None:
-            self.brain_folder = self.vault_path / "brain"
-        if self.work_folder is None:
-            self.work_folder = self.vault_path / "work"
-        if self.org_folder is None:
-            self.org_folder = self.vault_path / "org"
-        if self.perf_folder is None:
-            self.perf_folder = self.vault_path / "perf"
-        if self.thinking_folder is None:
-            self.thinking_folder = self.vault_path / "thinking"
-        if self.templates_folder is None:
-            self.templates_folder = self.vault_path / "templates"
+    def __post_init__(self) -> None:
+        self.brain_folder = self.vault_path / "brain"
+        self.work_folder = self.vault_path / "work"
+        self.org_folder = self.vault_path / "org"
+        self.perf_folder = self.vault_path / "perf"
+        self.thinking_folder = self.vault_path / "thinking"
+        self.templates_folder = self.vault_path / "templates"
 
 
 @dataclass
@@ -63,7 +59,7 @@ class Note:
     links: list[str] = field(default_factory=list)
 
     @classmethod
-    def from_file(cls, path: Path) -> "Note":
+    def from_file(cls, path: Path) -> Note:
         """Load a note from a file."""
         if not path.exists():
             return cls(path=path)
@@ -156,7 +152,7 @@ class Vault:
             folder_path = self.vault_path / folder
             folder_path.mkdir(parents=True, exist_ok=True)
 
-    def list_notes(self, exclude_patterns: list[str] = None) -> list[Note]:
+    def list_notes(self, exclude_patterns: list[str] | None = None) -> list[Note]:
         """List all markdown notes in the vault."""
         exclude_patterns = exclude_patterns or DEFAULT_EXCLUDE_PATTERNS
         notes = []
@@ -182,7 +178,7 @@ class Vault:
 
     def _resolve_wikilink(
         self, link: str, filename_index: dict[str, Path]
-    ) -> Optional[Path]:
+    ) -> Path | None:
         """Resolve a wikilink to a file path using multiple strategies."""
         link_lower = link.lower()
 
@@ -206,18 +202,21 @@ class Vault:
 
         return None
 
-    def find_orphans(self) -> list[Note]:
-        """Find notes with no incoming links from other notes."""
-        all_notes = self.list_notes()
-        filename_index = self._build_filename_index(all_notes)
-        linked_files = set()
-
-        for note in all_notes:
+    def _build_linked_set(self, notes: list[Note]) -> set[Path]:
+        """Return the set of paths that have at least one incoming wikilink."""
+        filename_index = self._build_filename_index(notes)
+        linked: set[Path] = set()
+        for note in notes:
             for link in note.links:
                 resolved = self._resolve_wikilink(link, filename_index)
                 if resolved:
-                    linked_files.add(resolved)
+                    linked.add(resolved)
+        return linked
 
+    def find_orphans(self) -> list[Note]:
+        """Find notes with no incoming links from other notes."""
+        all_notes = self.list_notes()
+        linked_files = self._build_linked_set(all_notes)
         return [
             n
             for n in all_notes
@@ -230,35 +229,32 @@ class Vault:
         query_lower = query.lower()
         return [n for n in self.list_notes() if query_lower in n.path.stem.lower()]
 
-    def get_brain_note(self, name: str) -> Optional[Note]:
-        """Get a brain note by name. Name is sanitized to prevent path traversal."""
-        # Reject names with path separators or parent-dir references
+    def _resolve_brain_note_path(self, name: str) -> Path:
+        """
+        Resolve and validate a brain note name to its absolute path.
+        Raises ValueError if the name contains path separators or escapes
+        the brain folder.
+        """
         if "/" in name or "\\" in name or ".." in name:
             raise ValueError(f"Invalid brain note name: {name!r}")
         safe_name = Path(name).name  # Strip any directory components
-        path = self.config.brain_folder / f"{safe_name}.md"
-        path = path.resolve()
-        # Ensure we stay within brain folder
+        path = (self.config.brain_folder / f"{safe_name}.md").resolve()
         try:
             path.relative_to(self.config.brain_folder.resolve())
-        except ValueError:
-            raise ValueError(f"Invalid brain note name: {name!r}")
+        except ValueError as e:
+            raise ValueError(f"Invalid brain note name: {name!r}") from e
+        return path
+
+    def get_brain_note(self, name: str) -> Note | None:
+        """Get a brain note by name. Name is sanitized to prevent path traversal."""
+        path = self._resolve_brain_note_path(name)
         if path.exists():
             return Note.from_file(path)
         return None
 
     def update_brain_note(self, name: str, content: str, append: bool = False) -> None:
         """Update a brain note. Name is sanitized to prevent path traversal."""
-        # Reject names with path separators or parent-dir references
-        if "/" in name or "\\" in name or ".." in name:
-            raise ValueError(f"Invalid brain note name: {name!r}")
-        safe_name = Path(name).name  # Strip any directory components
-        path = self.config.brain_folder / f"{safe_name}.md"
-        path = path.resolve()
-        try:
-            path.relative_to(self.config.brain_folder.resolve())
-        except ValueError:
-            raise ValueError(f"Invalid brain note name: {name!r}")
+        path = self._resolve_brain_note_path(name)
         path.parent.mkdir(parents=True, exist_ok=True)
 
         if append and path.exists():
@@ -295,15 +291,7 @@ class Vault:
     def get_stats(self) -> dict:
         """Get vault statistics."""
         notes = self.list_notes()
-        filename_index = self._build_filename_index(notes)
-
-        # Build linked set using smart wikilink resolution
-        linked_files = set()
-        for note in notes:
-            for link in note.links:
-                resolved = self._resolve_wikilink(link, filename_index)
-                if resolved:
-                    linked_files.add(resolved)
+        linked_files = self._build_linked_set(notes)
 
         orphan_count = sum(
             1
@@ -319,9 +307,7 @@ class Vault:
             folder_counts[folder] = folder_counts.get(folder, 0) + 1
 
             # Count brain notes: in brain/ folder OR wing=brain in frontmatter
-            if "brain" in note.path.parts:
-                brain_count += 1
-            elif str(note.frontmatter.get("wing", "")).lower() == "brain":
+            if "brain" in note.path.parts or str(note.frontmatter.get("wing", "")).lower() == "brain":
                 brain_count += 1
 
         # Also count brain folder files not yet in notes list (e.g., empty ones)

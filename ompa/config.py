@@ -10,8 +10,7 @@ import logging
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any
-from typing import Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from .core import Ompa
@@ -66,8 +65,8 @@ PERSONAL_FOLDERS = {"personal", "private", ".secrets"}
 class DualVaultConfig:
     """Configuration for dual-vault architecture."""
 
-    shared_path: Optional[Path] = None
-    personal_path: Optional[Path] = None
+    shared_path: Path | None = None
+    personal_path: Path | None = None
     isolation_mode: IsolationMode = IsolationMode.STRICT
     default_vault: VaultTarget = VaultTarget.PERSONAL
     prompt_on_ambiguous: bool = True
@@ -127,7 +126,7 @@ class DualVaultConfig:
         return self.default_vault
 
     @classmethod
-    def from_yaml(cls, config_path: Path) -> "DualVaultConfig":
+    def from_yaml(cls, config_path: Path) -> DualVaultConfig:
         """Load config from a YAML file."""
         config = cls()
 
@@ -137,7 +136,7 @@ class DualVaultConfig:
         try:
             import yaml  # type: ignore[import-untyped]
 
-            with open(config_path, "r", encoding="utf-8") as f:
+            with open(config_path, encoding="utf-8") as f:
                 data = yaml.safe_load(f) or {}
 
             vaults = data.get("vaults", {})

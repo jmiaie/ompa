@@ -22,8 +22,8 @@ console = Console()
 @app.command()
 def init(
     vault_path: Path = Path("."),
-    shared_vault: Path | None = typer.Option(None, help="Shared vault path"),
-    personal_vault: Path | None = typer.Option(None, help="Personal vault path"),
+    shared_vault: Path | None = typer.Option(None, help="Shared vault path"),  # noqa: B008
+    personal_vault: Path | None = typer.Option(None, help="Personal vault path"),  # noqa: B008
 ):
     """Initialize vault + palace structure."""
     from ompa import Vault
@@ -109,11 +109,11 @@ def search(
     query: str,
     vault_path: Path = Path("."),
     limit: int = 5,
-    vault: str | None = typer.Option(
+    vault: str | None = typer.Option(  # noqa: B008
         None, help="Which vault: shared, personal, or both"
     ),
-    shared_vault: Path | None = typer.Option(None, help="Shared vault path"),
-    personal_vault: Path | None = typer.Option(None, help="Personal vault path"),
+    shared_vault: Path | None = typer.Option(None, help="Shared vault path"),  # noqa: B008
+    personal_vault: Path | None = typer.Option(None, help="Personal vault path"),  # noqa: B008
 ):
     """Search the vault semantically."""
     ao = make_ompa(vault_path, shared_vault, personal_vault, enable_semantic=True)

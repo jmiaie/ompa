@@ -5,8 +5,8 @@ Also classifies content for dual-vault routing (shared vs personal).
 """
 
 import re
-from enum import Enum
 from dataclasses import dataclass
+from enum import Enum
 
 
 class MessageType(Enum):
@@ -225,7 +225,7 @@ class MessageClassifier:
             )
 
         # Get highest scoring type
-        best_type = max(scores, key=scores.get)
+        best_type = max(scores, key=lambda k: scores[k])
         confidence = min(scores[best_type] / 3.0, 1.0)  # Normalize to 0-1
 
         # For short messages, reduce confidence

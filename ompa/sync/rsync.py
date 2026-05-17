@@ -6,7 +6,6 @@ import logging
 import shutil
 import subprocess  # noqa: S404
 from pathlib import Path
-from typing import Optional
 
 from .base import SyncBackend, SyncResult
 
@@ -56,9 +55,9 @@ class RsyncBackend(SyncBackend):
     def __init__(
         self,
         remote: str,
-        ssh_key: Optional[str] = None,
+        ssh_key: str | None = None,
         ssh_port: int = 22,
-        excludes: Optional[list[str]] = None,
+        excludes: list[str] | None = None,
         compress: bool = True,
         delete: bool = False,         # True = exact mirror (destructive)
         dry_run_on_status: bool = True,
@@ -134,7 +133,7 @@ class RsyncBackend(SyncBackend):
         if rc != 0:
             return SyncResult(success=False, backend=self.name, direction="push", error=err)
 
-        transferred = len([l for l in stdout.splitlines() if l and not l.startswith("sending")])
+        transferred = len([ln for ln in stdout.splitlines() if ln and not ln.startswith("sending")])
         logger.info("rsync push: %d files → %s", transferred, self.remote)
         return SyncResult(
             success=True,
@@ -158,7 +157,7 @@ class RsyncBackend(SyncBackend):
         if rc != 0:
             return SyncResult(success=False, backend=self.name, direction="pull", error=err)
 
-        transferred = len([l for l in stdout.splitlines() if l and not l.startswith("receiving")])
+        transferred = len([ln for ln in stdout.splitlines() if ln and not ln.startswith("receiving")])
         return SyncResult(
             success=True,
             backend=self.name,
@@ -181,7 +180,7 @@ class RsyncBackend(SyncBackend):
         if rc != 0:
             return SyncResult(success=False, backend=self.name, direction="status", error=err)
 
-        would_transfer = [l for l in stdout.splitlines() if l and not l.startswith(("sending", "sent", "total"))]
+        would_transfer = [ln for ln in stdout.splitlines() if ln and not ln.startswith(("sending", "sent", "total"))]
         return SyncResult(
             success=True,
             backend=self.name,

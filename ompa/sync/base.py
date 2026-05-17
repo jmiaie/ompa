@@ -5,7 +5,6 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
 
 
 @dataclass
@@ -17,7 +16,7 @@ class SyncResult:
     direction: str              # "push" | "pull" | "status"
     files_changed: int = 0
     message: str = ""
-    error: Optional[str] = None
+    error: str | None = None
     details: dict = field(default_factory=dict)
 
     def __str__(self) -> str:

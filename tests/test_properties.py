@@ -13,7 +13,7 @@ import tempfile
 import pytest
 
 try:
-    from hypothesis import given, settings, assume
+    from hypothesis import assume, given, settings
     from hypothesis import strategies as st
 
     HYPOTHESIS_AVAILABLE = True
@@ -113,8 +113,9 @@ class TestKGProperties:
         assume(subject != obj)
 
         with tempfile.TemporaryDirectory() as tmp:
-            from ompa import KnowledgeGraph
             import datetime
+
+            from ompa import KnowledgeGraph
 
             kg = KnowledgeGraph(db_path=os.path.join(tmp, "kg.sqlite3"))
             kg.add_triple(subject, predicate, obj, valid_from=valid_from)
@@ -267,8 +268,8 @@ class TestVaultProperties:
             note = vault.get_brain_note(note_name)
 
             assert note is not None, f"Expected to retrieve brain note '{note_name}'"
-            assert content in note.content, (
-                f"Content {content!r} not found in note"
+            assert content.strip() in note.content, (
+                f"Content {content!r} not found in note (vault strips edge whitespace)"
             )
 
     @given(
