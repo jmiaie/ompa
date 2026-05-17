@@ -512,7 +512,7 @@ def doctor(
     kg_db = vault_path / ".palace" / "knowledge_graph.sqlite3"
     if kg_db.exists():
         ks = ao.kg.stats()
-        if int(ks["triple_count"]) > 0:  # type: ignore[arg-type]
+        if ks.get("triple_count", 0) != 0:
             checks.append(
                 (
                     "OK",

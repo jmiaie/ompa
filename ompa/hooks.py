@@ -142,7 +142,7 @@ class SessionStartHook(Hook):
             if context.memory and context.memory.kg:
                 try:
                     kg_stats = context.memory.kg.stats()
-                    if int(kg_stats["triple_count"]) > 0:  # type: ignore[arg-type]
+                    if kg_stats.get("triple_count", 0) != 0:
                         lines.append("### Knowledge Graph")
                         lines.append(f"- Entities: {kg_stats['entity_count']}")
                         lines.append(f"- Current facts: {kg_stats['current_facts']}")
