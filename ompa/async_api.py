@@ -29,10 +29,15 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from functools import partial
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from .knowledge_graph import Triple
+    from .semantic import EmbeddingBackend, SearchResult
 
 logger = logging.getLogger(__name__)
 
@@ -80,7 +85,7 @@ class AsyncOmpa:
         vault_path: str | Path = ".",
         agent_name: str = "async-agent",
         enable_semantic: bool = False,
-        embedding_backend: "EmbeddingBackend | None" = None,
+        embedding_backend: EmbeddingBackend | None = None,
         shared_vault_path: str | Path | None = None,
         personal_vault_path: str | Path | None = None,
         isolation_mode: str = "strict",
@@ -102,7 +107,7 @@ class AsyncOmpa:
             thread_name_prefix=f"ompa-{agent_name}",
         )
 
-    async def _run(self, fn, *args, **kwargs) -> Any:
+    async def _run(self, fn: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
         """Run a sync function in the executor without blocking the event loop."""
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(self._executor, partial(fn, *args, **kwargs))
@@ -144,10 +149,10 @@ class AsyncOmpa:
         query: str,
         limit: int = 5,
         hybrid: bool = True,
-        wing: str = None,
-        room: str = None,
-        vaults: list[str] = None,
-    ) -> list:
+        wing: str | None = None,
+        room: str | None = None,
+        vaults: list[str] | None = None,
+    ) -> list[SearchResult]:
         """Async semantic search across vault(s)."""
         return await self._run(
             self._ompa.search,
@@ -176,8 +181,8 @@ class AsyncOmpa:
         subject: str,
         predicate: str,
         object: str,
-        valid_from: str = None,
-        source: str = None,
+        valid_from: str | None = None,
+        source: str | None = None,
     ) -> None:
         """Async KG triple write."""
         return await self._run(
@@ -189,7 +194,7 @@ class AsyncOmpa:
             source=source,
         )
 
-    async def kg_query(self, entity: str, as_of: str = None) -> list:
+    async def kg_query(self, entity: str, as_of: str | None = None) -> list[Triple]:
         """Async KG entity query."""
         return await self._run(self._ompa.kg_query, entity, as_of=as_of)
 
