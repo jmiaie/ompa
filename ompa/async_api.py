@@ -36,8 +36,10 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from .knowledge_graph import Triple
+    from .knowledge_graph import KnowledgeGraph, Triple
+    from .palace import Palace
     from .semantic import EmbeddingBackend, SearchResult
+    from .vault import Vault
 
 logger = logging.getLogger(__name__)
 
@@ -235,15 +237,15 @@ class AsyncOmpa:
     # ------------------------------------------------------------------
 
     @property
-    def vault(self):
+    def vault(self) -> Vault:
         return self._ompa.vault
 
     @property
-    def palace(self):
+    def palace(self) -> Palace:
         return self._ompa.palace
 
     @property
-    def kg(self):
+    def kg(self) -> KnowledgeGraph:
         return self._ompa.kg
 
     @property

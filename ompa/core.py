@@ -617,6 +617,9 @@ class Ompa:
         if not self.is_dual_vault:
             return {"success": False, "error": "Not in dual-vault mode"}
 
+        assert self.dual_config.personal_path is not None
+        assert self.dual_config.shared_path is not None
+
         # Validate paths upfront to prevent traversal
         try:
             source = _safe_resolve(self.dual_config.personal_path, note_path)
@@ -687,6 +690,9 @@ class Ompa:
         """
         if not self.is_dual_vault:
             return {"success": False, "error": "Not in dual-vault mode"}
+
+        assert self.dual_config.shared_path is not None
+        assert self.dual_config.personal_path is not None
 
         # Validate paths upfront to prevent traversal
         try:
