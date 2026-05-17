@@ -291,9 +291,10 @@ def validate(
     warnings_list = []
     for note in notes:
         result = ao.validate_write(str(note.path))
-        if result["warnings"]:
+        warnings = result.get("warnings") or []
+        if warnings:
             total += 1
-            for w in result["warnings"]:
+            for w in warnings if isinstance(warnings, list) else []:
                 rel = (
                     note.path.relative_to(vault_path)
                     if note.path.is_relative_to(vault_path)
@@ -511,7 +512,7 @@ def doctor(
     kg_db = vault_path / ".palace" / "knowledge_graph.sqlite3"
     if kg_db.exists():
         ks = ao.kg.stats()
-        if ks["triple_count"] > 0:
+        if int(ks["triple_count"]) > 0:  # type: ignore[arg-type]
             checks.append(
                 (
                     "OK",
