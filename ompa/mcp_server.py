@@ -242,7 +242,7 @@ def ao_import(arguments: dict[str, object]) -> dict[str, object]:
     )
 
 
-def ao_init(vault_path: str = ".") -> dict:
+def ao_init(vault_path: str = ".") -> dict[str, object]:
     """
     Initialize a new vault + palace structure.
     Creates all folders and essential brain notes.

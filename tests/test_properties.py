@@ -20,42 +20,64 @@ try:
 except ImportError:
     HYPOTHESIS_AVAILABLE = False
 
+    # Stub decorators so the module body can be parsed when hypothesis is absent.
+    # All tests are skipped via pytestmark, so these stubs are never executed.
+    def given(*_args, **_kwargs):  # type: ignore[misc]
+        def decorator(fn):
+            return fn
+        return decorator
+
+    def settings(*_args, **_kwargs):  # type: ignore[misc]
+        def decorator(fn):
+            return fn
+        return decorator
+
+    def assume(_condition):  # type: ignore[misc]
+        pass
+
+    class _StubSt:
+        def __getattr__(self, _name):
+            return lambda *a, **kw: None
+
+    st = _StubSt()  # type: ignore[assignment]
+
 pytestmark = pytest.mark.skipif(
     not HYPOTHESIS_AVAILABLE,
     reason="hypothesis not installed (pip install hypothesis)",
 )
 
 # ---------------------------------------------------------------------------
-# Strategies
+# Strategies (only defined when hypothesis is available)
 # ---------------------------------------------------------------------------
 
-safe_text = st.text(
-    alphabet=st.characters(whitelist_categories=("Lu", "Ll", "Nd", "Zs")),
-    min_size=1,
-    max_size=50,
-).filter(lambda s: s.strip())
+if HYPOTHESIS_AVAILABLE:
+    safe_text = st.text(
+        alphabet=st.characters(whitelist_categories=("Lu", "Ll", "Nd", "Zs")),
+        min_size=1,
+        max_size=50,
+    ).filter(lambda s: s.strip())
 
-entity_name = st.text(
-    alphabet="abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-",
-    min_size=1,
-    max_size=30,
-)
+    entity_name = st.text(
+        alphabet="abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-",
+        min_size=1,
+        max_size=30,
+    )
 
-predicate_name = st.sampled_from([
-    "works_on", "knows", "created", "links_to", "has_tag",
-    "in_folder", "depends_on", "blocks", "owns", "manages",
-])
+    predicate_name = st.sampled_from([
+        "works_on", "knows", "created", "links_to", "has_tag",
+        "in_folder", "depends_on", "blocks", "owns", "manages",
+    ])
 
-iso_date = st.dates(
-    min_value=__import__("datetime").date(2020, 1, 1),
-    max_value=__import__("datetime").date(2030, 12, 31),
-).map(str)
+    iso_date = st.dates(
+        min_value=__import__("datetime").date(2020, 1, 1),
+        max_value=__import__("datetime").date(2030, 12, 31),
+    ).map(str)
 
-message_type_str = st.sampled_from([
-    "DECISION", "INCIDENT", "WIN", "LOSS", "BLOCKER",
-    "QUESTION", "SUGGESTION", "REVIEW", "BUG", "FEATURE",
-    "LEARN", "RETROSPECTIVE", "ALERT", "STATUS", "CHORE",
-])
+    message_type_str = st.sampled_from([
+        "DECISION", "INCIDENT", "WIN", "LOSS", "BLOCKER",
+        "QUESTION", "SUGGESTION", "REVIEW", "BUG", "FEATURE",
+        "LEARN", "RETROSPECTIVE", "ALERT", "STATUS", "CHORE",
+    ])
 
 
 # ---------------------------------------------------------------------------
