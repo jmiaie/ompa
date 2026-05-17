@@ -64,7 +64,7 @@ def ao_classify(message: str, vault_path: str = ".") -> dict[str, object]:
     }
 
 
-def ao_search(query: str, vault_path: str = ".", limit: int = 5) -> dict:
+def ao_search(query: str, vault_path: str = ".", limit: int = 5) -> dict[str, object]:
     """Search the vault with hybrid semantic + keyword search."""
     ao = Ompa(vault_path=vault_path, enable_semantic=True)
     results = ao.search(query, limit=limit)
@@ -122,19 +122,19 @@ def ao_kg_add(
     return {"success": True, "added": f"{subject} --{predicate}--> {object_}"}
 
 
-def ao_kg_stats(vault_path: str = ".") -> dict:
+def ao_kg_stats(vault_path: str = ".") -> dict[str, object]:
     """Get knowledge graph statistics."""
     ao = Ompa(vault_path=vault_path, enable_semantic=False)
     return ao.kg.stats()
 
 
-def ao_palace_wings(vault_path: str = ".") -> dict:
+def ao_palace_wings(vault_path: str = ".") -> dict[str, object]:
     """List all palace wings."""
     ao = Ompa(vault_path=vault_path, enable_semantic=False)
     return {"wings": ao.palace.list_wings()}
 
 
-def ao_palace_rooms(wing: str, vault_path: str = ".") -> dict:
+def ao_palace_rooms(wing: str, vault_path: str = ".") -> dict[str, object]:
     """List rooms in a wing."""
     ao = Ompa(vault_path=vault_path, enable_semantic=False)
     rooms = ao.palace.list_rooms(wing)
@@ -143,7 +143,7 @@ def ao_palace_rooms(wing: str, vault_path: str = ".") -> dict:
 
 def ao_palace_tunnel(
     wing_a: str, wing_b: str, room: str, vault_path: str = "."
-) -> dict:
+) -> dict[str, object]:
     """Create a tunnel between two wings."""
     ao = Ompa(vault_path=vault_path, enable_semantic=False)
     ao.palace.create_tunnel(wing_a, wing_b, room)
