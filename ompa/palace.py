@@ -266,7 +266,7 @@ class Palace:
 
     # Stats
 
-    def stats(self) -> dict:
+    def stats(self) -> dict[str, int]:
         """Get palace statistics."""
         wings = self._data.get("wings", {})
         total_rooms = sum(len(w.get("rooms", {})) for w in wings.values())
