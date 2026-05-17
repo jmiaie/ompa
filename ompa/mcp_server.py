@@ -38,7 +38,7 @@ def _make_ompa(arguments: dict[str, object], enable_semantic: bool = False) -> O
 # ---------------------------------------------------------------------------
 
 
-def ao_session_start(vault_path: str = ".") -> dict:
+def ao_session_start(vault_path: str = ".") -> dict[str, object]:
     """
     Start a session. Loads vault context: file listing, North Star,
     active work, palace wings, KG stats. ~2K tokens.
@@ -52,7 +52,7 @@ def ao_session_start(vault_path: str = ".") -> dict:
     }
 
 
-def ao_classify(message: str, vault_path: str = ".") -> dict:
+def ao_classify(message: str, vault_path: str = ".") -> dict[str, object]:
     """Classify a user message into one of 15 types."""
     ao = Ompa(vault_path=vault_path, enable_semantic=False)
     c = ao.classify(message)
@@ -81,7 +81,7 @@ def ao_search(query: str, vault_path: str = ".", limit: int = 5) -> dict:
     }
 
 
-def ao_kg_query(entity: str, vault_path: str = ".", as_of: str = None) -> dict:
+def ao_kg_query(entity: str, vault_path: str = ".", as_of: str | None = None) -> dict[str, object]:
     """Query the knowledge graph for an entity."""
     ao = Ompa(vault_path=vault_path, enable_semantic=False)
     triples = ao.kg.query_entity(entity, as_of=as_of)
@@ -104,10 +104,10 @@ def ao_kg_add(
     subject: str,
     predicate: str,
     object_: str,
-    valid_from: str = None,
-    source: str = None,
+    valid_from: str | None = None,
+    source: str | None = None,
     vault_path: str = ".",
-) -> dict:
+) -> dict[str, object]:
     """
     Add a fact to the knowledge graph.
     """
