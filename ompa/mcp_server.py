@@ -520,7 +520,7 @@ TOOLS = {
 }
 
 
-def handle_list_tools():
+def handle_list_tools() -> dict[str, object]:
     """Handle tool list request."""
     tools = []
     for name, spec in TOOLS.items():
