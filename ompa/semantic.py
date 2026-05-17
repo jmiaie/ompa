@@ -105,7 +105,8 @@ class SemanticIndex:
 
         if not self._initialized:
             self._init_model()
-        if self._model is None:
+        model = self._model
+        if model is None:
             return
 
         try:
@@ -123,7 +124,7 @@ class SemanticIndex:
                 if len(chunk_text.strip()) < 20:
                     continue
 
-                embedding = self.model.encode(chunk_text)
+                embedding = model.encode(chunk_text)
                 chunk_hash = hashlib.sha256(f"{path}:{i}".encode()).hexdigest()[:16]
 
                 self.chunks.append(
@@ -132,7 +133,7 @@ class SemanticIndex:
                         "path": path_str,
                         "chunk_index": i,
                         "text": chunk_text,
-                        "embedding": embedding.tolist(),
+                        "embedding": list(embedding),
                     }
                 )
         except Exception as e:
@@ -236,8 +237,12 @@ class SemanticIndex:
         if not self._initialized or not self.chunks:
             return self._keyword_search(query, limit)
 
+        model = self._model
+        if model is None:
+            return self._keyword_search(query, limit)
+
         try:
-            query_embedding = self.model.encode(query)
+            query_embedding = list(model.encode(query))
 
             best_results = []
 
