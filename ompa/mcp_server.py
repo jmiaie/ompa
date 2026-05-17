@@ -25,10 +25,12 @@ from ompa.config import make_ompa
 
 
 def _make_ompa(arguments: dict[str, object], enable_semantic: bool = False) -> Ompa:
+    svp = arguments.get("shared_vault_path")
+    pvp = arguments.get("personal_vault_path")
     return make_ompa(
-        vault_path=arguments.get("vault_path", "."),
-        shared_vault_path=arguments.get("shared_vault_path"),
-        personal_vault_path=arguments.get("personal_vault_path"),
+        vault_path=str(arguments.get("vault_path", ".")),
+        shared_vault_path=str(svp) if svp is not None else None,
+        personal_vault_path=str(pvp) if pvp is not None else None,
         enable_semantic=enable_semantic,
     )
 
@@ -214,7 +216,7 @@ def ao_write(arguments: dict[str, object]) -> dict[str, object]:
     content = str(arguments.get("content", ""))
     tags_raw = arguments.get("tags", "")
     tags = [t.strip() for t in str(tags_raw).split(",") if t.strip()] if tags_raw else []
-    result = ao.write(
+    result: dict[str, object] = ao.write(  # type: ignore[assignment]
         content,
         file_path=str(arguments["file_path"]) if "file_path" in arguments else None,
         tags=tags,
@@ -546,35 +548,40 @@ def handle_call_tool(name: str, arguments: dict[str, object]) -> dict[str, objec
         if ".." in vault_path or vault_path in ("/", "C:\\", "C:/"):
             return {"error": "Invalid vault_path"}
         # Cap limit parameters
+        raw_limit = arguments.get("limit", 5)
+        limit_int = min(int(str(raw_limit)), 100)
         if "limit" in arguments:
-            arguments = {**arguments, "limit": min(int(arguments["limit"]), 100)}
+            arguments = {**arguments, "limit": limit_int}
 
         if name == "ao_session_start":
             result = ao_session_start(vault_path)
         elif name == "ao_classify":
             result = ao_classify(
-                message=arguments["message"],
+                message=str(arguments["message"]),
                 vault_path=vault_path,
             )
         elif name == "ao_search":
             result = ao_search(
-                query=arguments["query"],
+                query=str(arguments["query"]),
                 vault_path=vault_path,
-                limit=arguments.get("limit", 5),
+                limit=limit_int,
             )
         elif name == "ao_kg_query":
+            as_of_raw = arguments.get("as_of")
             result = ao_kg_query(
-                entity=arguments["entity"],
+                entity=str(arguments["entity"]),
                 vault_path=vault_path,
-                as_of=arguments.get("as_of"),
+                as_of=str(as_of_raw) if as_of_raw is not None else None,
             )
         elif name == "ao_kg_add":
+            vf_raw = arguments.get("valid_from")
+            src_raw = arguments.get("source")
             result = ao_kg_add(
-                subject=arguments["subject"],
-                predicate=arguments["predicate"],
-                object_=arguments["object"],
-                valid_from=arguments.get("valid_from"),
-                source=arguments.get("source"),
+                subject=str(arguments["subject"]),
+                predicate=str(arguments["predicate"]),
+                object_=str(arguments["object"]),
+                valid_from=str(vf_raw) if vf_raw is not None else None,
+                source=str(src_raw) if src_raw is not None else None,
                 vault_path=vault_path,
             )
         elif name == "ao_kg_stats":
@@ -583,19 +590,20 @@ def handle_call_tool(name: str, arguments: dict[str, object]) -> dict[str, objec
             result = ao_palace_wings(vault_path)
         elif name == "ao_palace_rooms":
             result = ao_palace_rooms(
-                wing=arguments["wing"],
+                wing=str(arguments["wing"]),
                 vault_path=vault_path,
             )
         elif name == "ao_palace_tunnel":
+            room_raw = arguments.get("room", "shared")
             result = ao_palace_tunnel(
-                wing_a=arguments["wing_a"],
-                wing_b=arguments["wing_b"],
-                room=arguments.get("room", "shared"),
+                wing_a=str(arguments["wing_a"]),
+                wing_b=str(arguments["wing_b"]),
+                room=str(room_raw),
                 vault_path=vault_path,
             )
         elif name == "ao_validate":
             result = ao_validate(
-                file_path=arguments["file_path"],
+                file_path=str(arguments["file_path"]),
                 vault_path=vault_path,
             )
         elif name == "ao_wrap_up":
