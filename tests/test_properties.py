@@ -283,6 +283,18 @@ class TestVaultProperties:
     @settings(max_examples=15)
     def test_stats_total_notes_accurate(self, notes):
         """total_notes in stats must equal number of notes actually written."""
+        # Skip inputs whose note names collide with vault exclude-patterns
+        # (.git, .claude, thinking). A note named "thinking" placed in brain/
+        # would produce a path containing "thinking", triggering the exclude.
+        from ompa.vault import DEFAULT_EXCLUDE_PATTERNS
+
+        assume(
+            all(
+                not any(pat in name for pat in DEFAULT_EXCLUDE_PATTERNS)
+                for name, _ in notes
+            )
+        )
+
         with tempfile.TemporaryDirectory() as tmp:
             from ompa import Vault
 

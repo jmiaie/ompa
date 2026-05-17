@@ -92,7 +92,7 @@ class Ompa:
                 )
             )
         else:
-            # Single-vault mode (legacy / backward compatible)
+            # Single-vault mode
             self.vault_path = Path(vault_path or ".")
             self.vault = Vault(self.vault_path)
             self.palace = Palace(self.vault_path / ".palace")
@@ -169,10 +169,9 @@ class Ompa:
         except Exception as e:
             logger.debug("KG auto-population skipped: %s", e)
 
-        # Trigger semantic index build if needed (lazy property handles this)
         if self._enable_semantic:
             try:
-                _ = self.semantic  # triggers lazy build
+                _ = self.semantic  # triggers lazy build via property
             except Exception as e:
                 logger.debug("Semantic index build skipped: %s", e)
 
@@ -190,7 +189,7 @@ class Ompa:
             self._last_classification = self.classifier.classify(message)
         return result
 
-    def post_tool(self, tool_name: str, tool_input: dict) -> HookResult:
+    def post_tool(self, tool_name: str, tool_input: dict[str, object]) -> HookResult:
         """
         Run post-tool hook after tool use.
         Validates writes, auto-adds to palace, updates KG + search index.

@@ -36,10 +36,12 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
+    from .classifier import Classification
+    from .hooks import HookResult
     from .knowledge_graph import KnowledgeGraph, Triple
     from .palace import Palace
     from .semantic import EmbeddingBackend, SearchResult
-    from .vault import Vault
+    from .vault import Note, Vault
 
 logger = logging.getLogger(__name__)
 
@@ -118,27 +120,27 @@ class AsyncOmpa:
     # Lifecycle hooks
     # ------------------------------------------------------------------
 
-    async def session_start(self):
+    async def session_start(self) -> HookResult:
         """Async session start — injects vault context (~2K tokens)."""
         return await self._run(self._ompa.session_start)
 
-    async def handle_message(self, message: str):
+    async def handle_message(self, message: str) -> HookResult:
         """Async user message hook — classifies and returns routing hint."""
         return await self._run(self._ompa.handle_message, message)
 
-    async def post_tool(self, tool_name: str, tool_input: dict):
+    async def post_tool(self, tool_name: str, tool_input: dict[str, object]) -> HookResult:
         """Async post-tool hook — syncs file writes to palace and KG."""
         return await self._run(self._ompa.post_tool, tool_name, tool_input)
 
-    async def pre_compact(self, transcript: str):
+    async def pre_compact(self, transcript: str) -> HookResult:
         """Async pre-compact hook — archives session transcript."""
         return await self._run(self._ompa.pre_compact, transcript)
 
-    async def stop(self):
+    async def stop(self) -> HookResult:
         """Async stop hook — session wrap-up and persist."""
         return await self._run(self._ompa.stop)
 
-    async def wrap_up(self):
+    async def wrap_up(self) -> HookResult:
         """Alias for stop()."""
         return await self.stop()
 
@@ -170,7 +172,7 @@ class AsyncOmpa:
     # Classification
     # ------------------------------------------------------------------
 
-    async def classify(self, message: str):
+    async def classify(self, message: str) -> Classification:
         """Async message classification."""
         return await self._run(self._ompa.classify, message)
 
@@ -200,7 +202,7 @@ class AsyncOmpa:
         """Async KG entity query."""
         return await self._run(self._ompa.kg_query, entity, as_of=as_of)
 
-    async def kg_timeline(self, entity: str) -> list:
+    async def kg_timeline(self, entity: str) -> list[dict[str, str | None]]:
         """Async KG timeline query."""
         return await self._run(self._ompa.kg_timeline, entity)
 
@@ -212,19 +214,19 @@ class AsyncOmpa:
     # Vault
     # ------------------------------------------------------------------
 
-    async def write(self, content: str, **kwargs) -> dict:
+    async def write(self, content: str, **kwargs: object) -> dict[str, str]:
         """Async vault write (auto-classifies in dual-vault mode)."""
         return await self._run(self._ompa.write, content, **kwargs)
 
-    async def get_stats(self) -> dict:
+    async def get_stats(self) -> dict[str, object]:
         """Async vault stats."""
         return await self._run(self._ompa.get_stats)
 
-    async def find_orphans(self) -> list:
+    async def find_orphans(self) -> list[Note]:
         """Async orphan detection."""
         return await self._run(self._ompa.find_orphans)
 
-    async def sync(self) -> dict:
+    async def sync(self) -> dict[str, int]:
         """Async full sync: KG + palace + semantic index."""
         return await self._run(self._ompa.sync)
 

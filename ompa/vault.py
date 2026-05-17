@@ -158,8 +158,7 @@ class Vault:
         notes = []
 
         for path in self.vault_path.rglob("*.md"):
-            # Check exclusions
-            if any(excl in str(path) for excl in exclude_patterns):
+            if any(excl in path.parts for excl in exclude_patterns):
                 continue
             notes.append(Note.from_file(path))
 
@@ -288,7 +287,7 @@ class Vault:
         note.save()
         return note
 
-    def get_stats(self) -> dict:
+    def get_stats(self) -> dict[str, object]:
         """Get vault statistics."""
         notes = self.list_notes()
         linked_files = self._build_linked_set(notes)
