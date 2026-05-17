@@ -321,7 +321,7 @@ class Vault:
             "brain_notes": brain_count,
         }
 
-    def validate_write(self, file_path: str) -> dict:
+    def validate_write(self, file_path: str) -> dict[str, object]:
         """
         Validate a markdown file for frontmatter and wikilinks.
         File must be within the vault directory.

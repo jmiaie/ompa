@@ -274,7 +274,6 @@ class SemanticIndex:
                     )
                 )
 
-            # Sort by score and dedupe by path
             best_results.sort(key=lambda r: r.score, reverse=True)
 
             seen_paths = set()

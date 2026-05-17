@@ -411,7 +411,7 @@ class Ompa:
     # Validation
     # -------------------------------------------------------------------------
 
-    def validate_write(self, file_path: str) -> dict:
+    def validate_write(self, file_path: str) -> dict[str, object]:
         """Validate a markdown file for frontmatter and wikilinks."""
         return self.vault.validate_write(file_path)
 
@@ -419,11 +419,11 @@ class Ompa:
     # Vault Management
     # -------------------------------------------------------------------------
 
-    def get_stats(self) -> dict:
+    def get_stats(self) -> dict[str, object]:
         """Get vault statistics."""
         return self.vault.get_stats()
 
-    def find_orphans(self) -> list:
+    def find_orphans(self) -> list[Note]:
         """Find notes with no wikilinks."""
         return self.vault.find_orphans()
 
