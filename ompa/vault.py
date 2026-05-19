@@ -33,12 +33,12 @@ def _safe_resolve(base: Path, untrusted: str) -> Path:
 @dataclass
 class VaultConfig:
     vault_path: Path
-    brain_folder: Path = None
-    work_folder: Path = None
-    org_folder: Path = None
-    perf_folder: Path = None
-    thinking_folder: Path = None
-    templates_folder: Path = None
+    brain_folder: Optional[Path] = None
+    work_folder: Optional[Path] = None
+    org_folder: Optional[Path] = None
+    perf_folder: Optional[Path] = None
+    thinking_folder: Optional[Path] = None
+    templates_folder: Optional[Path] = None
 
     def __post_init__(self):
         if self.brain_folder is None:
@@ -156,7 +156,7 @@ class Vault:
             folder_path = self.vault_path / folder
             folder_path.mkdir(parents=True, exist_ok=True)
 
-    def list_notes(self, exclude_patterns: list[str] = None) -> list[Note]:
+    def list_notes(self, exclude_patterns: Optional[list[str]] = None) -> list[Note]:
         """List all markdown notes in the vault."""
         exclude_patterns = exclude_patterns or DEFAULT_EXCLUDE_PATTERNS
         notes = []
@@ -292,7 +292,7 @@ class Vault:
         note.save()
         return note
 
-    def get_stats(self) -> dict:
+    def get_stats(self) -> dict[str, object]:
         """Get vault statistics."""
         notes = self.list_notes()
         filename_index = self._build_filename_index(notes)
@@ -336,7 +336,7 @@ class Vault:
             "brain_notes": brain_count,
         }
 
-    def validate_write(self, file_path: str) -> dict:
+    def validate_write(self, file_path: str) -> dict[str, object]:
         """
         Validate a markdown file for frontmatter and wikilinks.
         File must be within the vault directory.
