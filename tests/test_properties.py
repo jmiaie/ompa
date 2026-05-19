@@ -29,6 +29,18 @@ except ImportError:
     def assume(_cond):  # type: ignore[misc]
         pass
 
+    class _StubSt:
+        def __getattr__(self, _name):
+            return self
+
+        def __call__(self, *_a, **_kw):
+            return self
+
+        def __iter__(self):
+            return iter([])
+
+    st = _StubSt()  # type: ignore[assignment]
+
 pytestmark = pytest.mark.skipif(
     not HYPOTHESIS_AVAILABLE,
     reason="hypothesis not installed (pip install hypothesis)",
