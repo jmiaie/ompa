@@ -7,7 +7,7 @@ import logging
 import re
 from pathlib import Path
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Any, Optional
 import frontmatter
 
 logger = logging.getLogger(__name__)
@@ -33,12 +33,12 @@ def _safe_resolve(base: Path, untrusted: str) -> Path:
 @dataclass
 class VaultConfig:
     vault_path: Path
-    brain_folder: Optional[Path] = None
-    work_folder: Optional[Path] = None
-    org_folder: Optional[Path] = None
-    perf_folder: Optional[Path] = None
-    thinking_folder: Optional[Path] = None
-    templates_folder: Optional[Path] = None
+    brain_folder: Path = field(default=None)  # type: ignore[assignment]
+    work_folder: Path = field(default=None)  # type: ignore[assignment]
+    org_folder: Path = field(default=None)  # type: ignore[assignment]
+    perf_folder: Path = field(default=None)  # type: ignore[assignment]
+    thinking_folder: Path = field(default=None)  # type: ignore[assignment]
+    templates_folder: Path = field(default=None)  # type: ignore[assignment]
 
     def __post_init__(self):
         if self.brain_folder is None:
@@ -230,35 +230,31 @@ class Vault:
         query_lower = query.lower()
         return [n for n in self.list_notes() if query_lower in n.path.stem.lower()]
 
-    def get_brain_note(self, name: str) -> Optional[Note]:
-        """Get a brain note by name. Name is sanitized to prevent path traversal."""
-        # Reject names with path separators or parent-dir references
+    def _safe_brain_path(self, name: str) -> Path:
+        """
+        Validate and resolve a brain note name to a safe absolute path.
+        Raises ValueError if the name contains path separators or escapes the brain folder.
+        """
         if "/" in name or "\\" in name or ".." in name:
             raise ValueError(f"Invalid brain note name: {name!r}")
-        safe_name = Path(name).name  # Strip any directory components
-        path = self.config.brain_folder / f"{safe_name}.md"
-        path = path.resolve()
-        # Ensure we stay within brain folder
+        safe_name = Path(name).name  # strip any directory components
+        path = (self.config.brain_folder / f"{safe_name}.md").resolve()
         try:
             path.relative_to(self.config.brain_folder.resolve())
         except ValueError:
             raise ValueError(f"Invalid brain note name: {name!r}")
+        return path
+
+    def get_brain_note(self, name: str) -> Optional[Note]:
+        """Get a brain note by name. Name is sanitized to prevent path traversal."""
+        path = self._safe_brain_path(name)
         if path.exists():
             return Note.from_file(path)
         return None
 
     def update_brain_note(self, name: str, content: str, append: bool = False) -> None:
         """Update a brain note. Name is sanitized to prevent path traversal."""
-        # Reject names with path separators or parent-dir references
-        if "/" in name or "\\" in name or ".." in name:
-            raise ValueError(f"Invalid brain note name: {name!r}")
-        safe_name = Path(name).name  # Strip any directory components
-        path = self.config.brain_folder / f"{safe_name}.md"
-        path = path.resolve()
-        try:
-            path.relative_to(self.config.brain_folder.resolve())
-        except ValueError:
-            raise ValueError(f"Invalid brain note name: {name!r}")
+        path = self._safe_brain_path(name)
         path.parent.mkdir(parents=True, exist_ok=True)
 
         if append and path.exists():
@@ -281,23 +277,20 @@ class Vault:
 
         template = Note.from_file(template_path)
 
-        # Replace placeholders
         content = template.content
         for key, value in kwargs.items():
             content = content.replace(f"{{{{{key}}}}}", str(value))
 
-        # Sanitize and validate target path
         target_path = _safe_resolve(self.vault_path, target_name)
         note = Note(path=target_path, frontmatter=template.frontmatter, content=content)
         note.save()
         return note
 
-    def get_stats(self) -> dict[str, object]:
+    def get_stats(self) -> dict[str, Any]:
         """Get vault statistics."""
         notes = self.list_notes()
         filename_index = self._build_filename_index(notes)
 
-        # Build linked set using smart wikilink resolution
         linked_files = set()
         for note in notes:
             for link in note.links:
@@ -336,7 +329,7 @@ class Vault:
             "brain_notes": brain_count,
         }
 
-    def validate_write(self, file_path: str) -> dict[str, object]:
+    def validate_write(self, file_path: str) -> dict[str, Any]:
         """
         Validate a markdown file for frontmatter and wikilinks.
         File must be within the vault directory.

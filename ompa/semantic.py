@@ -24,6 +24,20 @@ class EmbeddingBackend(Protocol):
     def encode(self, text: str) -> "list[float]": ...
 
 
+def _keyword_boost(query: str, text: str) -> float:
+    """
+    Return a keyword overlap boost score in [0, 0.3].
+    Both query and text should be raw strings (lowercasing is done internally).
+    Returns 0.0 if there is no word overlap.
+    """
+    query_words = set(query.lower().split())
+    if not query_words:
+        return 0.0
+    text_words = set(text.lower().split())
+    overlap = query_words & text_words
+    return len(overlap) / len(query_words) * 0.3 if overlap else 0.0
+
+
 def _cosine_similarity(a, b) -> float:
     """Pure-numpy cosine similarity — no sentence_transformers.util needed."""
     try:
@@ -113,13 +127,11 @@ class SemanticIndex:
             return
 
         try:
-            # Remove existing chunks for this file (incremental update)
             path_str = str(path)
             self.chunks = [c for c in self.chunks if c["path"] != path_str]
 
             content = path.read_text(encoding="utf-8")
-            # Split into chunks (512 tokens each)
-            chunk_size = 512
+            chunk_size = 512  # words per chunk
             words = content.split()
 
             for i in range(0, len(words), chunk_size):
@@ -251,16 +263,7 @@ class SemanticIndex:
                 similarity = _cosine_similarity(query_embedding, chunk_embedding)
 
                 # Keyword boost
-                keyword_boost = 0.0
-                if hybrid:
-                    query_lower = query.lower()
-                    chunk_lower = chunk["text"].lower()
-                    query_words = set(query_lower.split())
-                    chunk_words = set(chunk_lower.split())
-                    overlap = query_words & chunk_words
-                    if overlap:
-                        keyword_boost = len(overlap) / len(query_words) * 0.3
-
+                keyword_boost = _keyword_boost(query, chunk["text"]) if hybrid else 0.0
                 combined_score = similarity + keyword_boost
 
                 best_results.append(
@@ -278,7 +281,6 @@ class SemanticIndex:
                     )
                 )
 
-            # Sort by score and dedupe by path
             best_results.sort(key=lambda r: r.score, reverse=True)
 
             seen_paths = set()

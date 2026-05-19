@@ -20,42 +20,56 @@ try:
 except ImportError:
     HYPOTHESIS_AVAILABLE = False
 
+    def given(**_kw):  # type: ignore[misc]
+        return lambda f: f
+
+    def settings(**_kw):  # type: ignore[misc]
+        return lambda f: f
+
+    def assume(_cond):  # type: ignore[misc]
+        pass
+
 pytestmark = pytest.mark.skipif(
     not HYPOTHESIS_AVAILABLE,
     reason="hypothesis not installed (pip install hypothesis)",
 )
 
 # ---------------------------------------------------------------------------
-# Strategies
+# Strategies (only defined when hypothesis is available)
 # ---------------------------------------------------------------------------
 
-safe_text = st.text(
-    alphabet=st.characters(whitelist_categories=("Lu", "Ll", "Nd", "Zs")),
-    min_size=1,
-    max_size=50,
-).filter(lambda s: s.strip())
+if HYPOTHESIS_AVAILABLE:
+    safe_text = st.text(
+        alphabet=st.characters(whitelist_categories=("Lu", "Ll", "Nd", "Zs")),
+        min_size=1,
+        max_size=50,
+    ).filter(lambda s: s.strip())
 
-entity_name = st.text(
-    alphabet="abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-",
-    min_size=1,
-    max_size=30,
-)
+    entity_name = st.text(
+        alphabet="abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-",
+        min_size=1,
+        max_size=30,
+    )
 
-predicate_name = st.sampled_from([
-    "works_on", "knows", "created", "links_to", "has_tag",
-    "in_folder", "depends_on", "blocks", "owns", "manages",
-])
+    predicate_name = st.sampled_from([
+        "works_on", "knows", "created", "links_to", "has_tag",
+        "in_folder", "depends_on", "blocks", "owns", "manages",
+    ])
 
-iso_date = st.dates(
-    min_value=__import__("datetime").date(2020, 1, 1),
-    max_value=__import__("datetime").date(2030, 12, 31),
-).map(str)
+    iso_date = st.dates(
+        min_value=__import__("datetime").date(2020, 1, 1),
+        max_value=__import__("datetime").date(2030, 12, 31),
+    ).map(str)
 
-message_type_str = st.sampled_from([
-    "DECISION", "INCIDENT", "WIN", "LOSS", "BLOCKER",
-    "QUESTION", "SUGGESTION", "REVIEW", "BUG", "FEATURE",
-    "LEARN", "RETROSPECTIVE", "ALERT", "STATUS", "CHORE",
-])
+    message_type_str = st.sampled_from([
+        "DECISION", "INCIDENT", "WIN", "LOSS", "BLOCKER",
+        "QUESTION", "SUGGESTION", "REVIEW", "BUG", "FEATURE",
+        "LEARN", "RETROSPECTIVE", "ALERT", "STATUS", "CHORE",
+    ])
+else:
+    # Placeholders so module-level names exist; the pytestmark skip ensures
+    # none of the test methods that reference these are ever executed.
+    safe_text = entity_name = predicate_name = iso_date = message_type_str = None
 
 
 # ---------------------------------------------------------------------------

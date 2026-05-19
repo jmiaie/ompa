@@ -35,7 +35,7 @@ import logging
 from pathlib import Path
 from typing import Optional
 
-from ..semantic import SearchResult, EmbeddingBackend, _cosine_similarity
+from ..semantic import SearchResult, EmbeddingBackend, _cosine_similarity, _keyword_boost
 
 logger = logging.getLogger(__name__)
 
@@ -294,11 +294,8 @@ class FAISSSemanticIndex:
                 match_type = "semantic"
 
                 if hybrid:
-                    query_words = set(query.lower().split())
-                    chunk_words = set(meta["text"].lower().split())
-                    overlap = query_words & chunk_words
-                    if overlap:
-                        boost = len(overlap) / len(query_words) * 0.3
+                    boost = _keyword_boost(query, meta["text"])
+                    if boost:
                         final_score += boost
                         match_type = "hybrid"
 

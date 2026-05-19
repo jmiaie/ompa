@@ -191,7 +191,7 @@ class Ompa:
             self._last_classification = self.classifier.classify(message)
         return result
 
-    def post_tool(self, tool_name: str, tool_input: dict) -> HookResult:
+    def post_tool(self, tool_name: str, tool_input: dict[str, Any]) -> HookResult:
         """
         Run post-tool hook after tool use.
         Validates writes, auto-adds to palace, updates KG + search index.
@@ -318,17 +318,15 @@ class Ompa:
             room: Filter by palace room
             vaults: Which vaults to search. Options: ["shared"], ["personal"],
                     ["shared", "personal"]. Default: ["shared"] in dual mode,
-                    or the single vault in legacy mode.
+                    or the single vault in single-vault mode.
         """
-        # Determine which vaults to search
         if not self.is_dual_vault:
-            vaults = ["shared"]  # single vault acts as shared
+            vaults = ["shared"]  # single vault maps to "shared" slot
         elif vaults is None:
             vaults = ["shared"]
 
         all_results = []
 
-        # Search shared vault
         if "shared" in vaults:
             all_results.extend(
                 self._search_vault(
@@ -336,7 +334,6 @@ class Ompa:
                 )
             )
 
-        # Search personal vault
         if "personal" in vaults and self.personal_vault:
             personal_results = self._search_vault(
                 self.personal_vault,
@@ -347,12 +344,10 @@ class Ompa:
                 wing,
                 room,
             )
-            # Tag personal results
             for r in personal_results:
                 r.match_type = f"personal:{r.match_type}"
             all_results.extend(personal_results)
 
-        # Sort by score and limit
         all_results.sort(key=lambda r: r.score, reverse=True)
         return all_results[:limit]
 
@@ -407,7 +402,7 @@ class Ompa:
     # Validation
     # -------------------------------------------------------------------------
 
-    def validate_write(self, file_path: str) -> dict[str, object]:
+    def validate_write(self, file_path: str) -> dict[str, Any]:
         """Validate a markdown file for frontmatter and wikilinks."""
         return self.vault.validate_write(file_path)
 
@@ -415,7 +410,7 @@ class Ompa:
     # Vault Management
     # -------------------------------------------------------------------------
 
-    def get_stats(self) -> dict[str, object]:
+    def get_stats(self) -> dict[str, Any]:
         """Get vault statistics."""
         return self.vault.get_stats()
 
@@ -475,7 +470,7 @@ class Ompa:
         """Populate KG from all vault notes (wikilinks, tags, folders)."""
         return self.kg.populate_from_vault(self.vault_path)
 
-    def sync(self) -> dict:
+    def sync(self) -> dict[str, int]:
         """
         Full sync: rebuild KG from vault, rebuild search index, rebuild palace.
 
@@ -512,7 +507,7 @@ class Ompa:
         file_path: Optional[str] = None,
         tags: Optional[list[str]] = None,
         vault: Optional[str] = None,
-    ) -> dict:
+    ) -> dict[str, str]:
         """
         Write content to the appropriate vault.
 
@@ -587,7 +582,7 @@ class Ompa:
         note_path: str,
         confirm: bool = True,
         sanitize: bool = True,
-    ) -> dict:
+    ) -> dict[str, Any]:
         """
         Export a note from personal vault to shared vault.
 
@@ -637,14 +632,12 @@ class Ompa:
         if sanitize:
             note.content = self._sanitize_content(note.content)
 
-        # Update frontmatter for shared vault
         note.frontmatter["vault"] = "shared"
         note.frontmatter.pop("@private", None)
 
         note.path = target
         note.save()
 
-        # Update shared KG
         self.kg.populate_from_note(target, self.dual_config.shared_path)
 
         logger.info("Exported %s to shared vault", note_path)
@@ -659,7 +652,7 @@ class Ompa:
         self,
         note_path: str,
         link_back: bool = True,
-    ) -> dict:
+    ) -> dict[str, Any]:
         """
         Import a note from shared vault to personal vault.
 
@@ -693,7 +686,6 @@ class Ompa:
         note.path = target
         note.save()
 
-        # Update personal KG
         if self.personal_kg:
             self.personal_kg.populate_from_note(target, self.dual_config.personal_path)
 
@@ -727,7 +719,7 @@ class Ompa:
         shared_path: str | Path,
         personal_path: str | Path,
         classification_rules: str = "auto",
-    ) -> dict:
+    ) -> dict[str, Any]:
         """
         Migrate a single-vault OMPA to dual-vault architecture.
 
