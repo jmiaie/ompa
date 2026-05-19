@@ -240,7 +240,6 @@ class PostToolHook(Hook):
                 output="(skipped - not a write operation)",
             )
 
-        # Extract file path from tool input
         file_path = tool_input.get("file_path") or tool_input.get("path")
         if not file_path:
             return HookResult(
@@ -262,13 +261,11 @@ class PostToolHook(Hook):
             else:
                 note = Note.from_file(path)
 
-                # Check frontmatter
                 if not note.frontmatter.get("date"):
                     warnings.append("Missing frontmatter 'date' field")
                 if not note.frontmatter.get("description"):
                     warnings.append("Missing frontmatter 'description' field")
 
-                # Check wikilinks
                 if not note.has_links():
                     warnings.append("Note has no wikilinks (orphan)")
 
