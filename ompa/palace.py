@@ -6,7 +6,7 @@ Inspired by MemPalace. Manages the structured metadata that accelerates retrieva
 import json
 from pathlib import Path
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Any, Optional, TypedDict
 
 HALL_TYPES = [
     "hall_facts",  # decisions made, choices locked
@@ -16,10 +16,33 @@ HALL_TYPES = [
     "hall_advice",  # recommendations
 ]
 
-# Type aliases for palace data structures
-RoomData = dict[str, object]   # {"name": str, "drawers": list[str], "halls": dict[str, str]}
-WingData = dict[str, object]   # {"name": str, "type": str, "keywords": list[str], "rooms": dict}
-TunnelData = dict[str, str]    # {"id": str, "wing_a": str, "wing_b": str, "room": str, ...}
+
+# TypedDicts for the on-disk JSON structure
+class RoomData(TypedDict, total=False):
+    name: str
+    drawers: list[str]
+    halls: dict[str, str]
+
+
+class WingData(TypedDict, total=False):
+    name: str
+    type: str
+    keywords: list[str]
+    rooms: dict[str, RoomData]
+
+
+class TunnelData(TypedDict):
+    id: str
+    wing_a: str
+    wing_b: str
+    room: str
+    hall_a: str
+    hall_b: str
+
+
+class PalaceData(TypedDict, total=False):
+    wings: dict[str, WingData]
+    tunnels: list[TunnelData]
 
 
 @dataclass
@@ -61,13 +84,14 @@ class Palace:
         self.palace_path = Path(palace_path)
         self.palace_path.mkdir(parents=True, exist_ok=True)
         self.data_file = self.palace_path / "palace.json"
-        self._data = self._load()
+        self._data: PalaceData = self._load()
 
-    def _load(self) -> dict[str, object]:
+    def _load(self) -> PalaceData:
         """Load palace data from disk."""
         if self.data_file.exists():
             with open(self.data_file) as f:
-                return json.load(f)  # type: ignore[no-any-return]
+                data: Any = json.load(f)
+                return data
         return {"wings": {}, "tunnels": []}
 
     def _save(self) -> None:
@@ -83,8 +107,8 @@ class Palace:
         """Create a new wing."""
         if keywords is None:
             keywords = []
-        self._data.setdefault("wings", {})
-        self._data["wings"][name] = {
+        wings = self._data.setdefault("wings", {})
+        wings[name] = {
             "name": name,
             "type": type,
             "keywords": keywords,
@@ -92,25 +116,28 @@ class Palace:
         }
         self._save()
 
-    def list_wings(self) -> list[dict[str, object]]:
+    def list_wings(self) -> list[dict[str, Any]]:
         """List all wings."""
         return [
-            {"name": w["name"], "type": w["type"], "keywords": w.get("keywords", [])}
-            for w in self._data.get("wings", {}).values()  # type: ignore[union-attr]
+            {"name": w.get("name"), "type": w.get("type"), "keywords": w.get("keywords", [])}
+            for w in self._data.get("wings", {}).values()
         ]
 
-    def get_wing(self, name: str) -> Optional[dict[str, object]]:
+    def get_wing(self, name: str) -> Optional[WingData]:
         """Get a wing by name."""
-        return self._data.get("wings", {}).get(name)  # type: ignore[union-attr]
+        return self._data.get("wings", {}).get(name)
 
     # Room operations
 
     def create_room(self, wing: str, room_name: str) -> None:
         """Create a new room in a wing."""
-        if wing not in self._data.get("wings", {}):
+        wings = self._data.setdefault("wings", {})
+        if wing not in wings:
             self.create_wing(wing)
-        self._data["wings"][wing].setdefault("rooms", {})
-        self._data["wings"][wing]["rooms"][room_name] = {
+            wings = self._data.setdefault("wings", {})
+        wing_data = wings.setdefault(wing, {"name": wing, "type": "project", "keywords": [], "rooms": {}})
+        rooms = wing_data.setdefault("rooms", {})
+        rooms[room_name] = {
             "name": room_name,
             "drawers": [],
             "halls": {},
@@ -119,28 +146,30 @@ class Palace:
 
     def list_rooms(self, wing: str) -> list[str]:
         """List all rooms in a wing."""
-        wing_data = self._data.get("wings", {}).get(wing)  # type: ignore[union-attr]
+        wing_data = self._data.get("wings", {}).get(wing)
         if not wing_data:
             return []
-        return list(wing_data.get("rooms", {}).keys())  # type: ignore[union-attr]
+        return list(wing_data.get("rooms", {}).keys())
 
-    def get_room(self, wing: str, room_name: str) -> Optional[dict[str, object]]:
+    def get_room(self, wing: str, room_name: str) -> Optional[RoomData]:
         """Get a room."""
-        wing_data = self._data.get("wings", {}).get(wing)  # type: ignore[union-attr]
+        wing_data = self._data.get("wings", {}).get(wing)
         if not wing_data:
             return None
-        return wing_data.get("rooms", {}).get(room_name)  # type: ignore[union-attr]
+        return wing_data.get("rooms", {}).get(room_name)
 
     # Drawer operations
 
     def link_drawer(self, wing: str, room: str, file_path: str) -> None:
         """Link a vault file as a drawer in a room."""
-        if wing not in self._data.get("wings", {}):
+        wings = self._data.setdefault("wings", {})
+        if wing not in wings:
             self.create_room(wing, room)
-        self._data["wings"][wing].setdefault("rooms", {}).setdefault(
-            room, {"drawers": [], "halls": {}}
-        )
-        drawers = self._data["wings"][wing]["rooms"][room].setdefault("drawers", [])
+            wings = self._data.setdefault("wings", {})
+        wing_data = wings.setdefault(wing, {"name": wing, "type": "project", "keywords": [], "rooms": {}})
+        rooms = wing_data.setdefault("rooms", {})
+        room_data = rooms.setdefault(room, {"name": room, "drawers": [], "halls": {}})
+        drawers = room_data.setdefault("drawers", [])
         if file_path not in drawers:
             drawers.append(file_path)
         self._save()
@@ -160,11 +189,15 @@ class Palace:
             raise ValueError(
                 f"Invalid hall type: {hall_type}. Must be one of {HALL_TYPES}"
             )
-        if wing not in self._data.get("wings", {}):
+        wings = self._data.setdefault("wings", {})
+        if wing not in wings:
             self.create_room(wing, room)
-        self._data["wings"][wing]["rooms"][room].setdefault("halls", {})[
-            hall_type
-        ] = content
+            wings = self._data.setdefault("wings", {})
+        wing_data = wings[wing]
+        rooms = wing_data.setdefault("rooms", {})
+        room_data = rooms.setdefault(room, {"name": room, "drawers": [], "halls": {}})
+        halls = room_data.setdefault("halls", {})
+        halls[hall_type] = content
         self._save()
 
     def get_hall(self, wing: str, room: str, hall_type: str) -> Optional[str]:
@@ -202,9 +235,9 @@ class Palace:
         )
         self._save()
 
-    def find_tunnels(self, wing_a: str, wing_b: str) -> list[dict[str, str]]:
+    def find_tunnels(self, wing_a: str, wing_b: str) -> list[TunnelData]:
         """Find all tunnels between two wings."""
-        tunnels: list[dict[str, str]] = self._data.get("tunnels", [])  # type: ignore[assignment]
+        tunnels = self._data.get("tunnels", [])
         return [
             t
             for t in tunnels
@@ -212,24 +245,24 @@ class Palace:
             or (t.get("wing_a") == wing_b and t.get("wing_b") == wing_a)
         ]
 
-    def find_tunnels_by_room(self, room: str) -> list[dict[str, str]]:
+    def find_tunnels_by_room(self, room: str) -> list[TunnelData]:
         """Find all tunnels that pass through a room."""
-        tunnels: list[dict[str, str]] = self._data.get("tunnels", [])  # type: ignore[assignment]
-        return [t for t in tunnels if t.get("room") == room]
+        return [t for t in self._data.get("tunnels", []) if t.get("room") == room]
 
     # Traversal
 
-    def traverse(self, wing: str, room: str) -> dict[str, object]:
+    def traverse(self, wing: str, room: str) -> dict[str, Any]:
         """Walk the palace from a room across all connected wings via tunnels."""
-        connected: list[dict[str, object]] = []
-        result: dict[str, object] = {
+        connected: list[dict[str, Any]] = []
+        tunnels = self.find_tunnels_by_room(room)
+        result: dict[str, Any] = {
             "wing": wing,
             "room": room,
             "room_data": self.get_room(wing, room),
-            "tunnels": self.find_tunnels_by_room(room),
+            "tunnels": tunnels,
             "connected": connected,
         }
-        for tunnel in result["tunnels"]:  # type: ignore[union-attr]
+        for tunnel in tunnels:
             other_wing = (
                 tunnel["wing_b"] if tunnel["wing_a"] == wing else tunnel["wing_a"]
             )
@@ -297,16 +330,16 @@ class Palace:
 
     def stats(self) -> dict[str, int]:
         """Get palace statistics."""
-        wings: dict[str, dict[str, object]] = self._data.get("wings", {})  # type: ignore[assignment]
-        total_rooms = sum(len(w.get("rooms", {})) for w in wings.values())  # type: ignore[union-attr]
+        wings = self._data.get("wings", {})
+        total_rooms = sum(len(w.get("rooms", {})) for w in wings.values())
         total_drawers = sum(
-            len(r.get("drawers", []))  # type: ignore[union-attr]
+            len(r.get("drawers", []))
             for w in wings.values()
-            for r in w.get("rooms", {}).values()  # type: ignore[union-attr]
+            for r in w.get("rooms", {}).values()
         )
         return {
             "wing_count": len(wings),
             "room_count": total_rooms,
             "drawer_count": total_drawers,
-            "tunnel_count": len(self._data.get("tunnels", [])),  # type: ignore[arg-type]
+            "tunnel_count": len(self._data.get("tunnels", [])),
         }
