@@ -25,12 +25,19 @@ import logging
 import sqlite3
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
+from typing import Callable, Optional, TypedDict
 
 logger = logging.getLogger(__name__)
 
 # Increment this when new migrations are added.
 CURRENT_SCHEMA_VERSION = 3
+
+
+class MigrationStep(TypedDict):
+    """A single migration step definition."""
+    version: int
+    name: str
+    fn: Callable[[Path], None]
 
 
 @dataclass
@@ -212,7 +219,7 @@ class VaultMigrator:
     # Migration definitions
     # ------------------------------------------------------------------
 
-    def _pending_migrations(self, vault_path: Path, from_version: int) -> list[dict]:
+    def _pending_migrations(self, vault_path: Path, from_version: int) -> list[MigrationStep]:
         """Return ordered list of migrations not yet applied."""
         all_migrations = [
             {

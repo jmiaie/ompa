@@ -213,7 +213,7 @@ class FAISSSemanticIndex:
         except Exception as e:
             logger.warning("Error indexing %s: %s", path, e)
 
-    def index_vault(self, vault_path: Path, exclude_patterns: Optional[list] = None) -> int:
+    def index_vault(self, vault_path: Path, exclude_patterns: Optional[list[str]] = None) -> int:
         """Index all markdown files in a vault. Returns file count."""
         from ..vault import DEFAULT_EXCLUDE_PATTERNS
 
