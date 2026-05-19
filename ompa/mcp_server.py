@@ -23,6 +23,7 @@ from typing import Optional
 
 from ompa import Ompa, __version__
 from ompa.config import make_ompa
+from ompa.mcp_tools import TOOLS
 
 
 def _make_ompa(arguments: dict, enable_semantic: bool = False) -> Ompa:
@@ -212,14 +213,16 @@ def ao_sync(vault_path: str = ".") -> dict:
 def ao_write(arguments: dict) -> dict:
     """Write content to the appropriate vault (auto-classifies in dual mode)."""
     ao = _make_ompa(arguments, enable_semantic=False)
-    content = arguments.get("content", "")
+    content = str(arguments.get("content", ""))
     tags_raw = arguments.get("tags", "")
     tags = [t.strip() for t in tags_raw.split(",") if t.strip()] if tags_raw else []
+    file_path: Optional[str] = arguments.get("file_path")
+    vault: Optional[str] = arguments.get("vault")
     result = ao.write(
         content,
-        file_path=arguments.get("file_path"),
+        file_path=file_path,
         tags=tags,
-        vault=arguments.get("vault"),
+        vault=vault,
     )
     return result
 
@@ -704,10 +707,11 @@ def main():
             req_id = None
             if request is not None:
                 req_id = request.get("id") if isinstance(request, dict) else None
+            logger.exception("MCP protocol error: %s", e)
             error_response = {
                 "jsonrpc": "2.0",
                 "id": req_id,
-                "error": {"code": -32603, "message": type(e).__name__},
+                "error": {"code": -32603, "message": f"{type(e).__name__}: {e}"},
             }
             sys.stdout.write(json.dumps(error_response) + "\n")
             sys.stdout.flush()

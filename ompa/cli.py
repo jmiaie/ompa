@@ -3,6 +3,7 @@ CLI for OMPA.
 Run with: ao <command> or ao-mcp <command>
 """
 
+import logging
 from pathlib import Path
 from typing import Optional
 
@@ -15,6 +16,7 @@ from ompa.config import make_ompa
 
 app = typer.Typer(help="OMPA — Universal AI agent memory layer")
 console = Console()
+logger = logging.getLogger(__name__)
 
 
 @app.command()
@@ -225,7 +227,7 @@ def tunnel(
 @app.command()
 def kg_query(
     entity: str,
-    as_of: str = None,
+    as_of: Optional[str] = None,
     vault_path: Path = Path("."),
 ):
     """Query the knowledge graph."""
@@ -542,14 +544,16 @@ def doctor(
             checks.append(
                 ("WARN", "Orphan notes", f"{len(orphan_list)} notes with no wikilinks")
             )
-    except Exception:
+    except Exception as e:
+        logger.debug("Orphan check failed: %s", e)
         checks.append(("WARN", "Orphan notes", "Check failed"))
 
     # Total notes
     try:
         vs = ao.get_stats()
         checks.append(("OK", "Total notes", str(vs["total_notes"])))
-    except Exception:
+    except Exception as e:
+        logger.debug("Vault stats failed: %s", e)
         checks.append(("WARN", "Total notes", "Could not read vault"))
 
     # Render
