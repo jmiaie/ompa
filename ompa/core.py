@@ -597,6 +597,10 @@ class Ompa:
         if not self.is_dual_vault:
             return {"success": False, "error": "Not in dual-vault mode"}
 
+        # is_dual_vault guarantees both paths are set
+        assert self.dual_config.personal_path is not None
+        assert self.dual_config.shared_path is not None
+
         # Validate paths upfront to prevent traversal
         try:
             source = _safe_resolve(self.dual_config.personal_path, note_path)
@@ -666,6 +670,10 @@ class Ompa:
         if not self.is_dual_vault:
             return {"success": False, "error": "Not in dual-vault mode"}
 
+        # is_dual_vault guarantees both paths are set
+        assert self.dual_config.shared_path is not None
+        assert self.dual_config.personal_path is not None
+
         # Validate paths upfront to prevent traversal
         try:
             source = _safe_resolve(self.dual_config.shared_path, note_path)
@@ -686,8 +694,9 @@ class Ompa:
         note.path = target
         note.save()
 
+        personal_path = self.dual_config.personal_path
         if self.personal_kg:
-            self.personal_kg.populate_from_note(target, self.dual_config.personal_path)
+            self.personal_kg.populate_from_note(target, personal_path)
 
         logger.info("Imported %s to personal vault", note_path)
         return {
