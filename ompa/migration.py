@@ -221,24 +221,24 @@ class VaultMigrator:
 
     def _pending_migrations(self, vault_path: Path, from_version: int) -> list[MigrationStep]:
         """Return ordered list of migrations not yet applied."""
-        all_migrations = [
-            {
-                "version": 1,
-                "name": "v1: initialize .palace/ directory structure",
-                "fn": self._m1_init_palace,
-            },
-            {
-                "version": 2,
-                "name": "v2: add composite KG indexes (subject_date, object_pred, validity)",
-                "fn": self._m2_add_kg_indexes,
-            },
-            {
-                "version": 3,
-                "name": "v3: enable WAL mode on knowledge_graph.sqlite3",
-                "fn": self._m3_enable_wal,
-            },
+        all_migrations: list[MigrationStep] = [
+            MigrationStep(
+                version=1,
+                name="v1: initialize .palace/ directory structure",
+                fn=self._m1_init_palace,
+            ),
+            MigrationStep(
+                version=2,
+                name="v2: add composite KG indexes (subject_date, object_pred, validity)",
+                fn=self._m2_add_kg_indexes,
+            ),
+            MigrationStep(
+                version=3,
+                name="v3: enable WAL mode on knowledge_graph.sqlite3",
+                fn=self._m3_enable_wal,
+            ),
         ]
-        return [m for m in all_migrations if m["version"] > from_version]  # type: ignore[operator]
+        return [m for m in all_migrations if m["version"] > from_version]
 
     def _m1_init_palace(self, vault_path: Path) -> None:
         palace_dir = vault_path / ".palace"

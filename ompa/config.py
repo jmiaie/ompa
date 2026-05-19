@@ -10,7 +10,6 @@ import logging
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any
 from typing import Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -174,20 +173,7 @@ class DualVaultConfig:
             logger.warning("PyYAML not installed; cannot save config")
             return
 
-        data = {
-            "vaults": {},
-            "isolation": {
-                "mode": self.isolation_mode.value,
-                "default_vault": self.default_vault.value,
-                "prompt_on_ambiguous": self.prompt_on_ambiguous,
-            },
-            "classification": {
-                "shared_indicators": self.shared_indicators,
-                "personal_indicators": self.personal_indicators,
-            },
-        }
-
-        vaults: dict[str, Any] = data["vaults"]  # type: ignore[assignment]
+        vaults: dict[str, dict[str, object]] = {}
         if self.shared_path:
             vaults["shared"] = {
                 "path": str(self.shared_path),
@@ -201,6 +187,19 @@ class DualVaultConfig:
                 "auto_classify": True,
                 "never_sync_to_shared": True,
             }
+
+        data: dict[str, object] = {
+            "vaults": vaults,
+            "isolation": {
+                "mode": self.isolation_mode.value,
+                "default_vault": self.default_vault.value,
+                "prompt_on_ambiguous": self.prompt_on_ambiguous,
+            },
+            "classification": {
+                "shared_indicators": self.shared_indicators,
+                "personal_indicators": self.personal_indicators,
+            },
+        }
 
         config_path.parent.mkdir(parents=True, exist_ok=True)
         with open(config_path, "w", encoding="utf-8") as f:

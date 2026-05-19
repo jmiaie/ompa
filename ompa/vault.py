@@ -58,7 +58,7 @@ class VaultConfig:
 @dataclass
 class Note:
     path: Path
-    frontmatter: dict[str, object] = field(default_factory=dict)
+    frontmatter: dict[str, Any] = field(default_factory=dict)
     content: str = ""
     links: list[str] = field(default_factory=list)
 
