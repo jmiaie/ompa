@@ -5,7 +5,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 
 @dataclass
@@ -18,7 +18,7 @@ class SyncResult:
     files_changed: int = 0
     message: str = ""
     error: Optional[str] = None
-    details: dict = field(default_factory=dict)
+    details: dict[str, Any] = field(default_factory=dict)
 
     def __str__(self) -> str:
         if self.success:

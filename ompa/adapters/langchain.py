@@ -136,7 +136,7 @@ class OmpaMemory:
         self._session_context = ""
 
     # LangChain duck-typing compatibility
-    def dict(self, **kwargs) -> dict:
+    def dict(self, **kwargs: Any) -> dict[str, str]:
         return {"memory_key": self.memory_key, "vault_path": str(self.vault_path)}
 
 

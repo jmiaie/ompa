@@ -71,7 +71,7 @@ class OmpaReader:
             self._include_folders.add("perf")
         self._tags_filter = set(tags_filter) if tags_filter else None
 
-    def load_data(self, **kwargs) -> list:
+    def load_data(self, **kwargs: Any) -> list[Any]:
         """
         Load vault notes as LlamaIndex Documents.
 
