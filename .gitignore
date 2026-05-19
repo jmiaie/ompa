@@ -24,6 +24,10 @@ env/
 # Agent memory index (regenerated on rebuild)
 .agent-memory/
 
+# OMPA runtime vault/palace data (local session state)
+.palace/
+.vault/
+
 # OS
 .DS_Store
 Thumbs.db
