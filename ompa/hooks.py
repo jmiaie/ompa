@@ -78,7 +78,6 @@ class SessionStartHook(Hook):
             lines.append(f"**Date:** {context.timestamp.strftime('%Y-%m-%d (%A)')}")
             lines.append("")
 
-            # North Star
             north_star = vault.get_brain_note("North Star")
             if north_star:
                 content = north_star.content
@@ -88,7 +87,6 @@ class SessionStartHook(Hook):
                 )
                 lines.append("")
 
-            # Recent git changes
             lines.append("### Recent Changes (last 48h)")
             try:
                 import shutil
@@ -121,7 +119,6 @@ class SessionStartHook(Hook):
                 lines.append("(git not available)")
             lines.append("")
 
-            # Active work
             lines.append("### Active Work")
             active_notes = list(vault.config.work_folder.glob("active/*.md"))
             if active_notes:
@@ -131,7 +128,6 @@ class SessionStartHook(Hook):
                 lines.append("(no active work notes)")
             lines.append("")
 
-            # Vault stats
             stats = vault.get_stats()
             lines.append("### Vault Stats")
             lines.append(f"- Total notes: {stats['total_notes']}")
@@ -139,7 +135,6 @@ class SessionStartHook(Hook):
             lines.append(f"- Orphans (no links): {stats['orphans']}")
             lines.append("")
 
-            # KG stats
             if context.memory and context.memory.kg:
                 try:
                     kg_stats = context.memory.kg.stats()
@@ -154,7 +149,6 @@ class SessionStartHook(Hook):
                 except Exception as e:
                     logger.debug("KG stats unavailable: %s", e)
 
-            # File listing (truncated)
             lines.append("### Vault Files")
             all_notes = vault.list_notes()
             for vault_note in sorted(all_notes, key=lambda n: n.path)[:30]:
@@ -346,7 +340,6 @@ class StopHook(Hook):
             lines.append("## Wrap-Up Checklist")
             lines.append("")
 
-            # Check for orphans
             orphans = vault.find_orphans()
             lines.append(f"**Orphan notes:** {len(orphans)}")
             if orphans:
@@ -354,7 +347,6 @@ class StopHook(Hook):
                     lines.append(f"  - {orphan.path.name}")
             lines.append("")
 
-            # Brain notes count
             all_notes = vault.list_notes()
             brain_index = [
                 n.path.relative_to(context.vault_path)
@@ -363,7 +355,6 @@ class StopHook(Hook):
             ]
             lines.append(f"**Brain notes:** {len(brain_index)}")
 
-            # Check North Star
             north_star = vault.get_brain_note("North Star")
             if north_star:
                 lines.append(f"**North Star:** {north_star.path.name}")
@@ -371,7 +362,6 @@ class StopHook(Hook):
                 lines.append("**WARNING:** No North Star found")
             lines.append("")
 
-            # KG health
             if context.memory and context.memory.kg:
                 try:
                     kg_stats = context.memory.kg.stats()
@@ -404,7 +394,6 @@ class HookManager:
         self.session_id = datetime.now().strftime("%Y%m%d_%H%M%S")
         self.timestamp = datetime.now()
 
-        # Register default hooks
         self.hooks = {
             "session_start": SessionStartHook(),
             "user_message": UserMessageHook(),
