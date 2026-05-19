@@ -168,7 +168,7 @@ class OmpaRetriever:
         self._ao = Ompa(vault_path=vault_path, agent_name=agent_name, enable_semantic=True)
         self.k = k
 
-    def get_relevant_documents(self, query: str) -> list:
+    def get_relevant_documents(self, query: str) -> list[Any]:
         """Return LangChain Documents for the top-k results."""
         results = self._ao.search(query, limit=self.k)
         try:
@@ -187,10 +187,10 @@ class OmpaRetriever:
                 for r in results
             ]
 
-    async def aget_relevant_documents(self, query: str) -> list:
+    async def aget_relevant_documents(self, query: str) -> list[Any]:
         """Async variant — delegates to sync (OMPA search is synchronous)."""
         return self.get_relevant_documents(query)
 
     # BaseRetriever duck-typing
-    def invoke(self, input: str, config: Any = None, **kwargs) -> list:
+    def invoke(self, input: str, config: Any = None, **kwargs: Any) -> list[Any]:
         return self.get_relevant_documents(input)
