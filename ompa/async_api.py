@@ -35,6 +35,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional
 
 if TYPE_CHECKING:
+    from .classifier import Classification
     from .hooks import HookResult
     from .knowledge_graph import Triple
     from .semantic import SearchResult
@@ -169,7 +170,7 @@ class AsyncOmpa:
     # Classification
     # ------------------------------------------------------------------
 
-    async def classify(self, message: str):
+    async def classify(self, message: str) -> Classification:
         """Async message classification."""
         return await self._run(self._ompa.classify, message)
 
