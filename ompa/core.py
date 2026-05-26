@@ -472,7 +472,7 @@ class Ompa:
         """Populate KG from all vault notes (wikilinks, tags, folders)."""
         return self.kg.populate_from_vault(self.vault_path)
 
-    def sync(self) -> dict:
+    def sync(self) -> dict[str, int]:
         """
         Full sync: rebuild KG from vault, rebuild search index, rebuild palace.
 
@@ -507,10 +507,10 @@ class Ompa:
     def write(
         self,
         content: str,
-        file_path: str = None,
-        tags: list[str] = None,
-        vault: str = None,
-    ) -> dict:
+        file_path: str | None = None,
+        tags: list[str] | None = None,
+        vault: str | None = None,
+    ) -> dict[str, str]:
         """
         Write content to the appropriate vault.
 
@@ -591,7 +591,7 @@ class Ompa:
         note_path: str,
         confirm: bool = True,
         sanitize: bool = True,
-    ) -> dict:
+    ) -> dict[str, object]:
         """
         Export a note from personal vault to shared vault.
 
