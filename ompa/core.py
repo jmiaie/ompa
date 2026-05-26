@@ -46,13 +46,13 @@ class Ompa:
 
     def __init__(
         self,
-        vault_path: str | Path = None,
+        vault_path: str | Path | None = None,
         agent_name: str = "agent",
         enable_semantic: bool = True,
-        embedding_backend=None,  # EmbeddingBackend protocol — e.g. NIMEmbeddingBackend
+        embedding_backend: Optional[Any] = None,  # EmbeddingBackend protocol — e.g. NIMEmbeddingBackend
         # Dual-vault parameters
-        shared_vault_path: str | Path = None,
-        personal_vault_path: str | Path = None,
+        shared_vault_path: str | Path | None = None,
+        personal_vault_path: str | Path | None = None,
         isolation_mode: str = "strict",
     ):
         self.agent_name = agent_name
@@ -99,9 +99,9 @@ class Ompa:
             self.kg = KnowledgeGraph(
                 db_path=str(self.vault_path / ".palace" / "knowledge_graph.sqlite3")
             )
-            self.personal_vault = None
-            self.personal_palace = None
-            self.personal_kg = None
+            self.personal_vault: Optional[Vault] = None
+            self.personal_palace: Optional[Palace] = None
+            self.personal_kg: Optional[KnowledgeGraph] = None
 
         self.classifier = MessageClassifier()
         self.hooks = HookManager(self.vault_path, agent_name=self.agent_name)
@@ -167,14 +167,14 @@ class Ompa:
                 count = self.kg.populate_from_vault(self.vault_path)
                 logger.info("Auto-populated KG with %d triples on session start", count)
         except Exception as e:
-            logger.debug("KG auto-population skipped: %s", e)
+            logger.warning("KG auto-population skipped: %s", e)
 
         # Trigger semantic index build if needed (lazy property handles this)
         if self._enable_semantic:
             try:
                 _ = self.semantic  # triggers lazy build
             except Exception as e:
-                logger.debug("Semantic index build skipped: %s", e)
+                logger.warning("Semantic index build skipped: %s", e)
 
         result = self.hooks.run_session_start(self)
         self._session_started = True
@@ -221,10 +221,6 @@ class Ompa:
     def wrap_up(self) -> HookResult:
         """Alias for stop()."""
         return self.stop()
-
-    def standup(self) -> HookResult:
-        """Alias for session_start()."""
-        return self.session_start()
 
     # -------------------------------------------------------------------------
     # Auto palace population
@@ -304,9 +300,9 @@ class Ompa:
         query: str,
         limit: int = 5,
         hybrid: bool = True,
-        wing: str = None,
-        room: str = None,
-        vaults: list[str] = None,
+        wing: str | None = None,
+        room: str | None = None,
+        vaults: list[str] | None = None,
     ) -> list[SearchResult]:
         """
         Search the vault(s) semantically.
@@ -364,8 +360,8 @@ class Ompa:
         query: str,
         limit: int,
         hybrid: bool,
-        wing: str = None,
-        room: str = None,
+        wing: str | None = None,
+        room: str | None = None,
     ) -> list[SearchResult]:
         """Search a single vault."""
         if semantic is None:
@@ -393,10 +389,6 @@ class Ompa:
             results = filtered or results[:limit]
 
         return results
-
-    def qsearch(self, query: str, limit: int = 5) -> list[SearchResult]:
-        """QMD-style semantic search. Convenience method."""
-        return self.search(query, limit, hybrid=True)
 
     def rebuild_index(self) -> int:
         """Rebuild the semantic index."""

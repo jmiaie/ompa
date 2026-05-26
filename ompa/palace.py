@@ -5,9 +5,7 @@ Inspired by MemPalace. Manages the structured metadata that accelerates retrieva
 
 import json
 from pathlib import Path
-from dataclasses import dataclass, field
-from typing import cast
-from typing import Optional
+from typing import Any, Optional
 
 HALL_TYPES = [
     "hall_facts",  # decisions made, choices locked
@@ -16,30 +14,6 @@ HALL_TYPES = [
     "hall_preferences",  # habits, likes, opinions
     "hall_advice",  # recommendations
 ]
-
-
-@dataclass
-class Wing:
-    name: str
-    type: str  # "person" or "project"
-    keywords: list[str] = field(default_factory=list)
-    rooms: dict = field(default_factory=dict)
-
-
-@dataclass
-class Drawer:
-    wing: str
-    room: str
-    path: str
-
-
-@dataclass
-class Tunnel:
-    wing_a: str
-    wing_b: str
-    room: str
-    hall_a: str
-    hall_b: str
 
 
 class Palace:
@@ -59,7 +33,7 @@ class Palace:
         self.data_file = self.palace_path / "palace.json"
         self._data = self._load()
 
-    def _load(self) -> dict:
+    def _load(self) -> dict[str, Any]:
         """Load palace data from disk."""
         if self.data_file.exists():
             with open(self.data_file) as f:
@@ -74,7 +48,7 @@ class Palace:
     # Wing operations
 
     def create_wing(
-        self, name: str, type: str = "project", keywords: list[str] = None
+        self, name: str, type: str = "project", keywords: list[str] | None = None
     ) -> None:
         """Create a new wing."""
         if keywords is None:
@@ -88,14 +62,14 @@ class Palace:
         }
         self._save()
 
-    def list_wings(self) -> list[dict]:
+    def list_wings(self) -> list[dict[str, Any]]:
         """List all wings."""
         return [
             {"name": w["name"], "type": w["type"], "keywords": w.get("keywords", [])}
             for w in self._data.get("wings", {}).values()
         ]
 
-    def get_wing(self, name: str) -> Optional[dict]:
+    def get_wing(self, name: str) -> Optional[dict[str, Any]]:
         """Get a wing by name."""
         return self._data.get("wings", {}).get(name)
 
@@ -120,7 +94,7 @@ class Palace:
             return []
         return list(wing_data.get("rooms", {}).keys())
 
-    def get_room(self, wing: str, room_name: str) -> Optional[dict]:
+    def get_room(self, wing: str, room_name: str) -> Optional[dict[str, Any]]:
         """Get a room."""
         wing_data = self._data.get("wings", {}).get(wing)
         if not wing_data:
@@ -198,7 +172,7 @@ class Palace:
         )
         self._save()
 
-    def find_tunnels(self, wing_a: str, wing_b: str) -> list[dict]:
+    def find_tunnels(self, wing_a: str, wing_b: str) -> list[dict[str, Any]]:
         """Find all tunnels between two wings."""
         tunnels = self._data.get("tunnels", [])
         return [
@@ -208,13 +182,13 @@ class Palace:
             or (t.get("wing_a") == wing_b and t.get("wing_b") == wing_a)
         ]
 
-    def find_tunnels_by_room(self, room: str) -> list[dict]:
+    def find_tunnels_by_room(self, room: str) -> list[dict[str, Any]]:
         """Find all tunnels that pass through a room."""
         return [t for t in self._data.get("tunnels", []) if t.get("room") == room]
 
     # Traversal
 
-    def traverse(self, wing: str, room: str) -> dict:
+    def traverse(self, wing: str, room: str) -> dict[str, Any]:
         """Walk the palace from a room across all connected wings via tunnels."""
         result = {
             "wing": wing,
@@ -229,7 +203,7 @@ class Palace:
             )
             connected_room = self.get_room(other_wing, room)
             if connected_room:
-                cast("list", result["connected"]).append(
+                result["connected"].append(
                     {
                         "wing": other_wing,
                         "room": room,
@@ -289,7 +263,7 @@ class Palace:
 
     # Stats
 
-    def stats(self) -> dict:
+    def stats(self) -> dict[str, int]:
         """Get palace statistics."""
         wings = self._data.get("wings", {})
         total_rooms = sum(len(w.get("rooms", {})) for w in wings.values())

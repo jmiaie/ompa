@@ -6,8 +6,6 @@ import logging
 import shutil
 import subprocess  # noqa: S404
 from pathlib import Path
-from typing import Optional
-
 from .base import SyncBackend, SyncResult
 
 logger = logging.getLogger(__name__)
@@ -69,12 +67,6 @@ class GitSyncBackend(SyncBackend):
 
     def push(self, vault_path: Path, message: str = "chore: vault sync") -> SyncResult:
         vault_path = Path(vault_path)
-        env_extras = {
-            "GIT_AUTHOR_NAME": self.author_name,
-            "GIT_AUTHOR_EMAIL": self.author_email,
-            "GIT_COMMITTER_NAME": self.author_name,
-            "GIT_COMMITTER_EMAIL": self.author_email,
-        }
 
         # Stage changes
         rc, _, err = _git(["add", self.add_pattern], vault_path)

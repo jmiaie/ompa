@@ -20,12 +20,10 @@ CLI:
 
 from __future__ import annotations
 
-import json
 import logging
 import sqlite3
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -172,6 +170,15 @@ class VaultMigrator:
         return result
 
     # ------------------------------------------------------------------
+    # Helpers
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _kg_db_path(vault_path: Path) -> Path:
+        """Return the canonical path to the knowledge-graph SQLite database."""
+        return vault_path / ".palace" / "knowledge_graph.sqlite3"
+
+    # ------------------------------------------------------------------
     # Version detection
     # ------------------------------------------------------------------
 
@@ -184,7 +191,7 @@ class VaultMigrator:
                 pass
 
         # Heuristic: infer version from what exists
-        kg_path = vault_path / ".palace" / "knowledge_graph.sqlite3"
+        kg_path = self._kg_db_path(vault_path)
         if not kg_path.exists():
             return 0
 
@@ -238,7 +245,7 @@ class VaultMigrator:
         (palace_dir / "wings.json").touch(exist_ok=True)
 
     def _m2_add_kg_indexes(self, vault_path: Path) -> None:
-        kg_path = vault_path / ".palace" / "knowledge_graph.sqlite3"
+        kg_path = self._kg_db_path(vault_path)
         if not kg_path.exists():
             return
 
@@ -257,7 +264,7 @@ class VaultMigrator:
             conn.close()
 
     def _m3_enable_wal(self, vault_path: Path) -> None:
-        kg_path = vault_path / ".palace" / "knowledge_graph.sqlite3"
+        kg_path = self._kg_db_path(vault_path)
         if not kg_path.exists():
             return
 

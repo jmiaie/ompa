@@ -126,46 +126,6 @@ class DualVaultConfig:
         # 4. Default
         return self.default_vault
 
-    @classmethod
-    def from_yaml(cls, config_path: Path) -> "DualVaultConfig":
-        """Load config from a YAML file."""
-        config = cls()
-
-        if not config_path.exists():
-            return config
-
-        try:
-            import yaml  # type: ignore[import-untyped]
-
-            with open(config_path, "r", encoding="utf-8") as f:
-                data = yaml.safe_load(f) or {}
-
-            vaults = data.get("vaults", {})
-            if "shared" in vaults and "path" in vaults["shared"]:
-                config.shared_path = Path(vaults["shared"]["path"]).expanduser()
-            if "personal" in vaults and "path" in vaults["personal"]:
-                config.personal_path = Path(vaults["personal"]["path"]).expanduser()
-
-            isolation = data.get("isolation", {})
-            mode_str = isolation.get("mode", "strict")
-            config.isolation_mode = IsolationMode(mode_str)
-            default_str = isolation.get("default_vault", "personal")
-            config.default_vault = VaultTarget(default_str)
-            config.prompt_on_ambiguous = isolation.get("prompt_on_ambiguous", True)
-
-            classification = data.get("classification", {})
-            if "shared_indicators" in classification:
-                config.shared_indicators = classification["shared_indicators"]
-            if "personal_indicators" in classification:
-                config.personal_indicators = classification["personal_indicators"]
-
-        except ImportError:
-            logger.debug("PyYAML not installed; using default config")
-        except Exception as e:
-            logger.warning("Error loading config from %s: %s", config_path, e)
-
-        return config
-
     def to_yaml(self, config_path: Path) -> None:
         """Save config to a YAML file."""
         try:

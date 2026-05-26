@@ -24,16 +24,16 @@ class EmbeddingBackend(Protocol):
     def encode(self, text: str) -> "list[float]": ...
 
 
-def _cosine_similarity(a, b) -> float:
+def _cosine_similarity(a: "list[float]", b: "list[float]") -> float:
     """Pure-numpy cosine similarity — no sentence_transformers.util needed."""
     try:
         import numpy as np
-        a = np.array(a, dtype=float)
-        b = np.array(b, dtype=float)
-        norm = np.linalg.norm(a) * np.linalg.norm(b)
-        return float(np.dot(a, b) / norm) if norm > 1e-9 else 0.0
-    except Exception:
+    except ImportError:
         return 0.0
+    a = np.array(a, dtype=float)
+    b = np.array(b, dtype=float)
+    norm = np.linalg.norm(a) * np.linalg.norm(b)
+    return float(np.dot(a, b) / norm) if norm > 1e-9 else 0.0
 
 
 @dataclass
@@ -72,7 +72,7 @@ class SemanticIndex:
             self._initialized = True
 
     @property
-    def model(self):
+    def model(self) -> Optional[EmbeddingBackend]:
         """Lazy-load the model on first access."""
         if self._model is None:
             self._init_model()
@@ -157,18 +157,7 @@ class SemanticIndex:
             logger.warning("Incremental index update failed for %s: %s", path, e)
             return False
 
-    def remove_file(self, path: Path) -> bool:
-        """Remove a file from the index (e.g., after deletion)."""
-        path_str = str(Path(path))
-        before = len(self.chunks)
-        self.chunks = [c for c in self.chunks if c["path"] != path_str]
-        removed = before - len(self.chunks)
-        if removed > 0:
-            self.save_index()
-            logger.debug("Removed %d chunks for %s", removed, path)
-        return removed > 0
-
-    def index_vault(self, vault_path: Path, exclude_patterns: list = None) -> int:
+    def index_vault(self, vault_path: Path, exclude_patterns: list[str] | None = None) -> int:
         """Index all markdown files in a vault."""
         exclude_patterns = exclude_patterns or DEFAULT_EXCLUDE_PATTERNS
         count = 0
@@ -345,14 +334,3 @@ class SemanticIndex:
         index_file = self.index_path / "semantic_index.json"
         if index_file.exists():
             index_file.unlink()
-
-
-def qmd_query(vault_path: str, query: str, limit: int = 5) -> list[SearchResult]:
-    """
-    Convenience function for QMD-style queries.
-    Mimics the qmd CLI behavior.
-    """
-    index_path = Path(vault_path) / ".palace" / "semantic_index"
-    index = SemanticIndex(index_path)
-    index.load_index()
-    return index.search(query, limit)
