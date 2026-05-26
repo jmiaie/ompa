@@ -20,42 +20,78 @@ try:
 except ImportError:
     HYPOTHESIS_AVAILABLE = False
 
+    # Stub decorators and strategies so class bodies parse cleanly during
+    # collection when hypothesis is not installed.
+    def given(**_kwargs):
+        def decorator(fn):
+            return fn
+        return decorator
+
+    def settings(**_kwargs):
+        def decorator(fn):
+            return fn
+        return decorator
+
+    def assume(_cond):
+        pass
+
+    class _StubStrategies:
+        """No-op stand-in for hypothesis.strategies used in decorator args."""
+        def __getattr__(self, _name):
+            def _stub(*_args, **_kwargs):
+                return self
+            return _stub
+        def filter(self, _fn):
+            return self
+        def map(self, _fn):
+            return self
+
+    st = _StubStrategies()
+
 pytestmark = pytest.mark.skipif(
     not HYPOTHESIS_AVAILABLE,
     reason="hypothesis not installed (pip install hypothesis)",
 )
 
 # ---------------------------------------------------------------------------
-# Strategies
+# Strategies (only built when hypothesis is available)
 # ---------------------------------------------------------------------------
 
-safe_text = st.text(
-    alphabet=st.characters(whitelist_categories=("Lu", "Ll", "Nd", "Zs")),
-    min_size=1,
-    max_size=50,
-).filter(lambda s: s.strip())
+if HYPOTHESIS_AVAILABLE:
+    safe_text = st.text(
+        alphabet=st.characters(whitelist_categories=("Lu", "Ll", "Nd", "Zs")),
+        min_size=1,
+        max_size=50,
+    ).filter(lambda s: s.strip())
 
-entity_name = st.text(
-    alphabet="abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-",
-    min_size=1,
-    max_size=30,
-)
+    entity_name = st.text(
+        alphabet="abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-",
+        min_size=1,
+        max_size=30,
+    )
 
-predicate_name = st.sampled_from([
-    "works_on", "knows", "created", "links_to", "has_tag",
-    "in_folder", "depends_on", "blocks", "owns", "manages",
-])
+    predicate_name = st.sampled_from([
+        "works_on", "knows", "created", "links_to", "has_tag",
+        "in_folder", "depends_on", "blocks", "owns", "manages",
+    ])
 
-iso_date = st.dates(
-    min_value=__import__("datetime").date(2020, 1, 1),
-    max_value=__import__("datetime").date(2030, 12, 31),
-).map(str)
+    iso_date = st.dates(
+        min_value=__import__("datetime").date(2020, 1, 1),
+        max_value=__import__("datetime").date(2030, 12, 31),
+    ).map(str)
 
-message_type_str = st.sampled_from([
-    "DECISION", "INCIDENT", "WIN", "LOSS", "BLOCKER",
-    "QUESTION", "SUGGESTION", "REVIEW", "BUG", "FEATURE",
-    "LEARN", "RETROSPECTIVE", "ALERT", "STATUS", "CHORE",
-])
+    message_type_str = st.sampled_from([
+        "DECISION", "INCIDENT", "WIN", "LOSS", "BLOCKER",
+        "QUESTION", "SUGGESTION", "REVIEW", "BUG", "FEATURE",
+        "LEARN", "RETROSPECTIVE", "ALERT", "STATUS", "CHORE",
+    ])
+else:
+    # Stub placeholders so module-level names resolve during collection
+    safe_text = None
+    entity_name = None
+    predicate_name = None
+    iso_date = None
+    message_type_str = None
 
 
 # ---------------------------------------------------------------------------
