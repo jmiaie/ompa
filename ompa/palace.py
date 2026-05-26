@@ -190,14 +190,15 @@ class Palace:
 
     def traverse(self, wing: str, room: str) -> dict[str, Any]:
         """Walk the palace from a room across all connected wings via tunnels."""
-        result = {
+        tunnels: list[dict[str, Any]] = self.find_tunnels_by_room(room)
+        result: dict[str, Any] = {
             "wing": wing,
             "room": room,
             "room_data": self.get_room(wing, room),
-            "tunnels": self.find_tunnels_by_room(room),
+            "tunnels": tunnels,
             "connected": [],
         }
-        for tunnel in result["tunnels"]:
+        for tunnel in tunnels:
             other_wing = (
                 tunnel["wing_b"] if tunnel["wing_a"] == wing else tunnel["wing_a"]
             )

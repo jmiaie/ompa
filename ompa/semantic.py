@@ -30,10 +30,10 @@ def _cosine_similarity(a: "list[float]", b: "list[float]") -> float:
         import numpy as np
     except ImportError:
         return 0.0
-    a = np.array(a, dtype=float)
-    b = np.array(b, dtype=float)
-    norm = np.linalg.norm(a) * np.linalg.norm(b)
-    return float(np.dot(a, b) / norm) if norm > 1e-9 else 0.0
+    arr_a = np.array(a, dtype=float)
+    arr_b = np.array(b, dtype=float)
+    norm = np.linalg.norm(arr_a) * np.linalg.norm(arr_b)
+    return float(np.dot(arr_a, arr_b) / norm) if norm > 1e-9 else 0.0
 
 
 @dataclass
@@ -123,7 +123,9 @@ class SemanticIndex:
                 if len(chunk_text.strip()) < 20:
                     continue
 
-                embedding = self.model.encode(chunk_text)
+                assert self._model is not None
+                raw_embedding = self._model.encode(chunk_text)
+                embedding: list[float] = raw_embedding.tolist() if hasattr(raw_embedding, "tolist") else list(raw_embedding)
                 chunk_hash = hashlib.sha256(f"{path}:{i}".encode()).hexdigest()[:16]
 
                 self.chunks.append(
@@ -132,7 +134,7 @@ class SemanticIndex:
                         "path": path_str,
                         "chunk_index": i,
                         "text": chunk_text,
-                        "embedding": embedding.tolist(),
+                        "embedding": embedding,
                     }
                 )
         except Exception as e:
@@ -226,12 +228,13 @@ class SemanticIndex:
             return self._keyword_search(query, limit)
 
         try:
-            query_embedding = self.model.encode(query)
+            assert self._model is not None
+            raw_query = self._model.encode(query)
+            query_embedding: list[float] = raw_query.tolist() if hasattr(raw_query, "tolist") else list(raw_query)
 
             best_results = []
 
             for chunk in self.chunks:
-                # Semantic similarity
                 chunk_embedding = chunk["embedding"]
                 similarity = _cosine_similarity(query_embedding, chunk_embedding)
 

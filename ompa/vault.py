@@ -7,7 +7,7 @@ import logging
 import re
 from pathlib import Path
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Any, Optional
 import frontmatter
 
 logger = logging.getLogger(__name__)
@@ -33,32 +33,26 @@ def _safe_resolve(base: Path, untrusted: str) -> Path:
 @dataclass
 class VaultConfig:
     vault_path: Path
-    brain_folder: Path | None = None
-    work_folder: Path | None = None
-    org_folder: Path | None = None
-    perf_folder: Path | None = None
-    thinking_folder: Path | None = None
-    templates_folder: Path | None = None
+    brain_folder: Path = field(init=False)
+    work_folder: Path = field(init=False)
+    org_folder: Path = field(init=False)
+    perf_folder: Path = field(init=False)
+    thinking_folder: Path = field(init=False)
+    templates_folder: Path = field(init=False)
 
     def __post_init__(self):
-        if self.brain_folder is None:
-            self.brain_folder = self.vault_path / "brain"
-        if self.work_folder is None:
-            self.work_folder = self.vault_path / "work"
-        if self.org_folder is None:
-            self.org_folder = self.vault_path / "org"
-        if self.perf_folder is None:
-            self.perf_folder = self.vault_path / "perf"
-        if self.thinking_folder is None:
-            self.thinking_folder = self.vault_path / "thinking"
-        if self.templates_folder is None:
-            self.templates_folder = self.vault_path / "templates"
+        self.brain_folder = self.vault_path / "brain"
+        self.work_folder = self.vault_path / "work"
+        self.org_folder = self.vault_path / "org"
+        self.perf_folder = self.vault_path / "perf"
+        self.thinking_folder = self.vault_path / "thinking"
+        self.templates_folder = self.vault_path / "templates"
 
 
 @dataclass
 class Note:
     path: Path
-    frontmatter: dict[str, object] = field(default_factory=dict)
+    frontmatter: dict[str, Any] = field(default_factory=dict)
     content: str = ""
     links: list[str] = field(default_factory=list)
 
@@ -334,7 +328,7 @@ class Vault:
             "brain_notes": brain_count,
         }
 
-    def validate_write(self, file_path: str) -> dict[str, object]:
+    def validate_write(self, file_path: str) -> dict[str, Any]:
         """
         Validate a markdown file for frontmatter and wikilinks.
         File must be within the vault directory.

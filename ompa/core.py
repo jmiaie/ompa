@@ -61,6 +61,10 @@ class Ompa:
         self._session_started = False
         self._last_classification: Optional[Classification] = None
 
+        self.personal_vault: Optional[Vault] = None
+        self.personal_palace: Optional[Palace] = None
+        self.personal_kg: Optional[KnowledgeGraph] = None
+
         # Dual-vault config
         self.dual_config = DualVaultConfig(
             isolation_mode=IsolationMode(isolation_mode),
@@ -92,16 +96,12 @@ class Ompa:
                 )
             )
         else:
-            # Single-vault mode (legacy / backward compatible)
             self.vault_path = Path(vault_path or ".")
             self.vault = Vault(self.vault_path)
             self.palace = Palace(self.vault_path / ".palace")
             self.kg = KnowledgeGraph(
                 db_path=str(self.vault_path / ".palace" / "knowledge_graph.sqlite3")
             )
-            self.personal_vault: Optional[Vault] = None
-            self.personal_palace: Optional[Palace] = None
-            self.personal_kg: Optional[KnowledgeGraph] = None
 
         self.classifier = MessageClassifier()
         self.hooks = HookManager(self.vault_path, agent_name=self.agent_name)
@@ -233,7 +233,7 @@ class Ompa:
             return
 
         wing, room = self._palace_wing_room(path)
-        if wing is None:
+        if wing is None or room is None:
             return
 
         try:
@@ -406,7 +406,7 @@ class Ompa:
     # Validation
     # -------------------------------------------------------------------------
 
-    def validate_write(self, file_path: str) -> dict[str, object]:
+    def validate_write(self, file_path: str) -> dict[str, Any]:
         """Validate a markdown file for frontmatter and wikilinks."""
         return self.vault.validate_write(file_path)
 
@@ -454,15 +454,15 @@ class Ompa:
         subject: str,
         predicate: str,
         object: str,
-        valid_from: str = None,
-        source: str = None,
+        valid_from: str | None = None,
+        source: str | None = None,
     ) -> None:
         """Add a fact to the knowledge graph."""
         self.kg.add_triple(
             subject, predicate, object, valid_from=valid_from, source=source
         )
 
-    def kg_query(self, entity: str, as_of: str = None) -> list:
+    def kg_query(self, entity: str, as_of: str | None = None) -> list:
         """Query the knowledge graph."""
         return self.kg.query_entity(entity, as_of=as_of)
 
@@ -490,8 +490,10 @@ class Ompa:
             "indexed_files": index_count,
         }
 
-        # Sync personal vault too if in dual mode
         if self.is_dual_vault:
+            assert self.personal_kg is not None
+            assert self.personal_palace is not None
+            assert self.dual_config.personal_path is not None
             p_kg = self.personal_kg.populate_from_vault(self.dual_config.personal_path)
             p_palace = self.personal_palace.auto_build_from_vault(
                 self.dual_config.personal_path
@@ -519,6 +521,7 @@ class Ompa:
         else:
             target = self.dual_config.classify_content(content, tags=tags, file_path=file_path)
         target_vault = self.vault if target == VaultTarget.SHARED else self.personal_vault
+        assert target_vault is not None
         return target, target_vault
 
     def write(
@@ -581,7 +584,7 @@ class Ompa:
         note_path: str,
         confirm: bool = True,
         sanitize: bool = True,
-    ) -> dict[str, object]:
+    ) -> dict[str, Any]:
         """
         Export a note from personal vault to shared vault.
 
@@ -597,6 +600,8 @@ class Ompa:
             return {"success": False, "error": "Not in dual-vault mode"}
 
         # Validate paths upfront to prevent traversal
+        assert self.dual_config.personal_path is not None
+        assert self.dual_config.shared_path is not None
         try:
             source = _safe_resolve(self.dual_config.personal_path, note_path)
             target = _safe_resolve(self.dual_config.shared_path, note_path)
@@ -653,7 +658,7 @@ class Ompa:
         self,
         note_path: str,
         link_back: bool = True,
-    ) -> dict[str, object]:
+    ) -> dict[str, Any]:
         """
         Import a note from shared vault to personal vault.
 
@@ -668,6 +673,8 @@ class Ompa:
             return {"success": False, "error": "Not in dual-vault mode"}
 
         # Validate paths upfront to prevent traversal
+        assert self.dual_config.shared_path is not None
+        assert self.dual_config.personal_path is not None
         try:
             source = _safe_resolve(self.dual_config.shared_path, note_path)
             target = _safe_resolve(self.dual_config.personal_path, note_path)
@@ -721,7 +728,7 @@ class Ompa:
         shared_path: str | Path,
         personal_path: str | Path,
         classification_rules: str = "auto",
-    ) -> dict[str, object]:
+    ) -> dict[str, Any]:
         """
         Migrate a single-vault OMPA to dual-vault architecture.
 
