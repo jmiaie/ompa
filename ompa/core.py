@@ -227,30 +227,32 @@ class Ompa:
     # -------------------------------------------------------------------------
 
     def _auto_add_to_palace(self, file_path: str) -> None:
-        """Auto-add a written file to the palace metadata layer."""
+        """Auto-add a written markdown file to the palace metadata layer."""
         path = Path(file_path)
         if path.suffix != ".md":
             return
 
-        try:
-            # Determine wing and room from path
-            parts = path.parts
-            if "brain" in parts:
-                wing = "brain"
-                room = path.stem.lower().replace(" ", "-")
-            elif "work" in parts:
-                wing = "work"
-                room = path.stem.lower().replace(" ", "-")
-            elif "org" in parts and "people" in parts:
-                wing = path.stem  # person name
-                room = "context"
-            else:
-                return
+        wing, room = self._palace_wing_room(path)
+        if wing is None:
+            return
 
+        try:
             self.palace.create_room(wing, room)
             self.palace.link_drawer(wing, room, str(path))
         except Exception as e:
             logger.debug("Palace auto-add failed for %s: %s", file_path, e)
+
+    def _palace_wing_room(self, path: Path) -> tuple[str | None, str | None]:
+        """Determine (wing, room) for a path, or (None, None) if not mappable."""
+        parts = path.parts
+        stem = path.stem.lower().replace(" ", "-")
+        if "brain" in parts:
+            return "brain", stem
+        if "work" in parts:
+            return "work", stem
+        if "org" in parts and "people" in parts:
+            return path.stem, "context"  # person-name wing
+        return None, None
 
     def _auto_update_kg(self, path: Path) -> None:
         """Auto-update knowledge graph when a note is written/edited."""
@@ -404,7 +406,7 @@ class Ompa:
     # Validation
     # -------------------------------------------------------------------------
 
-    def validate_write(self, file_path: str) -> dict:
+    def validate_write(self, file_path: str) -> dict[str, object]:
         """Validate a markdown file for frontmatter and wikilinks."""
         return self.vault.validate_write(file_path)
 
@@ -663,7 +665,7 @@ class Ompa:
         self,
         note_path: str,
         link_back: bool = True,
-    ) -> dict:
+    ) -> dict[str, object]:
         """
         Import a note from shared vault to personal vault.
 
@@ -731,7 +733,7 @@ class Ompa:
         shared_path: str | Path,
         personal_path: str | Path,
         classification_rules: str = "auto",
-    ) -> dict:
+    ) -> dict[str, object]:
         """
         Migrate a single-vault OMPA to dual-vault architecture.
 
