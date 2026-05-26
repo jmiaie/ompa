@@ -193,14 +193,12 @@ def make_ompa(
     from .core import Ompa  # Import here to avoid circular imports
 
     if shared_vault_path and personal_vault_path:
-        # Dual-vault mode
         return Ompa(
             shared_vault_path=shared_vault_path,
             personal_vault_path=personal_vault_path,
             isolation_mode=isolation_mode,
             enable_semantic=enable_semantic,
         )
-    # Single-vault mode (legacy / backward compatible)
     return Ompa(
         vault_path=vault_path or Path("."),
         enable_semantic=enable_semantic,
