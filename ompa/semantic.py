@@ -32,7 +32,10 @@ def _cosine_similarity(a, b) -> float:
         b = np.array(b, dtype=float)
         norm = np.linalg.norm(a) * np.linalg.norm(b)
         return float(np.dot(a, b) / norm) if norm > 1e-9 else 0.0
-    except Exception:
+    except ImportError:
+        return 0.0
+    except Exception as e:
+        logger.debug("cosine_similarity failed: %s", e)
         return 0.0
 
 
@@ -114,7 +117,7 @@ class SemanticIndex:
             self.chunks = [c for c in self.chunks if c["path"] != path_str]
 
             content = path.read_text(encoding="utf-8")
-            # Split into chunks (512 tokens each)
+            # Split into chunks (512 words each; ~384 tokens at average English density)
             chunk_size = 512
             words = content.split()
 
@@ -157,17 +160,6 @@ class SemanticIndex:
             logger.warning("Incremental index update failed for %s: %s", path, e)
             return False
 
-    def remove_file(self, path: Path) -> bool:
-        """Remove a file from the index (e.g., after deletion)."""
-        path_str = str(Path(path))
-        before = len(self.chunks)
-        self.chunks = [c for c in self.chunks if c["path"] != path_str]
-        removed = before - len(self.chunks)
-        if removed > 0:
-            self.save_index()
-            logger.debug("Removed %d chunks for %s", removed, path)
-        return removed > 0
-
     def index_vault(self, vault_path: Path, exclude_patterns: list = None) -> int:
         """Index all markdown files in a vault."""
         exclude_patterns = exclude_patterns or DEFAULT_EXCLUDE_PATTERNS
@@ -192,7 +184,7 @@ class SemanticIndex:
 
         serializable = {
             "model": self.model_name,
-            "chunks": [{**c, "embedding": c["embedding"]} for c in self.chunks],
+            "chunks": list(self.chunks),
         }
 
         with open(index_file, "w", encoding="utf-8") as f:
@@ -347,12 +339,3 @@ class SemanticIndex:
             index_file.unlink()
 
 
-def qmd_query(vault_path: str, query: str, limit: int = 5) -> list[SearchResult]:
-    """
-    Convenience function for QMD-style queries.
-    Mimics the qmd CLI behavior.
-    """
-    index_path = Path(vault_path) / ".palace" / "semantic_index"
-    index = SemanticIndex(index_path)
-    index.load_index()
-    return index.search(query, limit)

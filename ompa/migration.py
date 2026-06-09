@@ -190,16 +190,16 @@ class VaultMigrator:
 
         # Check if composite indexes exist (added in v2)
         try:
-            conn = sqlite3.connect(str(kg_path))
-            rows = conn.execute(
-                "SELECT name FROM sqlite_master WHERE type='index'"
-            ).fetchall()
-            conn.close()
+            with sqlite3.connect(str(kg_path)) as conn:
+                rows = conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type='index'"
+                ).fetchall()
             index_names = {r[0] for r in rows}
             if "idx_triples_subject_date" in index_names:
                 return 2
             return 1
-        except Exception:
+        except Exception as e:
+            logger.warning("Could not inspect KG schema, assuming v1: %s", e)
             return 1
 
     def _write_version(self, vault_path: Path, version: int) -> None:
@@ -230,20 +230,24 @@ class VaultMigrator:
                 "fn": self._m3_enable_wal,
             },
         ]
-        return [m for m in all_migrations if m["version"] > from_version]  # type: ignore[operator]
+        return [m for m in all_migrations if m["version"] > from_version]
 
     def _m1_init_palace(self, vault_path: Path) -> None:
         palace_dir = vault_path / ".palace"
         palace_dir.mkdir(parents=True, exist_ok=True)
         (palace_dir / "wings.json").touch(exist_ok=True)
 
+    def _kg_path(self, vault_path: Path) -> Optional[Path]:
+        """Return the KG db path if it exists, else None."""
+        p = vault_path / ".palace" / "knowledge_graph.sqlite3"
+        return p if p.exists() else None
+
     def _m2_add_kg_indexes(self, vault_path: Path) -> None:
-        kg_path = vault_path / ".palace" / "knowledge_graph.sqlite3"
-        if not kg_path.exists():
+        kg_path = self._kg_path(vault_path)
+        if kg_path is None:
             return
 
-        conn = sqlite3.connect(str(kg_path))
-        try:
+        with sqlite3.connect(str(kg_path)) as conn:
             conn.executescript("""
                 CREATE INDEX IF NOT EXISTS idx_triples_subject_date
                     ON triples(subject, valid_from);
@@ -252,19 +256,12 @@ class VaultMigrator:
                 CREATE INDEX IF NOT EXISTS idx_triples_validity
                     ON triples(valid_from, valid_to);
             """)
-            conn.commit()
-        finally:
-            conn.close()
 
     def _m3_enable_wal(self, vault_path: Path) -> None:
-        kg_path = vault_path / ".palace" / "knowledge_graph.sqlite3"
-        if not kg_path.exists():
+        kg_path = self._kg_path(vault_path)
+        if kg_path is None:
             return
 
-        conn = sqlite3.connect(str(kg_path))
-        try:
+        with sqlite3.connect(str(kg_path)) as conn:
             conn.execute("PRAGMA journal_mode=WAL")
             conn.execute("PRAGMA synchronous=NORMAL")
-            conn.commit()
-        finally:
-            conn.close()

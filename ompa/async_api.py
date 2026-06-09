@@ -20,9 +20,8 @@ Usage:
     await ao.stop()
 
 Install notes:
-    Core OMPA (sync) has no new deps.
-    For aiosqlite-backed KG (optional, true async writes):
-        pip install aiosqlite
+    Core OMPA (sync) has no additional deps for async usage.
+    All blocking I/O runs in a thread-pool executor — no extra packages needed.
 """
 
 from __future__ import annotations
@@ -104,7 +103,7 @@ class AsyncOmpa:
 
     async def _run(self, fn, *args, **kwargs) -> Any:
         """Run a sync function in the executor without blocking the event loop."""
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         return await loop.run_in_executor(self._executor, partial(fn, *args, **kwargs))
 
     # ------------------------------------------------------------------

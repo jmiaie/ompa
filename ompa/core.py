@@ -1,7 +1,7 @@
 """
 OMPA — Universal AI Agent Memory Layer
 Core module integrating vault, palace, KG, hooks, classifier, and semantic search.
-Supports single-vault (legacy) and dual-vault (shared + personal) architecture.
+Supports single-vault and dual-vault (shared + personal) architecture.
 """
 
 import logging
@@ -33,7 +33,7 @@ class Ompa:
     - Classifier (15 message types with routing hints)
     - Semantic Search (local sentence-transformers)
 
-    Usage (single vault — legacy):
+    Usage (single vault):
         ao = Ompa(vault_path="./workspace")
 
     Usage (dual vault):
@@ -92,7 +92,7 @@ class Ompa:
                 )
             )
         else:
-            # Single-vault mode (legacy / backward compatible)
+            # Single-vault mode
             self.vault_path = Path(vault_path or ".")
             self.vault = Vault(self.vault_path)
             self.palace = Palace(self.vault_path / ".palace")
@@ -167,14 +167,14 @@ class Ompa:
                 count = self.kg.populate_from_vault(self.vault_path)
                 logger.info("Auto-populated KG with %d triples on session start", count)
         except Exception as e:
-            logger.debug("KG auto-population skipped: %s", e)
+            logger.warning("KG auto-population failed: %s", e)
 
         # Trigger semantic index build if needed (lazy property handles this)
         if self._enable_semantic:
             try:
                 _ = self.semantic  # triggers lazy build
             except Exception as e:
-                logger.debug("Semantic index build skipped: %s", e)
+                logger.warning("Semantic index build failed: %s", e)
 
         result = self.hooks.run_session_start(self)
         self._session_started = True
@@ -254,7 +254,7 @@ class Ompa:
             self.palace.create_room(wing, room)
             self.palace.link_drawer(wing, room, str(path))
         except Exception as e:
-            logger.debug("Palace auto-add failed for %s: %s", file_path, e)
+            logger.warning("Palace auto-add failed for %s: %s", file_path, e)
 
     def _auto_update_kg(self, path: Path) -> None:
         """Auto-update knowledge graph when a note is written/edited."""
@@ -265,7 +265,7 @@ class Ompa:
             if added > 0:
                 logger.debug("KG updated: %d triples from %s", added, path.name)
         except Exception as e:
-            logger.debug("KG auto-update failed for %s: %s", path, e)
+            logger.warning("KG auto-update failed for %s: %s", path, e)
 
     def _auto_update_index(self, path: Path) -> None:
         """Incrementally update semantic index when a note is written/edited."""
@@ -276,7 +276,7 @@ class Ompa:
                 self._semantic.update_file(path)
                 logger.debug("Search index updated for %s", path.name)
         except Exception as e:
-            logger.debug("Index auto-update failed for %s: %s", path, e)
+            logger.warning("Index auto-update failed for %s: %s", path, e)
 
     # -------------------------------------------------------------------------
     # Classification
@@ -394,13 +394,9 @@ class Ompa:
 
         return results
 
-    def qsearch(self, query: str, limit: int = 5) -> list[SearchResult]:
-        """QMD-style semantic search. Convenience method."""
-        return self.search(query, limit, hybrid=True)
-
     def rebuild_index(self) -> int:
         """Rebuild the semantic index."""
-        semantic = self.semantic  # access property once; narrows Optional
+        semantic = self.semantic  # access property once to avoid redundant lazy-load
         if semantic is None:
             return 0
         semantic.clear()

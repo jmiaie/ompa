@@ -38,8 +38,9 @@ class Tunnel:
     wing_a: str
     wing_b: str
     room: str
-    hall_a: str
-    hall_b: str
+    hall_a: str = "hall_events"
+    hall_b: str = "hall_facts"
+    id: str = ""  # composite key: "{wing_a}:{wing_b}:{room}" — matches JSON storage
 
 
 class Palace:
