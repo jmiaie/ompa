@@ -12,7 +12,7 @@ from typing import Any, Optional
 
 from .vault import Vault, Note, _safe_resolve
 from .palace import Palace
-from .knowledge_graph import KnowledgeGraph
+from .knowledge_graph import KnowledgeGraph, Triple
 from .hooks import HookManager, HookResult
 from .classifier import MessageClassifier, Classification
 from .semantic import SemanticIndex, SearchResult
@@ -46,13 +46,13 @@ class Ompa:
 
     def __init__(
         self,
-        vault_path: str | Path = None,
+        vault_path: Optional[str | Path] = None,
         agent_name: str = "agent",
         enable_semantic: bool = True,
         embedding_backend=None,  # EmbeddingBackend protocol — e.g. NIMEmbeddingBackend
         # Dual-vault parameters
-        shared_vault_path: str | Path = None,
-        personal_vault_path: str | Path = None,
+        shared_vault_path: Optional[str | Path] = None,
+        personal_vault_path: Optional[str | Path] = None,
         isolation_mode: str = "strict",
     ):
         self.agent_name = agent_name
@@ -65,6 +65,11 @@ class Ompa:
         self.dual_config = DualVaultConfig(
             isolation_mode=IsolationMode(isolation_mode),
         )
+
+        # Declare Optional fields before branching so mypy sees a consistent type
+        self.personal_vault: Optional[Vault] = None
+        self.personal_palace: Optional[Palace] = None
+        self.personal_kg: Optional[KnowledgeGraph] = None
 
         if shared_vault_path and personal_vault_path:
             # Dual-vault mode
@@ -99,9 +104,6 @@ class Ompa:
             self.kg = KnowledgeGraph(
                 db_path=str(self.vault_path / ".palace" / "knowledge_graph.sqlite3")
             )
-            self.personal_vault = None
-            self.personal_palace = None
-            self.personal_kg = None
 
         self.classifier = MessageClassifier()
         self.hooks = HookManager(self.vault_path, agent_name=self.agent_name)
@@ -304,9 +306,9 @@ class Ompa:
         query: str,
         limit: int = 5,
         hybrid: bool = True,
-        wing: str = None,
-        room: str = None,
-        vaults: list[str] = None,
+        wing: Optional[str] = None,
+        room: Optional[str] = None,
+        vaults: Optional[list[str]] = None,
     ) -> list[SearchResult]:
         """
         Search the vault(s) semantically.
@@ -364,8 +366,8 @@ class Ompa:
         query: str,
         limit: int,
         hybrid: bool,
-        wing: str = None,
-        room: str = None,
+        wing: Optional[str] = None,
+        room: Optional[str] = None,
     ) -> list[SearchResult]:
         """Search a single vault."""
         if semantic is None:
@@ -420,7 +422,7 @@ class Ompa:
         """Get vault statistics."""
         return self.vault.get_stats()
 
-    def find_orphans(self) -> list:
+    def find_orphans(self) -> list[Note]:
         """Find notes with no wikilinks."""
         return self.vault.find_orphans()
 
@@ -435,7 +437,7 @@ class Ompa:
             self._auto_update_index(brain_path)
             self._auto_add_to_palace(str(brain_path))
 
-    def get_brain_note(self, name: str) -> Optional[object]:
+    def get_brain_note(self, name: str) -> Optional[Note]:
         """Get a brain note by name."""
         return self.vault.get_brain_note(name)
 
@@ -456,19 +458,19 @@ class Ompa:
         subject: str,
         predicate: str,
         object: str,
-        valid_from: str = None,
-        source: str = None,
+        valid_from: Optional[str] = None,
+        source: Optional[str] = None,
     ) -> None:
         """Add a fact to the knowledge graph."""
         self.kg.add_triple(
             subject, predicate, object, valid_from=valid_from, source=source
         )
 
-    def kg_query(self, entity: str, as_of: str = None) -> list:
+    def kg_query(self, entity: str, as_of: Optional[str] = None) -> list[Triple]:
         """Query the knowledge graph."""
         return self.kg.query_entity(entity, as_of=as_of)
 
-    def kg_timeline(self, entity: str) -> list:
+    def kg_timeline(self, entity: str) -> list[dict]:
         """Get entity timeline."""
         return self.kg.timeline(entity)
 
@@ -494,6 +496,9 @@ class Ompa:
 
         # Sync personal vault too if in dual mode
         if self.is_dual_vault:
+            assert self.personal_kg is not None
+            assert self.personal_palace is not None
+            assert self.dual_config.personal_path is not None
             p_kg = self.personal_kg.populate_from_vault(self.dual_config.personal_path)
             p_palace = self.personal_palace.auto_build_from_vault(
                 self.dual_config.personal_path
@@ -511,9 +516,9 @@ class Ompa:
     def write(
         self,
         content: str,
-        file_path: str = None,
-        tags: list[str] = None,
-        vault: str = None,
+        file_path: Optional[str] = None,
+        tags: Optional[list[str]] = None,
+        vault: Optional[str] = None,
     ) -> dict:
         """
         Write content to the appropriate vault.
@@ -535,19 +540,22 @@ class Ompa:
         # Determine target vault
         if not self.is_dual_vault:
             target = VaultTarget.SHARED
-            target_vault = self.vault
+            target_vault: Vault = self.vault
         elif vault:
+            assert self.personal_vault is not None
             target = VaultTarget(vault)
             target_vault = (
                 self.vault if target == VaultTarget.SHARED else self.personal_vault
             )
         elif self.dual_config.isolation_mode == IsolationMode.MANUAL:
+            assert self.personal_vault is not None
             # In manual mode, default to personal (safe default)
             target = self.dual_config.default_vault
             target_vault = (
                 self.vault if target == VaultTarget.SHARED else self.personal_vault
             )
         else:
+            assert self.personal_vault is not None
             # Auto-classify
             target = self.dual_config.classify_content(
                 content, tags=tags, file_path=file_path
@@ -609,6 +617,9 @@ class Ompa:
         """
         if not self.is_dual_vault:
             return {"success": False, "error": "Not in dual-vault mode"}
+
+        assert self.dual_config.personal_path is not None
+        assert self.dual_config.shared_path is not None
 
         # Validate paths upfront to prevent traversal
         try:
@@ -680,6 +691,9 @@ class Ompa:
         """
         if not self.is_dual_vault:
             return {"success": False, "error": "Not in dual-vault mode"}
+
+        assert self.dual_config.shared_path is not None
+        assert self.dual_config.personal_path is not None
 
         # Validate paths upfront to prevent traversal
         try:

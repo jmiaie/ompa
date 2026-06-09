@@ -20,8 +20,9 @@ Usage:
     await ao.stop()
 
 Install notes:
-    Core OMPA (sync) has no additional deps for async usage.
-    All blocking I/O runs in a thread-pool executor — no extra packages needed.
+    Core OMPA (sync) has no new deps.
+    For aiosqlite-backed KG (optional, true async writes):
+        pip install aiosqlite
 """
 
 from __future__ import annotations
@@ -31,7 +32,10 @@ import logging
 from concurrent.futures import ThreadPoolExecutor
 from functools import partial
 from pathlib import Path
-from typing import Any, Optional
+from typing import TYPE_CHECKING, Any, Optional
+
+if TYPE_CHECKING:
+    from .semantic import SearchResult
 
 logger = logging.getLogger(__name__)
 
@@ -80,8 +84,8 @@ class AsyncOmpa:
         agent_name: str = "async-agent",
         enable_semantic: bool = False,
         embedding_backend=None,
-        shared_vault_path: str | Path = None,
-        personal_vault_path: str | Path = None,
+        shared_vault_path: Optional[str | Path] = None,
+        personal_vault_path: Optional[str | Path] = None,
         isolation_mode: str = "strict",
         max_workers: int = 4,
     ):
@@ -103,7 +107,7 @@ class AsyncOmpa:
 
     async def _run(self, fn, *args, **kwargs) -> Any:
         """Run a sync function in the executor without blocking the event loop."""
-        loop = asyncio.get_running_loop()
+        loop = asyncio.get_event_loop()
         return await loop.run_in_executor(self._executor, partial(fn, *args, **kwargs))
 
     # ------------------------------------------------------------------
@@ -143,10 +147,10 @@ class AsyncOmpa:
         query: str,
         limit: int = 5,
         hybrid: bool = True,
-        wing: str = None,
-        room: str = None,
-        vaults: list[str] = None,
-    ) -> list:
+        wing: Optional[str] = None,
+        room: Optional[str] = None,
+        vaults: Optional[list[str]] = None,
+    ) -> "list[SearchResult]":
         """Async semantic search across vault(s)."""
         return await self._run(
             self._ompa.search,
@@ -175,8 +179,8 @@ class AsyncOmpa:
         subject: str,
         predicate: str,
         object: str,
-        valid_from: str = None,
-        source: str = None,
+        valid_from: Optional[str] = None,
+        source: Optional[str] = None,
     ) -> None:
         """Async KG triple write."""
         return await self._run(
@@ -188,11 +192,11 @@ class AsyncOmpa:
             source=source,
         )
 
-    async def kg_query(self, entity: str, as_of: str = None) -> list:
+    async def kg_query(self, entity: str, as_of: Optional[str] = None) -> list[Any]:
         """Async KG entity query."""
         return await self._run(self._ompa.kg_query, entity, as_of=as_of)
 
-    async def kg_timeline(self, entity: str) -> list:
+    async def kg_timeline(self, entity: str) -> list[Any]:
         """Async KG timeline query."""
         return await self._run(self._ompa.kg_timeline, entity)
 

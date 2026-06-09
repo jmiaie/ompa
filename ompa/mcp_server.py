@@ -20,6 +20,7 @@ import json
 import logging
 import sys
 from pathlib import Path
+from typing import Optional
 
 from ompa import Ompa, __version__
 from ompa.config import make_ompa
@@ -84,7 +85,7 @@ def ao_search(query: str, vault_path: str = ".", limit: int = 5) -> dict:
     }
 
 
-def ao_kg_query(entity: str, vault_path: str = ".", as_of: str = None) -> dict:
+def ao_kg_query(entity: str, vault_path: str = ".", as_of: Optional[str] = None) -> dict:
     """Query the knowledge graph for an entity."""
     ao = Ompa(vault_path=vault_path, enable_semantic=False)
     triples = ao.kg.query_entity(entity, as_of=as_of)
@@ -107,8 +108,8 @@ def ao_kg_add(
     subject: str,
     predicate: str,
     object_: str,
-    valid_from: str = None,
-    source: str = None,
+    valid_from: Optional[str] = None,
+    source: Optional[str] = None,
     vault_path: str = ".",
 ) -> dict:
     """

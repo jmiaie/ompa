@@ -33,12 +33,12 @@ def _safe_resolve(base: Path, untrusted: str) -> Path:
 @dataclass
 class VaultConfig:
     vault_path: Path
-    brain_folder: Path = None
-    work_folder: Path = None
-    org_folder: Path = None
-    perf_folder: Path = None
-    thinking_folder: Path = None
-    templates_folder: Path = None
+    brain_folder: Path = None  # type: ignore[assignment]  # set by __post_init__
+    work_folder: Path = None  # type: ignore[assignment]   # set by __post_init__
+    org_folder: Path = None  # type: ignore[assignment]    # set by __post_init__
+    perf_folder: Path = None  # type: ignore[assignment]   # set by __post_init__
+    thinking_folder: Path = None  # type: ignore[assignment]  # set by __post_init__
+    templates_folder: Path = None  # type: ignore[assignment]  # set by __post_init__
 
     def __post_init__(self):
         if self.brain_folder is None:
@@ -109,7 +109,7 @@ class Note:
     def save(self) -> None:
         """Save note to file with frontmatter."""
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        post = frontmatter.Post(self.content, **self.frontmatter)
+        post = frontmatter.Post(self.content, **self.frontmatter)  # type: ignore[arg-type]
         with open(self.path, "w", encoding="utf-8") as f:
             f.write(frontmatter.dumps(post))
 
@@ -156,7 +156,7 @@ class Vault:
             folder_path = self.vault_path / folder
             folder_path.mkdir(parents=True, exist_ok=True)
 
-    def list_notes(self, exclude_patterns: list[str] = None) -> list[Note]:
+    def list_notes(self, exclude_patterns: Optional[list[str]] = None) -> list[Note]:
         """List all markdown notes in the vault."""
         exclude_patterns = exclude_patterns or DEFAULT_EXCLUDE_PATTERNS
         notes = []

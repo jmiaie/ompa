@@ -77,6 +77,7 @@ class MessageClassifier:
         MessageType.PERSON_INFO: [
             r"\b(teammate|coworker|peer|manager|lead|engineer)\b.*\b(joined|moved|left|new|role)\b",
             r"\b(people|team|person)\b.*\b(update|change|info)\b",
+            r"\b(Sarah|John|Mike|Tom|Jane)\b",  # Names as hints
         ],
         MessageType.QUESTION: [
             r"\b(how do|how can|what is|what are|why does|can we|should we)\b",
@@ -224,7 +225,7 @@ class MessageClassifier:
             )
 
         # Get highest scoring type
-        best_type = max(scores, key=scores.get)
+        best_type = max(scores, key=lambda k: scores[k])
         confidence = min(scores[best_type] / 3.0, 1.0)  # Normalize to 0-1
 
         # For short messages, reduce confidence
