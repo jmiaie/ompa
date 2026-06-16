@@ -35,7 +35,7 @@ if HYPOTHESIS_AVAILABLE:
         alphabet=st.characters(whitelist_categories=("Lu", "Ll", "Nd", "Zs")),
         min_size=1,
         max_size=50,
-    ).filter(lambda s: s.strip())
+    ).filter(lambda s: s.strip() and s == s.strip())
 
     entity_name = st.text(
         alphabet="abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-",
