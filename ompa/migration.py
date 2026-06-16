@@ -184,17 +184,16 @@ class VaultMigrator:
                 pass
 
         # Heuristic: infer version from what exists
-        kg_path = vault_path / ".palace" / "knowledge_graph.sqlite3"
+        kg_path = self._kg_db_path(vault_path)
         if not kg_path.exists():
             return 0
 
         # Check if composite indexes exist (added in v2)
         try:
-            conn = sqlite3.connect(str(kg_path))
-            rows = conn.execute(
-                "SELECT name FROM sqlite_master WHERE type='index'"
-            ).fetchall()
-            conn.close()
+            with sqlite3.connect(str(kg_path)) as conn:
+                rows = conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type='index'"
+                ).fetchall()
             index_names = {r[0] for r in rows}
             if "idx_triples_subject_date" in index_names:
                 return 2
@@ -237,13 +236,17 @@ class VaultMigrator:
         palace_dir.mkdir(parents=True, exist_ok=True)
         (palace_dir / "wings.json").touch(exist_ok=True)
 
+    @staticmethod
+    def _kg_db_path(vault_path: Path) -> Path:
+        """Return the canonical path to the vault's KG SQLite database."""
+        return vault_path / ".palace" / "knowledge_graph.sqlite3"
+
     def _m2_add_kg_indexes(self, vault_path: Path) -> None:
-        kg_path = vault_path / ".palace" / "knowledge_graph.sqlite3"
+        kg_path = self._kg_db_path(vault_path)
         if not kg_path.exists():
             return
 
-        conn = sqlite3.connect(str(kg_path))
-        try:
+        with sqlite3.connect(str(kg_path)) as conn:
             conn.executescript("""
                 CREATE INDEX IF NOT EXISTS idx_triples_subject_date
                     ON triples(subject, valid_from);
@@ -253,18 +256,13 @@ class VaultMigrator:
                     ON triples(valid_from, valid_to);
             """)
             conn.commit()
-        finally:
-            conn.close()
 
     def _m3_enable_wal(self, vault_path: Path) -> None:
-        kg_path = vault_path / ".palace" / "knowledge_graph.sqlite3"
+        kg_path = self._kg_db_path(vault_path)
         if not kg_path.exists():
             return
 
-        conn = sqlite3.connect(str(kg_path))
-        try:
+        with sqlite3.connect(str(kg_path)) as conn:
             conn.execute("PRAGMA journal_mode=WAL")
             conn.execute("PRAGMA synchronous=NORMAL")
             conn.commit()
-        finally:
-            conn.close()
