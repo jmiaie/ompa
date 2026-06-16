@@ -26,36 +26,38 @@ pytestmark = pytest.mark.skipif(
 )
 
 # ---------------------------------------------------------------------------
-# Strategies
+# Strategies — only evaluated when hypothesis is available to avoid NameError
+# at collection time when hypothesis is not installed.
 # ---------------------------------------------------------------------------
 
-safe_text = st.text(
-    alphabet=st.characters(whitelist_categories=("Lu", "Ll", "Nd", "Zs")),
-    min_size=1,
-    max_size=50,
-).filter(lambda s: s.strip())
+if HYPOTHESIS_AVAILABLE:
+    safe_text = st.text(
+        alphabet=st.characters(whitelist_categories=("Lu", "Ll", "Nd", "Zs")),
+        min_size=1,
+        max_size=50,
+    ).filter(lambda s: s.strip())
 
-entity_name = st.text(
-    alphabet="abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-",
-    min_size=1,
-    max_size=30,
-)
+    entity_name = st.text(
+        alphabet="abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-",
+        min_size=1,
+        max_size=30,
+    )
 
-predicate_name = st.sampled_from([
-    "works_on", "knows", "created", "links_to", "has_tag",
-    "in_folder", "depends_on", "blocks", "owns", "manages",
-])
+    predicate_name = st.sampled_from([
+        "works_on", "knows", "created", "links_to", "has_tag",
+        "in_folder", "depends_on", "blocks", "owns", "manages",
+    ])
 
-iso_date = st.dates(
-    min_value=__import__("datetime").date(2020, 1, 1),
-    max_value=__import__("datetime").date(2030, 12, 31),
-).map(str)
+    iso_date = st.dates(
+        min_value=__import__("datetime").date(2020, 1, 1),
+        max_value=__import__("datetime").date(2030, 12, 31),
+    ).map(str)
 
-message_type_str = st.sampled_from([
-    "DECISION", "INCIDENT", "WIN", "LOSS", "BLOCKER",
-    "QUESTION", "SUGGESTION", "REVIEW", "BUG", "FEATURE",
-    "LEARN", "RETROSPECTIVE", "ALERT", "STATUS", "CHORE",
-])
+    message_type_str = st.sampled_from([
+        "DECISION", "INCIDENT", "WIN", "LOSS", "BLOCKER",
+        "QUESTION", "SUGGESTION", "REVIEW", "BUG", "FEATURE",
+        "LEARN", "RETROSPECTIVE", "ALERT", "STATUS", "CHORE",
+    ])
 
 
 # ---------------------------------------------------------------------------

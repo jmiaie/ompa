@@ -40,6 +40,7 @@ class Tunnel:
     room: str
     hall_a: str
     hall_b: str
+    id: str = ""
 
 
 class Palace:
