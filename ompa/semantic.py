@@ -32,7 +32,11 @@ def _cosine_similarity(a, b) -> float:
         b = np.array(b, dtype=float)
         norm = np.linalg.norm(a) * np.linalg.norm(b)
         return float(np.dot(a, b) / norm) if norm > 1e-9 else 0.0
-    except Exception:
+    except ImportError:
+        # numpy not installed — semantic search unavailable, silent fallback
+        return 0.0
+    except Exception as e:
+        logger.debug("Cosine similarity failed: %s", e)
         return 0.0
 
 

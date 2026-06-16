@@ -17,11 +17,14 @@ Usage:
 """
 
 import json
+import logging
 import sys
 from pathlib import Path
 
 from ompa import Ompa, __version__
 from ompa.config import make_ompa
+
+logger = logging.getLogger(__name__)
 
 
 def _make_ompa(arguments: dict, enable_semantic: bool = False) -> Ompa:
@@ -623,7 +626,8 @@ def handle_call_tool(name: str, arguments: dict) -> dict:
     except KeyError as e:
         return {"error": f"Missing required argument: {e}"}
     except Exception as e:
-        return {"error": type(e).__name__}
+        logger.error("Tool dispatch error for %r: %s", name, e, exc_info=True)
+        return {"error": f"{type(e).__name__}: {e}"}
 
 
 # ---------------------------------------------------------------------------
@@ -702,10 +706,11 @@ def main():
             req_id = None
             if request is not None:
                 req_id = request.get("id") if isinstance(request, dict) else None
+            logger.error("MCP protocol error: %s", e, exc_info=True)
             error_response = {
                 "jsonrpc": "2.0",
                 "id": req_id,
-                "error": {"code": -32603, "message": type(e).__name__},
+                "error": {"code": -32603, "message": f"{type(e).__name__}: {e}"},
             }
             sys.stdout.write(json.dumps(error_response) + "\n")
             sys.stdout.flush()

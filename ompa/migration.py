@@ -198,7 +198,8 @@ class VaultMigrator:
             if "idx_triples_subject_date" in index_names:
                 return 2
             return 1
-        except Exception:
+        except Exception as e:
+            logger.warning("Could not read schema version from KG DB %s: %s", kg_path, e)
             return 1
 
     def _write_version(self, vault_path: Path, version: int) -> None:

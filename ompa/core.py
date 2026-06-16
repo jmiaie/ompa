@@ -167,14 +167,14 @@ class Ompa:
                 count = self.kg.populate_from_vault(self.vault_path)
                 logger.info("Auto-populated KG with %d triples on session start", count)
         except Exception as e:
-            logger.debug("KG auto-population skipped: %s", e)
+            logger.warning("KG auto-population failed: %s", e)
 
         # Trigger semantic index build if needed (lazy property handles this)
         if self._enable_semantic:
             try:
                 _ = self.semantic  # triggers lazy build
             except Exception as e:
-                logger.debug("Semantic index build skipped: %s", e)
+                logger.warning("Semantic index build failed: %s", e)
 
         result = self.hooks.run_session_start(self)
         self._session_started = True
@@ -250,7 +250,7 @@ class Ompa:
             self.palace.create_room(wing, room)
             self.palace.link_drawer(wing, room, str(path))
         except Exception as e:
-            logger.debug("Palace auto-add failed for %s: %s", file_path, e)
+            logger.warning("Palace auto-add failed for %s: %s", file_path, e)
 
     def _auto_update_kg(self, path: Path) -> None:
         """Auto-update knowledge graph when a note is written/edited."""
@@ -261,7 +261,7 @@ class Ompa:
             if added > 0:
                 logger.debug("KG updated: %d triples from %s", added, path.name)
         except Exception as e:
-            logger.debug("KG auto-update failed for %s: %s", path, e)
+            logger.warning("KG auto-update failed for %s: %s", path, e)
 
     def _auto_update_index(self, path: Path) -> None:
         """Incrementally update semantic index when a note is written/edited."""
@@ -272,7 +272,7 @@ class Ompa:
                 self._semantic.update_file(path)
                 logger.debug("Search index updated for %s", path.name)
         except Exception as e:
-            logger.debug("Index auto-update failed for %s: %s", path, e)
+            logger.warning("Index auto-update failed for %s: %s", path, e)
 
     # -------------------------------------------------------------------------
     # Classification
