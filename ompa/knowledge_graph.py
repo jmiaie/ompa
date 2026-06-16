@@ -338,11 +338,12 @@ class KnowledgeGraph:
 
             post = fm.load(note_path)
             return post.content, dict(post.metadata)
-        except Exception:
+        except Exception as e:
+            logger.debug("Frontmatter parse failed for %s, falling back to raw read: %s", note_path, e)
             try:
                 return note_path.read_text(encoding="utf-8"), {}
-            except Exception as e:
-                logger.debug("Could not read %s: %s", note_path, e)
+            except Exception as e2:
+                logger.warning("Could not read %s: %s", note_path, e2)
                 return None, {}
 
     def _extract_wikilink_triples(
