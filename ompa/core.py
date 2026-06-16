@@ -222,10 +222,6 @@ class Ompa:
         """Alias for stop()."""
         return self.stop()
 
-    def standup(self) -> HookResult:
-        """Alias for session_start()."""
-        return self.session_start()
-
     # -------------------------------------------------------------------------
     # Auto palace population
     # -------------------------------------------------------------------------
@@ -393,10 +389,6 @@ class Ompa:
             results = filtered or results[:limit]
 
         return results
-
-    def qsearch(self, query: str, limit: int = 5) -> list[SearchResult]:
-        """QMD-style semantic search. Convenience method."""
-        return self.search(query, limit, hybrid=True)
 
     def rebuild_index(self) -> int:
         """Rebuild the semantic index."""

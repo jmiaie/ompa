@@ -35,7 +35,7 @@ import logging
 from pathlib import Path
 from typing import Optional
 
-from ..semantic import SearchResult, EmbeddingBackend, _cosine_similarity
+from ..semantic import SearchResult, EmbeddingBackend
 
 logger = logging.getLogger(__name__)
 
@@ -153,27 +153,6 @@ class FAISSSemanticIndex:
             return  # deferred — train after collecting enough vectors
 
         self._faiss_index.add(vec)  # type: ignore[attr-defined]
-
-    def _train_if_needed(self) -> None:
-        if not self.use_ivf or self._faiss_index is None:
-            return
-        if getattr(self._faiss_index, "is_trained", True):
-            return
-
-        import numpy as np
-        faiss = self._require_faiss()
-
-        if len(self._metadata) < self.ivf_nlist:
-            # Not enough vectors to train — fall back to flat
-            self._build_index()
-            return
-
-        vecs = np.array(
-            [m["embedding"] for m in self._metadata], dtype="float32"
-        )
-        faiss.normalize_L2(vecs)
-        self._faiss_index.train(vecs)  # type: ignore[union-attr]
-        self._faiss_index.add(vecs)  # type: ignore[union-attr]
 
     # ------------------------------------------------------------------
     # Indexing
