@@ -118,7 +118,7 @@ class SemanticIndex:
             self.chunks = [c for c in self.chunks if c["path"] != path_str]
 
             content = path.read_text(encoding="utf-8")
-            # Split into chunks (512 tokens each)
+            # Split by word count, not token count; 512 words ≈ model context budget
             chunk_size = 512
             words = content.split()
 
@@ -267,7 +267,6 @@ class SemanticIndex:
                     )
                 )
 
-            # Sort by score and dedupe by path
             best_results.sort(key=lambda r: r.score, reverse=True)
 
             seen_paths = set()

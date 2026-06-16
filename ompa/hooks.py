@@ -8,13 +8,12 @@ import logging
 import re
 from datetime import datetime
 from dataclasses import dataclass
-from typing import Optional
 from pathlib import Path
+from typing import Optional, TYPE_CHECKING
 
 from .vault import Vault, Note
 from .classifier import MessageClassifier
 from .token_counter import count_tokens
-from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from .core import Ompa
@@ -406,7 +405,6 @@ class HookManager:
         self.session_id = datetime.now().strftime("%Y%m%d_%H%M%S")
         self.timestamp = datetime.now()
 
-        # Register default hooks
         self.hooks = {
             "session_start": SessionStartHook(),
             "user_message": UserMessageHook(),

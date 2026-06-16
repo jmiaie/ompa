@@ -276,7 +276,6 @@ class KnowledgeGraph:
 
         timeline = []
         for row in rows:
-            # Determine direction and label
             if row["subject"] == entity:
                 direction = "outbound"
                 label = f"{entity} --{row['predicate']}--> {row['object']}"
@@ -387,7 +386,7 @@ class KnowledgeGraph:
             )
             count += 1
 
-        # 5. Frontmatter description → has_description (for search context)
+        # 5. Register notes with a description as typed entities (enables richer KG queries)
         desc = metadata.get("description")
         if desc and isinstance(desc, str) and len(desc) > 10:
             self.add_entity(note_name, entity_type="note")

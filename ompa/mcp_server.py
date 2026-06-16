@@ -524,7 +524,6 @@ TOOLS = {
 
 
 def handle_list_tools():
-    """Handle tool list request."""
     tools = []
     for name, spec in TOOLS.items():
         tools.append(
@@ -538,17 +537,15 @@ def handle_list_tools():
 
 
 def handle_call_tool(name: str, arguments: dict) -> dict:
-    """Handle tool call request."""
     if name not in TOOLS:
         return {"error": f"Unknown tool: {name}"}
 
     try:
-        # Extract and validate vault_path
         vault_path = str(arguments.get("vault_path", "."))
-        # Block obvious traversal attempts
+        # Reject paths that escape the working tree or target filesystem roots
         if ".." in vault_path or vault_path in ("/", "C:\\", "C:/"):
             return {"error": "Invalid vault_path"}
-        # Cap limit parameters
+        # Cap search limits to prevent runaway memory use
         if "limit" in arguments:
             arguments = {**arguments, "limit": min(int(arguments["limit"]), 100)}
 
