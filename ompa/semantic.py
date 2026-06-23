@@ -297,7 +297,6 @@ class SemanticIndex:
         query_lower = query.lower()
         results = []
 
-        # Search through indexed chunks first
         if self.chunks:
             for chunk in self.chunks:
                 if query_lower in chunk["text"].lower():

@@ -42,7 +42,6 @@ class MessageClassifier:
     Inspired by obsidian-minds classify-message.py but framework-agnostic.
     """
 
-    # Regex patterns for classification
     PATTERNS = {
         MessageType.DECISION: [
             r"\b(decided|decision|we chose|going with|settled on|agreed to)\b",
@@ -112,7 +111,6 @@ class MessageClassifier:
         ],
     }
 
-    # Routing hints per message type
     ROUTING_HINTS = {
         MessageType.DECISION: [
             "This is a decision. Record it in brain/Key Decisions.md",
@@ -176,7 +174,6 @@ class MessageClassifier:
         ],
     }
 
-    # Suggested folder locations
     FOLDER_MAP = {
         MessageType.DECISION: "work/active/",
         MessageType.INCIDENT: "work/incidents/",
@@ -224,11 +221,10 @@ class MessageClassifier:
                 suggested_action="Continue conversation normally",
             )
 
-        # Get highest scoring type
         best_type = max(scores, key=scores.get)
-        confidence = min(scores[best_type] / 3.0, 1.0)  # Normalize to 0-1
+        confidence = min(scores[best_type] / 3.0, 1.0)  # normalize to 0-1 (3 matching patterns = full confidence)
 
-        # For short messages, reduce confidence
+        # Short messages have fewer signals; penalize overconfident classification
         if len(message.split()) < 5:
             confidence *= 0.7
 
