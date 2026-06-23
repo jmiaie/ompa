@@ -23,14 +23,6 @@ from typing import Any, Optional
 logger = logging.getLogger(__name__)
 
 
-def _require_langchain():
-    try:
-        import langchain_core  # noqa: F401
-        return True
-    except ImportError:
-        raise ImportError(
-            "LangChain is not installed. Install with: pip install ompa[langchain]"
-        )
 
 
 class OmpaMemory:
