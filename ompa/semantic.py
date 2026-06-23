@@ -28,11 +28,15 @@ def _cosine_similarity(a, b) -> float:
     """Pure-numpy cosine similarity — no sentence_transformers.util needed."""
     try:
         import numpy as np
+    except ImportError:
+        return 0.0
+    try:
         a = np.array(a, dtype=float)
         b = np.array(b, dtype=float)
         norm = np.linalg.norm(a) * np.linalg.norm(b)
         return float(np.dot(a, b) / norm) if norm > 1e-9 else 0.0
-    except Exception:
+    except Exception as e:
+        logger.debug("cosine_similarity computation failed: %s", e)
         return 0.0
 
 
