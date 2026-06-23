@@ -21,7 +21,7 @@ import sys
 from pathlib import Path
 
 from ompa import Ompa, __version__
-from ompa.config import make_ompa
+from ompa.core import make_ompa
 
 
 def _make_ompa(arguments: dict, enable_semantic: bool = False) -> Ompa:
