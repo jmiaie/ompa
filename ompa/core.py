@@ -8,7 +8,7 @@ import logging
 import re
 import shutil
 from pathlib import Path
-from typing import Any, Optional
+from typing import Optional
 
 from .vault import Vault, Note, _safe_resolve
 from .palace import Palace
@@ -573,7 +573,7 @@ class Ompa:
         # Write the note
         from datetime import datetime
 
-        frontmatter: dict[str, Any] = {
+        frontmatter: dict[str, object] = {
             "date": datetime.now().strftime("%Y-%m-%d"),
             "tags": tags,
             "vault": target.value,
