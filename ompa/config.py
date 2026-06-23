@@ -10,7 +10,7 @@ import logging
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any, Optional
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -183,7 +183,7 @@ class DualVaultConfig:
             },
         }
 
-        vaults: dict[str, Any] = data["vaults"]  # type: ignore[assignment]
+        vaults: dict[str, dict[str, str | bool]] = data["vaults"]  # type: ignore[assignment]
         if self.shared_path:
             vaults["shared"] = {
                 "path": str(self.shared_path),

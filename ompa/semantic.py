@@ -10,11 +10,21 @@ import logging
 import hashlib
 from pathlib import Path
 from dataclasses import dataclass
-from typing import Any, Optional, Protocol, runtime_checkable
+from typing import Optional, Protocol, TypedDict, runtime_checkable
 
 from .vault import DEFAULT_EXCLUDE_PATTERNS
 
 logger = logging.getLogger(__name__)
+
+
+class _ChunkRecord(TypedDict):
+    """Internal record type for a single indexed text chunk."""
+
+    hash: str
+    path: str
+    chunk_index: int
+    text: str
+    embedding: list[float]
 
 
 @runtime_checkable
@@ -64,7 +74,7 @@ class SemanticIndex:
         self.model_name = model_name
         self.embedding_dim = embedding_dim
         self.embeddings = None
-        self.chunks: list[dict[str, Any]] = []
+        self.chunks: list[_ChunkRecord] = []
         self._initialized = False
         # Accept a pre-built backend (e.g. NIMEmbeddingBackend) or load lazily
         self._model: Optional[EmbeddingBackend] = embedding_backend
