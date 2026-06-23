@@ -282,6 +282,64 @@ class KnowledgeGraph:
             )
         return timeline
 
+    # -------------------------------------------------------------------------
+    # Auto-population from vault
+    # -------------------------------------------------------------------------
+
+    def _triples_from_wikilinks(self, note_name: str, content: str, source: str) -> int:
+        """Add links_to triples for every [[wikilink]] in content. Returns count added."""
+        count = 0
+        for link in re.findall(r"\[\[([^\]]+)\]\]", content):
+            target = link.split("|")[0].strip()
+            if target:
+                self.add_triple(note_name, "links_to", target, source=source)
+                count += 1
+        return count
+
+    def _triples_from_tags(self, note_name: str, metadata: dict, source: str) -> int:
+        """Add has_tag triples from frontmatter tags. Returns count added."""
+        count = 0
+        tags = metadata.get("tags", [])
+        if isinstance(tags, str):
+            tags = [t.strip() for t in tags.split(",") if t.strip()]
+        if isinstance(tags, list):
+            for tag in tags:
+                if isinstance(tag, str) and tag.strip():
+                    self.add_triple(note_name, "has_tag", tag.strip(), source=source)
+                    count += 1
+        return count
+
+    def _triples_from_folder(
+        self, note_name: str, note_path: Path, vault_path: Path, source: str
+    ) -> int:
+        """Add in_folder / in_subfolder triples based on path within vault. Returns count added."""
+        if not vault_path:
+            return 0
+        count = 0
+        try:
+            parts = note_path.relative_to(vault_path).parts
+            if len(parts) > 1:
+                self.add_triple(note_name, "in_folder", parts[0], source=source)
+                count += 1
+                if len(parts) > 2:
+                    self.add_triple(
+                        note_name, "in_subfolder", f"{parts[0]}/{parts[1]}", source=source
+                    )
+                    count += 1
+        except ValueError:
+            pass
+        return count
+
+    def _triples_from_date(self, note_name: str, metadata: dict, source: str) -> int:
+        """Add a created_on triple from the frontmatter date field. Returns count added."""
+        date_val = metadata.get("date")
+        if not date_val:
+            return 0
+        date_str = str(date_val)[:10]  # YYYY-MM-DD
+        self.add_triple(note_name, "created_on", date_str, valid_from=date_str, source=source)
+        return 1
+
+
     def populate_from_note(self, note_path: Path, vault_path: Path = None) -> int:
         """
         Extract and store triples from a single vault note.
@@ -289,7 +347,7 @@ class KnowledgeGraph:
         Extracts:
         - Wikilinks: note --links_to--> target
         - Frontmatter tags: note --has_tag--> tag
-        - Folder membership: note --in_folder--> folder_name
+        - Folder membership: note --in_folder--> / --in_subfolder--> folder
         - Frontmatter date: note --created_on--> date
 
         Returns the number of triples added.
@@ -297,7 +355,6 @@ class KnowledgeGraph:
         if not note_path.exists() or note_path.suffix != ".md":
             return 0
 
-        count = 0
         note_name = note_path.stem
         source = str(note_path)
 
@@ -316,58 +373,13 @@ class KnowledgeGraph:
                 logger.debug("Could not read %s: %s", note_path, e)
                 return 0
 
-        # 1. Wikilinks → links_to triples
-        wikilinks = re.findall(r"\[\[([^\]]+)\]\]", content)
-        for link in wikilinks:
-            # Strip display text from piped links: [[target|display]]
-            target = link.split("|")[0].strip()
-            if target:
-                self.add_triple(note_name, "links_to", target, source=source)
-                count += 1
+        count = 0
+        count += self._triples_from_wikilinks(note_name, content, source)
+        count += self._triples_from_tags(note_name, metadata, source)
+        count += self._triples_from_folder(note_name, note_path, vault_path, source)
+        count += self._triples_from_date(note_name, metadata, source)
 
-        # 2. Frontmatter tags → has_tag triples
-        tags = metadata.get("tags", [])
-        if isinstance(tags, str):
-            tags = [t.strip() for t in tags.split(",") if t.strip()]
-        if isinstance(tags, list):
-            for tag in tags:
-                if isinstance(tag, str) and tag.strip():
-                    self.add_triple(note_name, "has_tag", tag.strip(), source=source)
-                    count += 1
-
-        # 3. Folder membership
-        if vault_path:
-            try:
-                rel = note_path.relative_to(vault_path)
-                parts = rel.parts
-                if len(parts) > 1:
-                    folder = parts[0]  # top-level: brain, work, org, perf
-                    self.add_triple(note_name, "in_folder", folder, source=source)
-                    count += 1
-                    # Sub-folder (e.g., work/active, org/people)
-                    if len(parts) > 2:
-                        subfolder = f"{parts[0]}/{parts[1]}"
-                        self.add_triple(
-                            note_name, "in_subfolder", subfolder, source=source
-                        )
-                        count += 1
-            except ValueError:
-                pass
-
-        # 4. Frontmatter date → created_on
-        date_val = metadata.get("date")
-        if date_val:
-            date_str = str(date_val)[:10]  # YYYY-MM-DD
-            self.add_triple(
-                note_name,
-                "created_on",
-                date_str,
-                valid_from=date_str,
-                source=source,
-            )
-            count += 1
-
-        # 5. Frontmatter description → has_description (for search context)
+        # Frontmatter description → register as a named entity for search context
         desc = metadata.get("description")
         if desc and isinstance(desc, str) and len(desc) > 10:
             self.add_entity(note_name, entity_type="note")

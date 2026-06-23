@@ -487,6 +487,46 @@ class Ompa:
     # Dual-vault operations
     # -------------------------------------------------------------------------
 
+    def _resolve_vault_target(
+        self,
+        content: str,
+        tags: list[str],
+        file_path: Optional[str],
+        vault: Optional[str],
+    ) -> tuple[VaultTarget, "Vault"]:
+        """
+        Determine which vault (shared or personal) a write should target.
+
+        Returns a (VaultTarget, Vault) pair.
+        """
+        if not self.is_dual_vault:
+            return VaultTarget.SHARED, self.vault
+
+        if vault:
+            target = VaultTarget(vault)
+        elif self.dual_config.isolation_mode == IsolationMode.MANUAL:
+            target = self.dual_config.default_vault
+        else:
+            target = self.dual_config.classify_content(
+                content, tags=tags, file_path=file_path
+            )
+
+        target_vault = self.vault if target == VaultTarget.SHARED else self.personal_vault
+        return target, target_vault
+
+    def _build_file_path(self, content: str, folder_hint: str = None) -> str:
+        """
+        Derive a file path from content when none is provided.
+
+        Uses the classifier to pick the right folder, then slugifies the
+        first few words of the content as the filename.
+        """
+        classification = self.classifier.classify(content[:200])
+        folder = folder_hint or classification.suggested_folder
+        words = re.sub(r"[^\w\s]", "", content[:40]).split()
+        name = "-".join(words[:5]) if words else "note"
+        return f"{folder}{name}.md"
+
     def write(
         self,
         content: str,
@@ -509,38 +549,13 @@ class Ompa:
         Returns:
             dict with {vault, path, classified_as}
         """
-        tags = tags or []
+        from datetime import datetime
 
-        if not self.is_dual_vault:
-            target = VaultTarget.SHARED
-            target_vault = self.vault
-        elif vault:
-            target = VaultTarget(vault)
-            target_vault = (
-                self.vault if target == VaultTarget.SHARED else self.personal_vault
-            )
-        elif self.dual_config.isolation_mode == IsolationMode.MANUAL:
-            # Manual mode has no auto-classify; personal is the safe default
-            target = self.dual_config.default_vault
-            target_vault = (
-                self.vault if target == VaultTarget.SHARED else self.personal_vault
-            )
-        else:
-            target = self.dual_config.classify_content(
-                content, tags=tags, file_path=file_path
-            )
-            target_vault = (
-                self.vault if target == VaultTarget.SHARED else self.personal_vault
-            )
+        tags = tags or []
+        target, target_vault = self._resolve_vault_target(content, tags, file_path, vault)
 
         if not file_path:
-            classification = self.classifier.classify(content[:200])
-            folder = classification.suggested_folder
-            words = re.sub(r"[^\w\s]", "", content[:40]).split()
-            name = "-".join(words[:5]) if words else "note"
-            file_path = f"{folder}{name}.md"
-
-        from datetime import datetime
+            file_path = self._build_file_path(content)
 
         frontmatter: dict[str, object] = {
             "date": datetime.now().strftime("%Y-%m-%d"),
