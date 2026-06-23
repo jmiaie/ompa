@@ -134,10 +134,6 @@ class KnowledgeGraph:
     def _now(self) -> str:
         return datetime.now().strftime("%Y-%m-%d")
 
-    # -------------------------------------------------------------------------
-    # Entity operations
-    # -------------------------------------------------------------------------
-
     def add_entity(self, name: str, entity_type: str = "unknown") -> None:
         """Add an entity."""
         entity_id = self._entity_id(name)
@@ -182,10 +178,6 @@ class KnowledgeGraph:
             ).fetchall()
         return [_row_to_triple(r) for r in rows]
 
-    # -------------------------------------------------------------------------
-    # Triple operations
-    # -------------------------------------------------------------------------
-
     def add_triple(
         self,
         subject: str,
@@ -214,7 +206,6 @@ class KnowledgeGraph:
         object_id = self._entity_id(object)
 
         with self._conn() as conn:
-            # Ensure entities exist (single transaction)
             conn.execute(
                 "INSERT OR IGNORE INTO entities (id, name, type) VALUES (?, ?, ?)",
                 (subject_id, subject, "unknown"),
@@ -254,10 +245,6 @@ class KnowledgeGraph:
                 (ended, subject, predicate, obj),
             )
 
-    # -------------------------------------------------------------------------
-    # Timeline
-    # -------------------------------------------------------------------------
-
     def timeline(self, entity: str) -> list[dict]:
         """
         Get the chronological story of an entity.
@@ -274,7 +261,6 @@ class KnowledgeGraph:
 
         timeline = []
         for row in rows:
-            # Determine direction and label
             if row["subject"] == entity:
                 direction = "outbound"
                 label = f"{entity} --{row['predicate']}--> {row['object']}"
@@ -295,10 +281,6 @@ class KnowledgeGraph:
                 }
             )
         return timeline
-
-    # -------------------------------------------------------------------------
-    # Auto-population from vault
-    # -------------------------------------------------------------------------
 
     def populate_from_note(self, note_path: Path, vault_path: Path = None) -> int:
         """
@@ -419,10 +401,6 @@ class KnowledgeGraph:
 
         logger.info("KG populated: %d triples from vault %s", total, vault_path)
         return total
-
-    # -------------------------------------------------------------------------
-    # Statistics
-    # -------------------------------------------------------------------------
 
     def stats(self) -> dict:
         """Get knowledge graph statistics."""

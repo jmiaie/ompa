@@ -78,7 +78,6 @@ class Note:
                 links=cls._extract_wikilinks(content),
             )
         except Exception as e:
-            # Fallback: read raw content if frontmatter parsing fails
             logger.debug("Frontmatter parse failed for %s: %s", path, e)
             try:
                 text = path.read_text(encoding="utf-8")
@@ -117,7 +116,6 @@ class Note:
 class Vault:
     """Manages the OMPA vault structure."""
 
-    # Folder structure
     STRUCTURE = {
         "brain": [
             "Memories.md",
@@ -162,7 +160,6 @@ class Vault:
         notes = []
 
         for path in self.vault_path.rglob("*.md"):
-            # Check exclusions
             if any(excl in str(path) for excl in exclude_patterns):
                 continue
             notes.append(Note.from_file(path))
@@ -176,7 +173,6 @@ class Vault:
             # Index by stem (without .md) — case-insensitive
             key = note.path.stem.lower()
             index[key] = note.path
-            # Also index by full filename
             index[note.path.name.lower()] = note.path
         return index
 
@@ -269,7 +265,6 @@ class Vault:
         self, template_name: str, target_name: str, **kwargs
     ) -> Note:
         """Create a new note from a template. Both names are sanitized."""
-        # Sanitize template name
         safe_template = Path(template_name).name
         template_path = self.config.templates_folder / f"{safe_template}.md"
         if not template_path.exists():
@@ -277,12 +272,10 @@ class Vault:
 
         template = Note.from_file(template_path)
 
-        # Replace placeholders
         content = template.content
         for key, value in kwargs.items():
             content = content.replace(f"{{{{{key}}}}}", str(value))
 
-        # Sanitize and validate target path
         target_path = _safe_resolve(self.vault_path, target_name)
         note = Note(path=target_path, frontmatter=template.frontmatter, content=content)
         note.save()
@@ -293,7 +286,6 @@ class Vault:
         notes = self.list_notes()
         filename_index = self._build_filename_index(notes)
 
-        # Build linked set using smart wikilink resolution
         linked_files = set()
         for note in notes:
             for link in note.links:
@@ -357,7 +349,6 @@ class Vault:
         if path.suffix != ".md":
             return {"valid": True, "warnings": []}
 
-        # Skip dotfiles and template files
         if path.name.startswith(".") or path.name.startswith("README."):
             return {"valid": True, "warnings": []}
 
@@ -371,7 +362,6 @@ class Vault:
         try:
             content = path.read_text(encoding="utf-8")
 
-            # Check frontmatter
             if not content.startswith("---"):
                 warnings.append("Missing YAML frontmatter")
                 valid = False
@@ -388,7 +378,6 @@ class Vault:
                     if "tags:" not in fm and "tags :" not in fm:
                         warnings.append("Missing 'tags' in frontmatter")
 
-            # Check wikilinks (skip very short notes)
             if len(content) > 300 and "[[" not in content:
                 warnings.append(
                     "No [[wikilinks]] found — every note must link to at least one other note"

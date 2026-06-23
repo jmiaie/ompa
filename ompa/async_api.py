@@ -107,10 +107,6 @@ class AsyncOmpa:
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(self._executor, partial(fn, *args, **kwargs))
 
-    # ------------------------------------------------------------------
-    # Lifecycle hooks
-    # ------------------------------------------------------------------
-
     async def session_start(self):
         """Async session start — injects vault context (~2K tokens)."""
         return await self._run(self._ompa.session_start)
@@ -135,10 +131,6 @@ class AsyncOmpa:
         """Alias for stop()."""
         return await self.stop()
 
-    # ------------------------------------------------------------------
-    # Search
-    # ------------------------------------------------------------------
-
     async def search(
         self,
         query: str,
@@ -159,17 +151,9 @@ class AsyncOmpa:
             vaults=vaults,
         )
 
-    # ------------------------------------------------------------------
-    # Classification
-    # ------------------------------------------------------------------
-
     async def classify(self, message: str):
         """Async message classification."""
         return await self._run(self._ompa.classify, message)
-
-    # ------------------------------------------------------------------
-    # Knowledge graph
-    # ------------------------------------------------------------------
 
     async def kg_add(
         self,
@@ -201,10 +185,6 @@ class AsyncOmpa:
         """Async KG population from vault notes."""
         return await self._run(self._ompa.kg_populate)
 
-    # ------------------------------------------------------------------
-    # Vault
-    # ------------------------------------------------------------------
-
     async def write(self, content: str, **kwargs) -> dict:
         """Async vault write (auto-classifies in dual-vault mode)."""
         return await self._run(self._ompa.write, content, **kwargs)
@@ -225,10 +205,6 @@ class AsyncOmpa:
         """Async semantic index rebuild."""
         return await self._run(self._ompa.rebuild_index)
 
-    # ------------------------------------------------------------------
-    # Passthrough properties (synchronous access to sub-components)
-    # ------------------------------------------------------------------
-
     @property
     def vault(self):
         return self._ompa.vault
@@ -244,10 +220,6 @@ class AsyncOmpa:
     @property
     def is_dual_vault(self) -> bool:
         return self._ompa.is_dual_vault
-
-    # ------------------------------------------------------------------
-    # Context manager
-    # ------------------------------------------------------------------
 
     async def __aenter__(self) -> "AsyncOmpa":
         await self.session_start()

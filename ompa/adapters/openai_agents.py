@@ -63,10 +63,6 @@ class OmpaAgentHooks:
         self._ao = Ompa(vault_path=vault_path, agent_name=agent_name, enable_semantic=enable_semantic)
         self._session_context: Optional[str] = None
 
-    # ------------------------------------------------------------------
-    # OpenAI Agents SDK AgentHooks interface
-    # ------------------------------------------------------------------
-
     async def on_start(self, context: Any, agent: Any) -> None:
         """Called when the agent starts. Injects vault context."""
         result = self._ao.session_start()
@@ -105,10 +101,6 @@ class OmpaAgentHooks:
             self._ao.handle_message(msg)
         except Exception as e:
             logger.debug("OmpaAgentHooks.on_handoff failed: %s", e)
-
-    # ------------------------------------------------------------------
-    # Convenience: use as a context manager
-    # ------------------------------------------------------------------
 
     def __enter__(self):
         result = self._ao.session_start()
