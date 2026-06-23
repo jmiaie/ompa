@@ -84,6 +84,16 @@ class DualVaultConfig:
         """True if both shared and personal vaults are configured."""
         return self.shared_path is not None and self.personal_path is not None
 
+    @staticmethod
+    def _any_indicator_matches(
+        indicators: list[str], content_lower: str, tags_lower: list[str]
+    ) -> bool:
+        """Return True if any indicator appears in content or tags (case-insensitive)."""
+        return any(
+            ind.lower() in content_lower or ind.lower() in tags_lower
+            for ind in indicators
+        )
+
     def classify_content(
         self, content: str, tags: list[str] | None = None, file_path: str | None = None
     ) -> VaultTarget:
@@ -94,26 +104,19 @@ class DualVaultConfig:
         1. Personal indicators (secrets, credentials) — always personal
         2. Shared indicators (team tags, decision keywords) — always shared
         3. Folder-based rules
-        4. Tag-based rules
-        5. Default vault
+        4. Default vault
         """
         tags = tags or []
         content_lower = content.lower()
         tags_lower = [t.lower() for t in tags]
 
-        # 1. Personal indicators (check first — safety)
-        for indicator in self.personal_indicators:
-            if indicator.lower() in content_lower:
-                return VaultTarget.PERSONAL
-            if indicator.lower() in tags_lower:
-                return VaultTarget.PERSONAL
+        # 1. Personal indicators first — safety
+        if self._any_indicator_matches(self.personal_indicators, content_lower, tags_lower):
+            return VaultTarget.PERSONAL
 
         # 2. Shared indicators
-        for indicator in self.shared_indicators:
-            if indicator.lower() in content_lower:
-                return VaultTarget.SHARED
-            if indicator.lower() in tags_lower:
-                return VaultTarget.SHARED
+        if self._any_indicator_matches(self.shared_indicators, content_lower, tags_lower):
+            return VaultTarget.SHARED
 
         # 3. Folder-based rules
         if file_path:
@@ -123,7 +126,6 @@ class DualVaultConfig:
             if path_parts & SHARED_FOLDERS:
                 return VaultTarget.SHARED
 
-        # 4. Default
         return self.default_vault
 
     @classmethod
