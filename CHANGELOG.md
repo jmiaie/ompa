@@ -9,6 +9,20 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- Internal code-quality pass across the package: removed dead code (unused
+  dataclasses, methods, imports) and misleading "legacy" comments; consolidated
+  duplicated logic in the sync backends, vault path handling, and CLI; merged
+  the classifier's four parallel per-message-type dicts into a single
+  `_TypeProfile` mapping; replaced silent error-swallowing with proper logging
+  in `migration.py`, `knowledge_graph.py`, and `mcp_server.py`; fixed all ~70
+  mypy `no_implicit_optional` errors (now 0 errors); untangled the
+  `core.py`/`config.py` circular import; extracted helper functions to reduce
+  complexity in `mcp_server.py`'s tool dispatch, `core.py`'s write-target
+  resolution, and `cli.py`'s `doctor` command. No public API or behavior
+  changes.
+
 ---
 
 ## [1.0.8] — 2026-05-09
