@@ -58,7 +58,6 @@ class Ompa:
         self.agent_name = agent_name
         self._enable_semantic = enable_semantic
         self._embedding_backend = embedding_backend  # optional custom backend
-        self._session_started = False
         self._last_classification: Optional[Classification] = None
 
         # Dual-vault config
@@ -177,7 +176,6 @@ class Ompa:
                 logger.debug("Semantic index build skipped: %s", e)
 
         result = self.hooks.run_session_start(self)
-        self._session_started = True
         return result
 
     def handle_message(self, message: str) -> HookResult:
@@ -215,7 +213,6 @@ class Ompa:
     def stop(self) -> HookResult:
         """Run stop hook (wrap-up checklist)."""
         result = self.hooks.run_stop(self)
-        self._session_started = False
         return result
 
     def wrap_up(self) -> HookResult:
