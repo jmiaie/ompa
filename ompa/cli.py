@@ -10,7 +10,7 @@ from rich.console import Console
 from rich.table import Table
 
 from ompa import Ompa
-from ompa.config import make_ompa
+from ompa.core import make_ompa
 
 app = typer.Typer(help="OMPA — Universal AI agent memory layer")
 console = Console()

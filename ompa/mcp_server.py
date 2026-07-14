@@ -22,7 +22,7 @@ import sys
 from pathlib import Path
 
 from ompa import Ompa, __version__
-from ompa.config import make_ompa
+from ompa.core import make_ompa
 
 logger = logging.getLogger(__name__)
 

@@ -11,10 +11,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
 from typing import Any
-from typing import Optional, TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from .core import Ompa
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -205,43 +202,3 @@ class DualVaultConfig:
         config_path.parent.mkdir(parents=True, exist_ok=True)
         with open(config_path, "w", encoding="utf-8") as f:
             yaml.dump(data, f, default_flow_style=False, sort_keys=False)
-
-
-def make_ompa(
-    vault_path: str | Path | None = None,
-    shared_vault_path: str | Path | None = None,
-    personal_vault_path: str | Path | None = None,
-    isolation_mode: str = "strict",
-    enable_semantic: bool = False,
-) -> Ompa:
-    """
-    Create an Ompa instance, supporting both single and dual vault modes.
-
-    Consolidates instance creation logic used across CLI and MCP server.
-    Automatically selects between single-vault and dual-vault initialization.
-
-    Args:
-        vault_path: Path for single-vault mode (ignored if dual vault paths provided)
-        shared_vault_path: Path to shared vault (activates dual-vault mode)
-        personal_vault_path: Path to personal vault (activates dual-vault mode)
-        isolation_mode: "strict", "permissive", or "manual"
-        enable_semantic: Whether to enable semantic search on initialization
-
-    Returns:
-        Ompa instance configured for the selected mode
-    """
-    from .core import Ompa  # Import here to avoid circular imports
-
-    if shared_vault_path and personal_vault_path:
-        # Dual-vault mode
-        return Ompa(
-            shared_vault_path=shared_vault_path,
-            personal_vault_path=personal_vault_path,
-            isolation_mode=isolation_mode,
-            enable_semantic=enable_semantic,
-        )
-    # Single-vault mode (default)
-    return Ompa(
-        vault_path=vault_path or Path("."),
-        enable_semantic=enable_semantic,
-    )
