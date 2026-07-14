@@ -17,11 +17,14 @@ Usage:
 """
 
 import json
+import logging
 import sys
 from pathlib import Path
 
 from ompa import Ompa, __version__
 from ompa.config import make_ompa
+
+logger = logging.getLogger(__name__)
 
 
 def _make_ompa(arguments: dict, enable_semantic: bool = False) -> Ompa:
@@ -623,6 +626,7 @@ def handle_call_tool(name: str, arguments: dict) -> dict:
     except KeyError as e:
         return {"error": f"Missing required argument: {e}"}
     except Exception as e:
+        logger.exception("Tool call %r failed", name)
         return {"error": type(e).__name__}
 
 
@@ -699,6 +703,7 @@ def main():
                     break
 
         except Exception as e:
+            logger.exception("MCP request loop failed")
             req_id = None
             if request is not None:
                 req_id = request.get("id") if isinstance(request, dict) else None
