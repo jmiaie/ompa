@@ -513,6 +513,36 @@ class Ompa:
     # Dual-vault operations
     # -------------------------------------------------------------------------
 
+    def _resolve_write_target(
+        self,
+        content: str,
+        tags: list[str],
+        file_path: str | None,
+        vault: str | None,
+    ) -> tuple[VaultTarget, Vault]:
+        """Determine which vault (shared or personal) a write should target."""
+        if not self.is_dual_vault:
+            return VaultTarget.SHARED, self.vault
+
+        # is_dual_vault guarantees personal_vault is set.
+        assert self.personal_vault is not None
+
+        if vault:
+            target = VaultTarget(vault)
+        elif self.dual_config.isolation_mode == IsolationMode.MANUAL:
+            # In manual mode, default to personal (safe default)
+            target = self.dual_config.default_vault
+        else:
+            # Auto-classify
+            target = self.dual_config.classify_content(
+                content, tags=tags, file_path=file_path
+            )
+
+        target_vault = (
+            self.vault if target == VaultTarget.SHARED else self.personal_vault
+        )
+        return target, target_vault
+
     def write(
         self,
         content: str,
@@ -537,33 +567,9 @@ class Ompa:
         """
         tags = tags or []
 
-        # Determine target vault
-        if not self.is_dual_vault:
-            target = VaultTarget.SHARED
-            target_vault = self.vault
-        elif vault:
-            target = VaultTarget(vault)
-            # is_dual_vault guarantees personal_vault is set.
-            assert self.personal_vault is not None
-            target_vault = (
-                self.vault if target == VaultTarget.SHARED else self.personal_vault
-            )
-        elif self.dual_config.isolation_mode == IsolationMode.MANUAL:
-            # In manual mode, default to personal (safe default)
-            target = self.dual_config.default_vault
-            assert self.personal_vault is not None
-            target_vault = (
-                self.vault if target == VaultTarget.SHARED else self.personal_vault
-            )
-        else:
-            # Auto-classify
-            target = self.dual_config.classify_content(
-                content, tags=tags, file_path=file_path
-            )
-            assert self.personal_vault is not None
-            target_vault = (
-                self.vault if target == VaultTarget.SHARED else self.personal_vault
-            )
+        target, target_vault = self._resolve_write_target(
+            content, tags, file_path, vault
+        )
 
         # Build file path if not provided
         if not file_path:

@@ -464,14 +464,8 @@ def _sync_remote(vault_path: Path, backend: str, remote: str | None, message: st
         console.print(f"[red]Sync error: {e}[/red]")
 
 
-@app.command()
-def doctor(
-    vault_path: Path = Path("."),
-):
-    """Check vault health — structure, KG, palace, semantic index, orphans."""
-    from rich import box
-
-    ao = Ompa(vault_path, enable_semantic=False)
+def _run_health_checks(ao: Ompa, vault_path: Path) -> list[tuple[str, str, str]]:
+    """Gather (status, check, detail) tuples for the `doctor` command."""
     checks: list[tuple[str, str, str]] = []
 
     # Vault root
@@ -546,7 +540,13 @@ def doctor(
     except Exception:
         checks.append(("WARN", "Total notes", "Could not read vault"))
 
-    # Render
+    return checks
+
+
+def _render_health_report(checks: list[tuple[str, str, str]]) -> None:
+    """Render doctor checks as a table, then print a pass/warn/error summary."""
+    from rich import box
+
     styles = {"OK": "green", "WARN": "yellow", "ERROR": "red", "INFO": "blue"}
     table = Table(title="OMPA Health Check", box=box.ROUNDED)
     table.add_column("Status", width=8)
@@ -570,6 +570,16 @@ def doctor(
         )
     else:
         console.print("\n[green]✓ Vault is healthy[/green]")
+
+
+@app.command()
+def doctor(
+    vault_path: Path = Path("."),
+):
+    """Check vault health — structure, KG, palace, semantic index, orphans."""
+    ao = Ompa(vault_path, enable_semantic=False)
+    checks = _run_health_checks(ao, vault_path)
+    _render_health_report(checks)
 
 
 @app.command()

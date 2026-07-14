@@ -537,92 +537,85 @@ def handle_list_tools():
     return {"tools": tools}
 
 
+# Maps each tool name to a small adapter calling its implementation with the
+# arguments extracted from the request. Kept as a table (rather than an
+# if/elif chain) so handle_call_tool stays a thin, easy-to-follow dispatcher.
+_TOOL_DISPATCH = {
+    "ao_session_start": lambda args, vault_path: ao_session_start(vault_path),
+    "ao_classify": lambda args, vault_path: ao_classify(
+        message=args["message"], vault_path=vault_path
+    ),
+    "ao_search": lambda args, vault_path: ao_search(
+        query=args["query"], vault_path=vault_path, limit=args.get("limit", 5)
+    ),
+    "ao_kg_query": lambda args, vault_path: ao_kg_query(
+        entity=args["entity"], vault_path=vault_path, as_of=args.get("as_of")
+    ),
+    "ao_kg_add": lambda args, vault_path: ao_kg_add(
+        subject=args["subject"],
+        predicate=args["predicate"],
+        object_=args["object"],
+        valid_from=args.get("valid_from"),
+        source=args.get("source"),
+        vault_path=vault_path,
+    ),
+    "ao_kg_stats": lambda args, vault_path: ao_kg_stats(vault_path),
+    "ao_palace_wings": lambda args, vault_path: ao_palace_wings(vault_path),
+    "ao_palace_rooms": lambda args, vault_path: ao_palace_rooms(
+        wing=args["wing"], vault_path=vault_path
+    ),
+    "ao_palace_tunnel": lambda args, vault_path: ao_palace_tunnel(
+        wing_a=args["wing_a"],
+        wing_b=args["wing_b"],
+        room=args.get("room", "shared"),
+        vault_path=vault_path,
+    ),
+    "ao_validate": lambda args, vault_path: ao_validate(
+        file_path=args["file_path"], vault_path=vault_path
+    ),
+    "ao_wrap_up": lambda args, vault_path: ao_wrap_up(vault_path),
+    "ao_status": lambda args, vault_path: ao_status(vault_path),
+    "ao_orphans": lambda args, vault_path: ao_orphans(vault_path),
+    "ao_kg_populate": lambda args, vault_path: ao_kg_populate(vault_path),
+    "ao_sync": lambda args, vault_path: ao_sync(vault_path),
+    "ao_write": lambda args, vault_path: ao_write(args),
+    "ao_export": lambda args, vault_path: ao_export(args),
+    "ao_import": lambda args, vault_path: ao_import(args),
+    "ao_init": lambda args, vault_path: ao_init(vault_path),
+}
+
+
+def _validate_vault_path(arguments: dict) -> str | None:
+    """Extract vault_path from arguments, or None if it looks unsafe."""
+    vault_path = str(arguments.get("vault_path", "."))
+    # Block obvious traversal attempts
+    if ".." in vault_path or vault_path in ("/", "C:\\", "C:/"):
+        return None
+    return vault_path
+
+
+def _cap_limit(arguments: dict) -> dict:
+    """Cap a caller-supplied 'limit' argument to a sane maximum."""
+    if "limit" in arguments:
+        return {**arguments, "limit": min(int(arguments["limit"]), 100)}
+    return arguments
+
+
 def handle_call_tool(name: str, arguments: dict) -> dict:
     """Handle tool call request."""
     if name not in TOOLS:
         return {"error": f"Unknown tool: {name}"}
 
     try:
-        # Extract and validate vault_path
-        vault_path = str(arguments.get("vault_path", "."))
-        # Block obvious traversal attempts
-        if ".." in vault_path or vault_path in ("/", "C:\\", "C:/"):
+        vault_path = _validate_vault_path(arguments)
+        if vault_path is None:
             return {"error": "Invalid vault_path"}
-        # Cap limit parameters
-        if "limit" in arguments:
-            arguments = {**arguments, "limit": min(int(arguments["limit"]), 100)}
+        arguments = _cap_limit(arguments)
 
-        if name == "ao_session_start":
-            result = ao_session_start(vault_path)
-        elif name == "ao_classify":
-            result = ao_classify(
-                message=arguments["message"],
-                vault_path=vault_path,
-            )
-        elif name == "ao_search":
-            result = ao_search(
-                query=arguments["query"],
-                vault_path=vault_path,
-                limit=arguments.get("limit", 5),
-            )
-        elif name == "ao_kg_query":
-            result = ao_kg_query(
-                entity=arguments["entity"],
-                vault_path=vault_path,
-                as_of=arguments.get("as_of"),
-            )
-        elif name == "ao_kg_add":
-            result = ao_kg_add(
-                subject=arguments["subject"],
-                predicate=arguments["predicate"],
-                object_=arguments["object"],
-                valid_from=arguments.get("valid_from"),
-                source=arguments.get("source"),
-                vault_path=vault_path,
-            )
-        elif name == "ao_kg_stats":
-            result = ao_kg_stats(vault_path)
-        elif name == "ao_palace_wings":
-            result = ao_palace_wings(vault_path)
-        elif name == "ao_palace_rooms":
-            result = ao_palace_rooms(
-                wing=arguments["wing"],
-                vault_path=vault_path,
-            )
-        elif name == "ao_palace_tunnel":
-            result = ao_palace_tunnel(
-                wing_a=arguments["wing_a"],
-                wing_b=arguments["wing_b"],
-                room=arguments.get("room", "shared"),
-                vault_path=vault_path,
-            )
-        elif name == "ao_validate":
-            result = ao_validate(
-                file_path=arguments["file_path"],
-                vault_path=vault_path,
-            )
-        elif name == "ao_wrap_up":
-            result = ao_wrap_up(vault_path)
-        elif name == "ao_status":
-            result = ao_status(vault_path)
-        elif name == "ao_orphans":
-            result = ao_orphans(vault_path)
-        elif name == "ao_kg_populate":
-            result = ao_kg_populate(vault_path)
-        elif name == "ao_sync":
-            result = ao_sync(vault_path)
-        elif name == "ao_write":
-            result = ao_write(arguments)
-        elif name == "ao_export":
-            result = ao_export(arguments)
-        elif name == "ao_import":
-            result = ao_import(arguments)
-        elif name == "ao_init":
-            result = ao_init(vault_path)
-        else:
-            result = {"error": f"Unhandled tool: {name}"}
-
-        return result
+        dispatch = _TOOL_DISPATCH.get(name)
+        if dispatch is None:
+            return {"error": f"Unhandled tool: {name}"}
+        return dispatch(arguments, vault_path)
     except KeyError as e:
         return {"error": f"Missing required argument: {e}"}
     except Exception as e:
@@ -633,6 +626,53 @@ def handle_call_tool(name: str, arguments: dict) -> dict:
 # ---------------------------------------------------------------------------
 # MCP Protocol — JSON-RPC over stdin/stdout
 # ---------------------------------------------------------------------------
+
+
+def _write_response(response: dict) -> None:
+    """Serialize a JSON-RPC response and flush it to stdout."""
+    sys.stdout.write(json.dumps(response) + "\n")
+    sys.stdout.flush()
+
+
+def _build_initialize_response(request_id) -> dict:
+    return {
+        "jsonrpc": "2.0",
+        "id": request_id,
+        "result": {
+            "protocolVersion": "2024-11-05",
+            "capabilities": {"tools": {}},
+            "serverInfo": {
+                "name": "ompa",
+                "version": __version__,
+            },
+        },
+    }
+
+
+def _build_tools_list_response(request_id) -> dict:
+    return {
+        "jsonrpc": "2.0",
+        "id": request_id,
+        "result": handle_list_tools(),
+    }
+
+
+def _build_tools_call_response(request: dict, request_id) -> dict:
+    name = request["params"]["name"]
+    arguments = request["params"].get("arguments", {})
+    result = handle_call_tool(name, arguments)
+    return {
+        "jsonrpc": "2.0",
+        "id": request_id,
+        "result": {
+            "content": [
+                {
+                    "type": "text",
+                    "text": json.dumps(result, indent=2),
+                }
+            ]
+        },
+    }
 
 
 def main():
@@ -652,48 +692,13 @@ def main():
             request_id = request.get("id")
 
             if method == "initialize":
-                response = {
-                    "jsonrpc": "2.0",
-                    "id": request_id,
-                    "result": {
-                        "protocolVersion": "2024-11-05",
-                        "capabilities": {"tools": {}},
-                        "serverInfo": {
-                            "name": "ompa",
-                            "version": __version__,
-                        },
-                    },
-                }
-                sys.stdout.write(json.dumps(response) + "\n")
-                sys.stdout.flush()
+                _write_response(_build_initialize_response(request_id))
 
             elif method == "tools/list":
-                response = {
-                    "jsonrpc": "2.0",
-                    "id": request_id,
-                    "result": handle_list_tools(),
-                }
-                sys.stdout.write(json.dumps(response) + "\n")
-                sys.stdout.flush()
+                _write_response(_build_tools_list_response(request_id))
 
             elif method == "tools/call":
-                name = request["params"]["name"]
-                arguments = request["params"].get("arguments", {})
-                result = handle_call_tool(name, arguments)
-                response = {
-                    "jsonrpc": "2.0",
-                    "id": request_id,
-                    "result": {
-                        "content": [
-                            {
-                                "type": "text",
-                                "text": json.dumps(result, indent=2),
-                            }
-                        ]
-                    },
-                }
-                sys.stdout.write(json.dumps(response) + "\n")
-                sys.stdout.flush()
+                _write_response(_build_tools_call_response(request, request_id))
 
             elif method in ("notifications/initialized",):
                 pass  # MCP lifecycle notification, no response needed
@@ -707,13 +712,13 @@ def main():
             req_id = None
             if request is not None:
                 req_id = request.get("id") if isinstance(request, dict) else None
-            error_response = {
-                "jsonrpc": "2.0",
-                "id": req_id,
-                "error": {"code": -32603, "message": type(e).__name__},
-            }
-            sys.stdout.write(json.dumps(error_response) + "\n")
-            sys.stdout.flush()
+            _write_response(
+                {
+                    "jsonrpc": "2.0",
+                    "id": req_id,
+                    "error": {"code": -32603, "message": type(e).__name__},
+                }
+            )
             request = None  # Reset for next iteration
 
 
