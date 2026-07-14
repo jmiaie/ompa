@@ -240,7 +240,7 @@ def make_ompa(
             isolation_mode=isolation_mode,
             enable_semantic=enable_semantic,
         )
-    # Single-vault mode (legacy / backward compatible)
+    # Single-vault mode (default)
     return Ompa(
         vault_path=vault_path or Path("."),
         enable_semantic=enable_semantic,

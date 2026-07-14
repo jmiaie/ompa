@@ -35,7 +35,7 @@ import logging
 from pathlib import Path
 from typing import Optional
 
-from ..semantic import SearchResult, EmbeddingBackend, _cosine_similarity
+from ..semantic import SearchResult, EmbeddingBackend
 
 logger = logging.getLogger(__name__)
 
