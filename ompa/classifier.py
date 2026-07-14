@@ -6,7 +6,7 @@ Also classifies content for dual-vault routing (shared vs personal).
 
 import re
 from enum import Enum
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 
 class MessageType(Enum):
@@ -36,162 +36,215 @@ class Classification:
     suggested_action: str
 
 
+@dataclass(frozen=True)
+class _TypeProfile:
+    """
+    Per-MessageType classification bundle: regex patterns, routing hints,
+    suggested folder, and primary action.
+
+    These four facets used to live in four separate dicts (PATTERNS,
+    ROUTING_HINTS, FOLDER_MAP, and an inline `actions` dict) all keyed by
+    MessageType. Keeping them as one dict of profiles means adding a new
+    MessageType can't silently omit one of the facets — a missing field is a
+    constructor error, not a silent `.get(..., default)` fallback elsewhere.
+    """
+
+    patterns: tuple[str, ...]
+    routing_hints: tuple[str, ...] = field(default_factory=tuple)
+    folder: str = "thinking/"
+    action: str = "Continue conversation"
+
+
 class MessageClassifier:
     """
     Classifies user messages and provides routing guidance.
     Inspired by obsidian-minds classify-message.py but framework-agnostic.
     """
 
-    # Regex patterns for classification
-    PATTERNS = {
-        MessageType.DECISION: [
-            r"\b(decided|decision|we chose|going with|settled on|agreed to)\b",
-            r"\b(defer|postpone|push to|revisit)\b.*\b(Q\d|quarter|sprint)\b",
-            r"(?:ADR|decision record)",
-        ],
-        MessageType.INCIDENT: [
-            r"\b(incident|outage|bug|crash|failure|error|broken)\b",
-            r"\b(debug|root cause|RCA|mitigation|hotfix)\b",
-            r"(?:on-call|pagerduty|statuspage)",
-        ],
-        MessageType.WIN: [
-            r"\b(won|praised|success|achieved|shipped|launched|deployed)\b",
-            r"\b(great work|nice job|excellent|well done)\b",
-            r"\b(milestone|feature complete|released)\b",
-        ],
-        MessageType.ONE_ON_ONE: [
-            r"\b(1:1|one-on-one|1on1|check-in|sync)\b.*\b(manager|lead|peer|coworker)\b",
-            r"\b(feedback|concerns|growth|progress|career)\b",
-            r"\b(1-on-1|weekly sync|bias for action)\b",
-        ],
-        MessageType.MEETING: [
-            r"\b(meeting|briefing|session|call)\b",
-            r"\b(agenda|notes|takeaways|action items)\b",
-            r"\b(prep for|preparing for|standup|retrospective)\b",
-        ],
-        MessageType.PROJECT_UPDATE: [
-            r"\b(project|initiative|epic|feature|story|ticket)\b.*\b(update|progress|status|blocked)\b",
-            r"\b(working on|started|finished|continuing)\b",
-            r"\b(blocked on|waiting for|depends on)\b",
-        ],
-        MessageType.PERSON_INFO: [
-            r"\b(teammate|coworker|peer|manager|lead|engineer)\b.*\b(joined|moved|left|new|role)\b",
-            r"\b(people|team|person)\b.*\b(update|change|info)\b",
-            r"\b(Sarah|John|Mike|Tom|Jane)\b",  # Names as hints
-        ],
-        MessageType.QUESTION: [
-            r"\b(how do|how can|what is|what are|why does|can we|should we)\b",
-            r"\?",  # Question marks
-            r"\b(clarify|explain|help me understand)\b",
-        ],
-        MessageType.TASK: [
-            r"\b(task|todo|action item|follow-up)\b",
-            r"\b(do this|handle|take care of|responsible for)\b",
-            r"\-\s*\[[x ]\]",  # Checkbox syntax
-        ],
-        MessageType.ARCHITECTURE: [
-            r"\b(architecture|design|system design| ADR |technical design)\b",
-            r"\b(api|service|microservice|backend|frontend|infrastructure)\b.*\b(design|decide|approach)\b",
-            r"\b(migration|refactor|deprecate|legacy)\b",
-        ],
-        MessageType.CODE: [
-            r"\b(code|function|class|module|import|export)\b",
-            r"\b(python|rust|javascript|typescript|java|go)\b",
-            r"\b(bug fix|feature|PR|pull request|commit)\b",
-        ],
-        MessageType.BRAIN_DUMP: [
-            r"\b(dump|stream of consciousness|random thoughts|everything on my mind)\b",
-            r"\b(btw|also|oh and|forgot to mention)\b",
-        ],
-        MessageType.WRAP_UP: [
-            r"\b(wrap up|wrapping up|finish up|end session|done for today)\b",
-        ],
-        MessageType.STANDUP: [
-            r"\b(standup|daily|start of day|morning kickoff)\b",
-            r"\b(start session|start work|starting)\b",
-        ],
-    }
-
-    # Routing hints per message type
-    ROUTING_HINTS = {
-        MessageType.DECISION: [
-            "This is a decision. Record it in brain/Key Decisions.md",
-            "Update relevant project notes with the decision",
-            "Add to Decision Log if formal ADR needed",
-        ],
-        MessageType.INCIDENT: [
-            "Create incident note in work/incidents/",
-            "Run /om-incident-capture for structured capture",
-            "Update brain/Gotchas.md with lessons learned",
-        ],
-        MessageType.WIN: [
-            "Add to perf/Brag Doc.md immediately",
-            "This is a win worth capturing for performance review",
-            "Update relevant competency notes with evidence",
-        ],
-        MessageType.ONE_ON_ONE: [
-            "Create or update 1:1 note in work/1-1/",
-            "Run /om-prep-1on1 if preparing for upcoming 1:1",
-        ],
-        MessageType.MEETING: [
-            "Run /om-meeting for structured meeting prep",
-            "Add to work/meetings/ inbox for later processing",
-        ],
-        MessageType.PROJECT_UPDATE: [
-            "Update work/active/ project note",
-            "Check if project status has changed",
-        ],
-        MessageType.PERSON_INFO: [
-            "Update org/people/ note for this person",
-            "Run /om-people-profiler for context",
-        ],
-        MessageType.QUESTION: [
-            "Answer directly with available context",
-            "Consider searching vault for relevant knowledge first",
-        ],
-        MessageType.TASK: [
-            "Add to task list / obsidian tasks",
-            "Track completion in relevant project note",
-        ],
-        MessageType.ARCHITECTURE: [
-            "Consider creating ADR in work/active/",
-            "Update reference/architecture docs",
-        ],
-        MessageType.CODE: [
-            "Focus on implementation details",
-            "Update relevant code documentation",
-        ],
-        MessageType.BRAIN_DUMP: [
-            "Run /om-dump for freeform capture",
-            "Route to appropriate notes automatically",
-        ],
-        MessageType.WRAP_UP: [
-            "Run /om-wrap-up for session review",
-            "Verify all notes have links",
-            "Update indexes before closing",
-        ],
-        MessageType.STANDUP: [
-            "Run /om-standup for structured morning context",
-            "Read brain/North Star.md first",
-        ],
-    }
-
-    # Suggested folder locations
-    FOLDER_MAP = {
-        MessageType.DECISION: "work/active/",
-        MessageType.INCIDENT: "work/incidents/",
-        MessageType.WIN: "perf/brag/",
-        MessageType.ONE_ON_ONE: "work/1-1/",
-        MessageType.MEETING: "work/meetings/",
-        MessageType.PROJECT_UPDATE: "work/active/",
-        MessageType.PERSON_INFO: "org/people/",
-        MessageType.QUESTION: "thinking/",
-        MessageType.TASK: "work/active/",
-        MessageType.ARCHITECTURE: "work/active/",
-        MessageType.CODE: "reference/",
-        MessageType.BRAIN_DUMP: "thinking/",
-        MessageType.WRAP_UP: "brain/",
-        MessageType.STANDUP: "brain/",
+    # One profile per MessageType — patterns, routing hints, folder, and action.
+    _PROFILES: dict[MessageType, _TypeProfile] = {
+        MessageType.DECISION: _TypeProfile(
+            patterns=(
+                r"\b(decided|decision|we chose|going with|settled on|agreed to)\b",
+                r"\b(defer|postpone|push to|revisit)\b.*\b(Q\d|quarter|sprint)\b",
+                r"(?:ADR|decision record)",
+            ),
+            routing_hints=(
+                "This is a decision. Record it in brain/Key Decisions.md",
+                "Update relevant project notes with the decision",
+                "Add to Decision Log if formal ADR needed",
+            ),
+            folder="work/active/",
+            action="Record decision and update relevant project notes",
+        ),
+        MessageType.INCIDENT: _TypeProfile(
+            patterns=(
+                r"\b(incident|outage|bug|crash|failure|error|broken)\b",
+                r"\b(debug|root cause|RCA|mitigation|hotfix)\b",
+                r"(?:on-call|pagerduty|statuspage)",
+            ),
+            routing_hints=(
+                "Create incident note in work/incidents/",
+                "Run /om-incident-capture for structured capture",
+                "Update brain/Gotchas.md with lessons learned",
+            ),
+            folder="work/incidents/",
+            action="Create incident note and capture details",
+        ),
+        MessageType.WIN: _TypeProfile(
+            patterns=(
+                r"\b(won|praised|success|achieved|shipped|launched|deployed)\b",
+                r"\b(great work|nice job|excellent|well done)\b",
+                r"\b(milestone|feature complete|released)\b",
+            ),
+            routing_hints=(
+                "Add to perf/Brag Doc.md immediately",
+                "This is a win worth capturing for performance review",
+                "Update relevant competency notes with evidence",
+            ),
+            folder="perf/brag/",
+            action="Add to Brag Doc and update competency evidence",
+        ),
+        MessageType.ONE_ON_ONE: _TypeProfile(
+            patterns=(
+                r"\b(1:1|one-on-one|1on1|check-in|sync)\b.*\b(manager|lead|peer|coworker)\b",
+                r"\b(feedback|concerns|growth|progress|career)\b",
+                r"\b(1-on-1|weekly sync|bias for action)\b",
+            ),
+            routing_hints=(
+                "Create or update 1:1 note in work/1-1/",
+                "Run /om-prep-1on1 if preparing for upcoming 1:1",
+            ),
+            folder="work/1-1/",
+            action="Create or update 1:1 meeting note",
+        ),
+        MessageType.MEETING: _TypeProfile(
+            patterns=(
+                r"\b(meeting|briefing|session|call)\b",
+                r"\b(agenda|notes|takeaways|action items)\b",
+                r"\b(prep for|preparing for|standup|retrospective)\b",
+            ),
+            routing_hints=(
+                "Run /om-meeting for structured meeting prep",
+                "Add to work/meetings/ inbox for later processing",
+            ),
+            folder="work/meetings/",
+            action="Create meeting prep or capture notes",
+        ),
+        MessageType.PROJECT_UPDATE: _TypeProfile(
+            patterns=(
+                r"\b(project|initiative|epic|feature|story|ticket)\b.*\b(update|progress|status|blocked)\b",
+                r"\b(working on|started|finished|continuing)\b",
+                r"\b(blocked on|waiting for|depends on)\b",
+            ),
+            routing_hints=(
+                "Update work/active/ project note",
+                "Check if project status has changed",
+            ),
+            folder="work/active/",
+            action="Update project status in work/active/",
+        ),
+        MessageType.PERSON_INFO: _TypeProfile(
+            patterns=(
+                r"\b(teammate|coworker|peer|manager|lead|engineer)\b.*\b(joined|moved|left|new|role)\b",
+                r"\b(people|team|person)\b.*\b(update|change|info)\b",
+                r"\b(Sarah|John|Mike|Tom|Jane)\b",  # Names as hints
+            ),
+            routing_hints=(
+                "Update org/people/ note for this person",
+                "Run /om-people-profiler for context",
+            ),
+            folder="org/people/",
+            action="Update person note in org/people/",
+        ),
+        MessageType.QUESTION: _TypeProfile(
+            patterns=(
+                r"\b(how do|how can|what is|what are|why does|can we|should we)\b",
+                r"\?",  # Question marks
+                r"\b(clarify|explain|help me understand)\b",
+            ),
+            routing_hints=(
+                "Answer directly with available context",
+                "Consider searching vault for relevant knowledge first",
+            ),
+            folder="thinking/",
+            action="Search vault and answer from context",
+        ),
+        MessageType.TASK: _TypeProfile(
+            patterns=(
+                r"\b(task|todo|action item|follow-up)\b",
+                r"\b(do this|handle|take care of|responsible for)\b",
+                r"\-\s*\[[x ]\]",  # Checkbox syntax
+            ),
+            routing_hints=(
+                "Add to task list / obsidian tasks",
+                "Track completion in relevant project note",
+            ),
+            folder="work/active/",
+            action="Add to task list",
+        ),
+        MessageType.ARCHITECTURE: _TypeProfile(
+            patterns=(
+                r"\b(architecture|design|system design| ADR |technical design)\b",
+                r"\b(api|service|microservice|backend|frontend|infrastructure)\b.*\b(design|decide|approach)\b",
+                r"\b(migration|refactor|deprecate|legacy)\b",
+            ),
+            routing_hints=(
+                "Consider creating ADR in work/active/",
+                "Update reference/architecture docs",
+            ),
+            folder="work/active/",
+            action="Consider creating ADR",
+        ),
+        MessageType.CODE: _TypeProfile(
+            patterns=(
+                r"\b(code|function|class|module|import|export)\b",
+                r"\b(python|rust|javascript|typescript|java|go)\b",
+                r"\b(bug fix|feature|PR|pull request|commit)\b",
+            ),
+            routing_hints=(
+                "Focus on implementation details",
+                "Update relevant code documentation",
+            ),
+            folder="reference/",
+            action="Focus on implementation",
+        ),
+        MessageType.BRAIN_DUMP: _TypeProfile(
+            patterns=(
+                r"\b(dump|stream of consciousness|random thoughts|everything on my mind)\b",
+                r"\b(btw|also|oh and|forgot to mention)\b",
+            ),
+            routing_hints=(
+                "Run /om-dump for freeform capture",
+                "Route to appropriate notes automatically",
+            ),
+            folder="thinking/",
+            action="Run /om-dump to route content",
+        ),
+        MessageType.WRAP_UP: _TypeProfile(
+            patterns=(
+                r"\b(wrap up|wrapping up|finish up|end session|done for today)\b",
+            ),
+            routing_hints=(
+                "Run /om-wrap-up for session review",
+                "Verify all notes have links",
+                "Update indexes before closing",
+            ),
+            folder="brain/",
+            action="Run /om-wrap-up session checklist",
+        ),
+        MessageType.STANDUP: _TypeProfile(
+            patterns=(
+                r"\b(standup|daily|start of day|morning kickoff)\b",
+                r"\b(start session|start work|starting)\b",
+            ),
+            routing_hints=(
+                "Run /om-standup for structured morning context",
+                "Read brain/North Star.md first",
+            ),
+            folder="brain/",
+            action="Run /om-standup for morning context",
+        ),
     }
 
     def classify(self, message: str) -> Classification:
@@ -207,9 +260,9 @@ class MessageClassifier:
         message_lower = message.lower()
         scores = {}
 
-        for msg_type, patterns in self.PATTERNS.items():
+        for msg_type, profile in self._PROFILES.items():
             score = 0
-            for pattern in patterns:
+            for pattern in profile.patterns:
                 if re.search(pattern, message_lower, re.IGNORECASE):
                     score += 1
             if score > 0:
@@ -232,34 +285,14 @@ class MessageClassifier:
         if len(message.split()) < 5:
             confidence *= 0.7
 
+        profile = self._PROFILES[best_type]
         return Classification(
             message_type=best_type,
             confidence=confidence,
-            routing_hints=self.ROUTING_HINTS.get(best_type, []),
-            suggested_folder=self.FOLDER_MAP.get(best_type, "thinking/"),
-            suggested_action=self._get_action(best_type),
+            routing_hints=list(profile.routing_hints),
+            suggested_folder=profile.folder,
+            suggested_action=profile.action,
         )
-
-    def _get_action(self, msg_type: MessageType) -> str:
-        """Get the primary action for a message type."""
-        actions = {
-            MessageType.DECISION: "Record decision and update relevant project notes",
-            MessageType.INCIDENT: "Create incident note and capture details",
-            MessageType.WIN: "Add to Brag Doc and update competency evidence",
-            MessageType.ONE_ON_ONE: "Create or update 1:1 meeting note",
-            MessageType.MEETING: "Create meeting prep or capture notes",
-            MessageType.PROJECT_UPDATE: "Update project status in work/active/",
-            MessageType.PERSON_INFO: "Update person note in org/people/",
-            MessageType.QUESTION: "Search vault and answer from context",
-            MessageType.TASK: "Add to task list",
-            MessageType.ARCHITECTURE: "Consider creating ADR",
-            MessageType.CODE: "Focus on implementation",
-            MessageType.BRAIN_DUMP: "Run /om-dump to route content",
-            MessageType.WRAP_UP: "Run /om-wrap-up session checklist",
-            MessageType.STANDUP: "Run /om-standup for morning context",
-            MessageType.UNKNOWN: "Continue conversation",
-        }
-        return actions.get(msg_type, "Continue conversation")
 
     def get_routing_hint(self, message: str) -> str:
         """
