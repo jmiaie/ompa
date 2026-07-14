@@ -258,7 +258,7 @@ class MessageClassifier:
             Classification with type, confidence, hints, and suggested actions
         """
         message_lower = message.lower()
-        scores = {}
+        scores: dict[MessageType, int] = {}
 
         for msg_type, profile in self._PROFILES.items():
             score = 0
@@ -278,7 +278,7 @@ class MessageClassifier:
             )
 
         # Get highest scoring type
-        best_type = max(scores, key=scores.get)
+        best_type = max(scores, key=scores.__getitem__)
         confidence = min(scores[best_type] / 3.0, 1.0)  # Normalize to 0-1
 
         # For short messages, reduce confidence

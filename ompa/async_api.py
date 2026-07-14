@@ -32,7 +32,7 @@ import logging
 from concurrent.futures import ThreadPoolExecutor
 from functools import partial
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -81,8 +81,8 @@ class AsyncOmpa:
         agent_name: str = "async-agent",
         enable_semantic: bool = False,
         embedding_backend=None,
-        shared_vault_path: str | Path = None,
-        personal_vault_path: str | Path = None,
+        shared_vault_path: str | Path | None = None,
+        personal_vault_path: str | Path | None = None,
         isolation_mode: str = "strict",
         max_workers: int = 4,
     ):
@@ -119,7 +119,7 @@ class AsyncOmpa:
         """Async user message hook — classifies and returns routing hint."""
         return await self._run(self._ompa.handle_message, message)
 
-    async def post_tool(self, tool_name: str, tool_input: dict):
+    async def post_tool(self, tool_name: str, tool_input: dict[str, Any]):
         """Async post-tool hook — syncs file writes to palace and KG."""
         return await self._run(self._ompa.post_tool, tool_name, tool_input)
 
@@ -144,9 +144,9 @@ class AsyncOmpa:
         query: str,
         limit: int = 5,
         hybrid: bool = True,
-        wing: str = None,
-        room: str = None,
-        vaults: list[str] = None,
+        wing: str | None = None,
+        room: str | None = None,
+        vaults: list[str] | None = None,
     ) -> list:
         """Async semantic search across vault(s)."""
         return await self._run(
@@ -176,8 +176,8 @@ class AsyncOmpa:
         subject: str,
         predicate: str,
         object: str,
-        valid_from: str = None,
-        source: str = None,
+        valid_from: str | None = None,
+        source: str | None = None,
     ) -> None:
         """Async KG triple write."""
         return await self._run(
@@ -189,7 +189,7 @@ class AsyncOmpa:
             source=source,
         )
 
-    async def kg_query(self, entity: str, as_of: str = None) -> list:
+    async def kg_query(self, entity: str, as_of: str | None = None) -> list:
         """Async KG entity query."""
         return await self._run(self._ompa.kg_query, entity, as_of=as_of)
 

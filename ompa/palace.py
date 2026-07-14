@@ -5,8 +5,6 @@ Inspired by MemPalace. Manages the structured metadata that accelerates retrieva
 
 import json
 from pathlib import Path
-from typing import cast
-from typing import Optional
 
 HALL_TYPES = [
     "hall_facts",  # decisions made, choices locked
@@ -49,7 +47,7 @@ class Palace:
     # Wing operations
 
     def create_wing(
-        self, name: str, type: str = "project", keywords: list[str] = None
+        self, name: str, type: str = "project", keywords: list[str] | None = None
     ) -> None:
         """Create a new wing."""
         if keywords is None:
@@ -91,7 +89,7 @@ class Palace:
             return []
         return list(wing_data.get("rooms", {}).keys())
 
-    def get_room(self, wing: str, room_name: str) -> Optional[dict]:
+    def get_room(self, wing: str, room_name: str) -> dict | None:
         """Get a room."""
         wing_data = self._data.get("wings", {}).get(wing)
         if not wing_data:
@@ -134,7 +132,7 @@ class Palace:
         ] = content
         self._save()
 
-    def get_hall(self, wing: str, room: str, hall_type: str) -> Optional[str]:
+    def get_hall(self, wing: str, room: str, hall_type: str) -> str | None:
         """Get hall content."""
         room_data = self.get_room(wing, room)
         if not room_data:
@@ -187,20 +185,15 @@ class Palace:
 
     def traverse(self, wing: str, room: str) -> dict:
         """Walk the palace from a room across all connected wings via tunnels."""
-        result = {
-            "wing": wing,
-            "room": room,
-            "room_data": self.get_room(wing, room),
-            "tunnels": self.find_tunnels_by_room(room),
-            "connected": [],
-        }
-        for tunnel in result["tunnels"]:
+        tunnels = self.find_tunnels_by_room(room)
+        connected: list[dict] = []
+        for tunnel in tunnels:
             other_wing = (
                 tunnel["wing_b"] if tunnel["wing_a"] == wing else tunnel["wing_a"]
             )
             connected_room = self.get_room(other_wing, room)
             if connected_room:
-                cast("list", result["connected"]).append(
+                connected.append(
                     {
                         "wing": other_wing,
                         "room": room,
@@ -212,7 +205,13 @@ class Palace:
                         ),
                     }
                 )
-        return result
+        return {
+            "wing": wing,
+            "room": room,
+            "room_data": self.get_room(wing, room),
+            "tunnels": tunnels,
+            "connected": connected,
+        }
 
     # Auto-build from vault
 

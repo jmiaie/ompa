@@ -7,7 +7,6 @@ import logging
 import re
 from pathlib import Path
 from dataclasses import dataclass, field
-from typing import Optional
 import frontmatter
 
 logger = logging.getLogger(__name__)
@@ -33,26 +32,23 @@ def _safe_resolve(base: Path, untrusted: str) -> Path:
 @dataclass
 class VaultConfig:
     vault_path: Path
-    brain_folder: Path = None
-    work_folder: Path = None
-    org_folder: Path = None
-    perf_folder: Path = None
-    thinking_folder: Path = None
-    templates_folder: Path = None
+    # Computed from vault_path in __post_init__; never overridden by callers
+    # (no constructor ever passes these), so they're declared init=False rather
+    # than `Path = None`, which PEP 484 no-implicit-optional now rejects.
+    brain_folder: Path = field(init=False)
+    work_folder: Path = field(init=False)
+    org_folder: Path = field(init=False)
+    perf_folder: Path = field(init=False)
+    thinking_folder: Path = field(init=False)
+    templates_folder: Path = field(init=False)
 
     def __post_init__(self):
-        if self.brain_folder is None:
-            self.brain_folder = self.vault_path / "brain"
-        if self.work_folder is None:
-            self.work_folder = self.vault_path / "work"
-        if self.org_folder is None:
-            self.org_folder = self.vault_path / "org"
-        if self.perf_folder is None:
-            self.perf_folder = self.vault_path / "perf"
-        if self.thinking_folder is None:
-            self.thinking_folder = self.vault_path / "thinking"
-        if self.templates_folder is None:
-            self.templates_folder = self.vault_path / "templates"
+        self.brain_folder = self.vault_path / "brain"
+        self.work_folder = self.vault_path / "work"
+        self.org_folder = self.vault_path / "org"
+        self.perf_folder = self.vault_path / "perf"
+        self.thinking_folder = self.vault_path / "thinking"
+        self.templates_folder = self.vault_path / "templates"
 
 
 @dataclass
@@ -109,7 +105,11 @@ class Note:
     def save(self) -> None:
         """Save note to file with frontmatter."""
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        post = frontmatter.Post(self.content, **self.frontmatter)
+        # Set metadata directly rather than **self.frontmatter: unpacking a
+        # dict[str, object] as kwargs is ambiguous with Post's `handler` param
+        # if a "handler" key were ever present.
+        post = frontmatter.Post(self.content)
+        post.metadata = self.frontmatter
         with open(self.path, "w", encoding="utf-8") as f:
             f.write(frontmatter.dumps(post))
 
@@ -156,7 +156,7 @@ class Vault:
             folder_path = self.vault_path / folder
             folder_path.mkdir(parents=True, exist_ok=True)
 
-    def list_notes(self, exclude_patterns: list[str] = None) -> list[Note]:
+    def list_notes(self, exclude_patterns: list[str] | None = None) -> list[Note]:
         """List all markdown notes in the vault."""
         exclude_patterns = exclude_patterns or DEFAULT_EXCLUDE_PATTERNS
         notes = []
@@ -182,7 +182,7 @@ class Vault:
 
     def _resolve_wikilink(
         self, link: str, filename_index: dict[str, Path]
-    ) -> Optional[Path]:
+    ) -> Path | None:
         """Resolve a wikilink to a file path using multiple strategies."""
         link_lower = link.lower()
 
@@ -248,7 +248,7 @@ class Vault:
             raise ValueError(f"Invalid brain note name: {name!r}")
         return path
 
-    def get_brain_note(self, name: str) -> Optional[Note]:
+    def get_brain_note(self, name: str) -> Note | None:
         """Get a brain note by name. Name is sanitized to prevent path traversal."""
         path = self._resolve_brain_note_path(name)
         if path.exists():

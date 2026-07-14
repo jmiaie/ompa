@@ -33,7 +33,7 @@ from __future__ import annotations
 import json
 import logging
 from pathlib import Path
-from typing import Optional
+from typing import Any
 
 from ..semantic import SearchResult, EmbeddingBackend
 
@@ -59,7 +59,7 @@ class FAISSSemanticIndex:
         index_path: Path,
         model_name: str = "all-MiniLM-L6-v2",
         embedding_dim: int = 384,
-        embedding_backend: Optional[EmbeddingBackend] = None,
+        embedding_backend: EmbeddingBackend | None = None,
         use_ivf: bool = False,
         ivf_nlist: int = 100,
     ):
@@ -75,7 +75,7 @@ class FAISSSemanticIndex:
         self._initialized = False
 
         self._faiss_index = None     # faiss.Index
-        self._metadata: list[dict] = []   # parallel list: one dict per vector
+        self._metadata: list[dict[str, Any]] = []   # parallel list: one dict per vector
 
     # ------------------------------------------------------------------
     # Model / backend init
@@ -129,7 +129,6 @@ class FAISSSemanticIndex:
     def _build_index(self) -> None:
         """Create or reset the FAISS index."""
         faiss = self._require_faiss()
-        import numpy as np
 
         if self.use_ivf and len(self._metadata) >= self.ivf_nlist * 39:
             quantizer = faiss.IndexFlatL2(self.embedding_dim)
@@ -213,7 +212,9 @@ class FAISSSemanticIndex:
         except Exception as e:
             logger.warning("Error indexing %s: %s", path, e)
 
-    def index_vault(self, vault_path: Path, exclude_patterns: list = None) -> int:
+    def index_vault(
+        self, vault_path: Path, exclude_patterns: list[str] | None = None
+    ) -> int:
         """Index all markdown files in a vault. Returns file count."""
         from ..vault import DEFAULT_EXCLUDE_PATTERNS
 

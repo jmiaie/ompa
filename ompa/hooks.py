@@ -7,7 +7,7 @@ import json
 import logging
 from datetime import datetime
 from dataclasses import dataclass
-from typing import Optional
+from typing import Any, Optional
 from pathlib import Path
 
 from .vault import Vault, Note
@@ -40,7 +40,7 @@ class HookResult:
     success: bool
     output: str = ""
     tokens_hint: int = 0
-    error: Optional[str] = None
+    error: str | None = None
 
 
 class Hook:
@@ -416,7 +416,7 @@ class HookManager:
             "stop": StopHook(),
         }
 
-    def _create_context(self, memory=None) -> HookContext:
+    def _create_context(self, memory: Optional["Ompa"] = None) -> HookContext:
         return HookContext(
             vault_path=self.vault_path,
             session_id=self.session_id,
@@ -425,18 +425,23 @@ class HookManager:
             memory=memory,
         )
 
-    def run_session_start(self, memory=None) -> HookResult:
+    def run_session_start(self, memory: Optional["Ompa"] = None) -> HookResult:
         """Run session start hook."""
         context = self._create_context(memory)
         return self.hooks["session_start"].execute(context)
 
-    def run_user_message(self, message: str, memory=None) -> HookResult:
+    def run_user_message(
+        self, message: str, memory: Optional["Ompa"] = None
+    ) -> HookResult:
         """Run user message hook."""
         context = self._create_context(memory)
         return self.hooks["user_message"].execute(context, message=message)
 
     def run_post_tool(
-        self, tool_name: str, tool_input: dict, memory=None
+        self,
+        tool_name: str,
+        tool_input: dict[str, Any],
+        memory: Optional["Ompa"] = None,
     ) -> HookResult:
         """Run post tool hook."""
         context = self._create_context(memory)
@@ -444,12 +449,14 @@ class HookManager:
             context, tool_name=tool_name, tool_input=tool_input
         )
 
-    def run_pre_compact(self, transcript: str, memory=None) -> HookResult:
+    def run_pre_compact(
+        self, transcript: str, memory: Optional["Ompa"] = None
+    ) -> HookResult:
         """Run pre-compact hook."""
         context = self._create_context(memory)
         return self.hooks["pre_compact"].execute(context, transcript=transcript)
 
-    def run_stop(self, memory=None) -> HookResult:
+    def run_stop(self, memory: Optional["Ompa"] = None) -> HookResult:
         """Run stop hook."""
         context = self._create_context(memory)
         return self.hooks["stop"].execute(context)

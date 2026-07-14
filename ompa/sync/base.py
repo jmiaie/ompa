@@ -6,7 +6,7 @@ import subprocess  # noqa: S404
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
+from typing import Any
 
 
 def run_subprocess(
@@ -49,8 +49,10 @@ class SyncResult:
     direction: str              # "push" | "pull" | "status"
     files_changed: int = 0
     message: str = ""
-    error: Optional[str] = None
-    details: dict = field(default_factory=dict)
+    error: str | None = None
+    # Backend-specific extras (e.g. {"uncommitted": [...]}, {"errors": [...]});
+    # shape varies per backend, so this stays a loosely-typed bag by design.
+    details: dict[str, Any] = field(default_factory=dict)
 
     def __str__(self) -> str:
         if self.success:
