@@ -17,6 +17,11 @@ app = typer.Typer(help="OMPA — Universal AI agent memory layer")
 console = Console()
 
 
+def _rel_path(path: Path, vault_path: Path) -> Path:
+    """Display a note path relative to the vault root when possible."""
+    return path.relative_to(vault_path) if path.is_relative_to(vault_path) else path
+
+
 @app.command()
 def init(
     vault_path: Path = Path("."),
@@ -149,12 +154,7 @@ def orphans(
     else:
         console.print(f"[yellow]Found {len(orphan_notes)} orphan notes:[/yellow]")
         for note in orphan_notes:
-            rel = (
-                note.path.relative_to(vault_path)
-                if note.path.is_relative_to(vault_path)
-                else note.path
-            )
-            console.print(f"  - {rel}")
+            console.print(f"  - {_rel_path(note.path, vault_path)}")
 
 
 @app.command()
@@ -292,12 +292,7 @@ def validate(
         if result["warnings"]:
             total += 1
             for w in result["warnings"]:
-                rel = (
-                    note.path.relative_to(vault_path)
-                    if note.path.is_relative_to(vault_path)
-                    else note.path
-                )
-                warnings_list.append(f"  {rel}: {w}")
+                warnings_list.append(f"  {_rel_path(note.path, vault_path)}: {w}")
 
     if warnings_list:
         console.print(f"[yellow]Found {total} notes with warnings:[/yellow]")

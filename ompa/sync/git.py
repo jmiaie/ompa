@@ -4,11 +4,10 @@ from __future__ import annotations
 
 import logging
 import shutil
-import subprocess  # noqa: S404
 from pathlib import Path
 from typing import Optional
 
-from .base import SyncBackend, SyncResult
+from .base import SyncBackend, SyncResult, run_subprocess
 
 logger = logging.getLogger(__name__)
 
@@ -18,19 +17,7 @@ def _git(args: list[str], cwd: Path, timeout: int = 30) -> tuple[int, str, str]:
     git_path = shutil.which("git")
     if not git_path:
         return 1, "", "git not found in PATH"
-    try:
-        result = subprocess.run(  # noqa: S603
-            [git_path, *args],
-            cwd=cwd,
-            capture_output=True,
-            text=True,
-            timeout=timeout,
-        )
-        return result.returncode, result.stdout.strip(), result.stderr.strip()
-    except subprocess.TimeoutExpired:
-        return 1, "", f"git {args[0]} timed out after {timeout}s"
-    except Exception as e:
-        return 1, "", str(e)
+    return run_subprocess([git_path, *args], cwd=cwd, timeout=timeout, label=f"git {args[0]}")
 
 
 class GitSyncBackend(SyncBackend):

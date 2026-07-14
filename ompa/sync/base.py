@@ -2,10 +2,42 @@
 
 from __future__ import annotations
 
+import subprocess  # noqa: S404
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
+
+
+def run_subprocess(
+    cmd: list[str],
+    cwd: Path | None = None,
+    timeout: int = 30,
+    label: str | None = None,
+) -> tuple[int, str, str]:
+    """
+    Run a subprocess command, capturing stdout/stderr as text.
+
+    Shared by the git and rsync backends, which otherwise duplicated this
+    exact subprocess.run + timeout/exception handling.
+
+    Returns (returncode, stdout, stderr). On timeout or other exceptions,
+    returns (1, "", <error message>) instead of raising.
+    """
+    try:
+        result = subprocess.run(  # noqa: S603
+            cmd,
+            cwd=cwd,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+        )
+        return result.returncode, result.stdout.strip(), result.stderr.strip()
+    except subprocess.TimeoutExpired:
+        what = label or cmd[0]
+        return 1, "", f"{what} timed out after {timeout}s"
+    except Exception as e:
+        return 1, "", str(e)
 
 
 @dataclass

@@ -4,11 +4,10 @@ from __future__ import annotations
 
 import logging
 import shutil
-import subprocess  # noqa: S404
 from pathlib import Path
 from typing import Optional
 
-from .base import SyncBackend, SyncResult
+from .base import SyncBackend, SyncResult, run_subprocess
 
 logger = logging.getLogger(__name__)
 
@@ -107,18 +106,7 @@ class RsyncBackend(SyncBackend):
         return cmd
 
     def _run(self, cmd: list[str], timeout: int = 120) -> tuple[int, str, str]:
-        try:
-            result = subprocess.run(  # noqa: S603
-                cmd,
-                capture_output=True,
-                text=True,
-                timeout=timeout,
-            )
-            return result.returncode, result.stdout.strip(), result.stderr.strip()
-        except subprocess.TimeoutExpired:
-            return 1, "", f"rsync timed out after {timeout}s"
-        except Exception as e:
-            return 1, "", str(e)
+        return run_subprocess(cmd, timeout=timeout, label="rsync")
 
     def push(self, vault_path: Path, message: str = "") -> SyncResult:
         vault_path = Path(vault_path)

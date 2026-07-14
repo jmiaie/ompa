@@ -206,17 +206,21 @@ class Vault:
 
         return None
 
-    def find_orphans(self) -> list[Note]:
-        """Find notes with no incoming links from other notes."""
-        all_notes = self.list_notes()
-        filename_index = self._build_filename_index(all_notes)
-        linked_files = set()
-
-        for note in all_notes:
+    def _linked_files(self, notes: list[Note], filename_index: dict[str, Path]) -> set[Path]:
+        """Resolve every wikilink in `notes` to a path, returning the set of linked files."""
+        linked_files: set[Path] = set()
+        for note in notes:
             for link in note.links:
                 resolved = self._resolve_wikilink(link, filename_index)
                 if resolved:
                     linked_files.add(resolved)
+        return linked_files
+
+    def find_orphans(self) -> list[Note]:
+        """Find notes with no incoming links from other notes."""
+        all_notes = self.list_notes()
+        filename_index = self._build_filename_index(all_notes)
+        linked_files = self._linked_files(all_notes, filename_index)
 
         return [
             n
@@ -230,35 +234,30 @@ class Vault:
         query_lower = query.lower()
         return [n for n in self.list_notes() if query_lower in n.path.stem.lower()]
 
-    def get_brain_note(self, name: str) -> Optional[Note]:
-        """Get a brain note by name. Name is sanitized to prevent path traversal."""
+    def _resolve_brain_note_path(self, name: str) -> Path:
+        """Resolve a brain note name to a path, sanitized to prevent path traversal."""
         # Reject names with path separators or parent-dir references
         if "/" in name or "\\" in name or ".." in name:
             raise ValueError(f"Invalid brain note name: {name!r}")
         safe_name = Path(name).name  # Strip any directory components
-        path = self.config.brain_folder / f"{safe_name}.md"
-        path = path.resolve()
+        path = (self.config.brain_folder / f"{safe_name}.md").resolve()
         # Ensure we stay within brain folder
         try:
             path.relative_to(self.config.brain_folder.resolve())
         except ValueError:
             raise ValueError(f"Invalid brain note name: {name!r}")
+        return path
+
+    def get_brain_note(self, name: str) -> Optional[Note]:
+        """Get a brain note by name. Name is sanitized to prevent path traversal."""
+        path = self._resolve_brain_note_path(name)
         if path.exists():
             return Note.from_file(path)
         return None
 
     def update_brain_note(self, name: str, content: str, append: bool = False) -> None:
         """Update a brain note. Name is sanitized to prevent path traversal."""
-        # Reject names with path separators or parent-dir references
-        if "/" in name or "\\" in name or ".." in name:
-            raise ValueError(f"Invalid brain note name: {name!r}")
-        safe_name = Path(name).name  # Strip any directory components
-        path = self.config.brain_folder / f"{safe_name}.md"
-        path = path.resolve()
-        try:
-            path.relative_to(self.config.brain_folder.resolve())
-        except ValueError:
-            raise ValueError(f"Invalid brain note name: {name!r}")
+        path = self._resolve_brain_note_path(name)
         path.parent.mkdir(parents=True, exist_ok=True)
 
         if append and path.exists():
@@ -298,12 +297,7 @@ class Vault:
         filename_index = self._build_filename_index(notes)
 
         # Build linked set using smart wikilink resolution
-        linked_files = set()
-        for note in notes:
-            for link in note.links:
-                resolved = self._resolve_wikilink(link, filename_index)
-                if resolved:
-                    linked_files.add(resolved)
+        linked_files = self._linked_files(notes, filename_index)
 
         orphan_count = sum(
             1
