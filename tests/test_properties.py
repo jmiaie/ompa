@@ -12,18 +12,15 @@ import tempfile
 
 import pytest
 
-try:
-    from hypothesis import given, settings, assume
-    from hypothesis import strategies as st
+# importorskip raises Skipped AT COLLECTION, which is the correct layer for a
+# module-level dependency. A pytestmark=skipif guard does NOT work here: it skips
+# tests, but the `st.` strategy definitions below run at module scope during
+# collection, so without hypothesis the module raises NameError and pytest aborts
+# the ENTIRE run -- taking every other test file down with it.
+pytest.importorskip("hypothesis", reason="hypothesis not installed (pip install hypothesis)")
 
-    HYPOTHESIS_AVAILABLE = True
-except ImportError:
-    HYPOTHESIS_AVAILABLE = False
-
-pytestmark = pytest.mark.skipif(
-    not HYPOTHESIS_AVAILABLE,
-    reason="hypothesis not installed (pip install hypothesis)",
-)
+from hypothesis import assume, given, settings  # noqa: E402
+from hypothesis import strategies as st  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # Strategies
