@@ -7,6 +7,7 @@ or any object with an encode(text: str) -> array interface).
 
 import json
 import logging
+import re
 import hashlib
 from pathlib import Path
 from dataclasses import dataclass
@@ -297,21 +298,34 @@ class SemanticIndex:
         query_lower = query.lower()
         results = []
 
+        # Tokenise: a multi-word query must match its TERMS, not appear verbatim.
+        # Matching the whole query as one substring meant "alpha beta" found nothing
+        # while "alpha" and "beta" each found the same note -- so search appeared broken
+        # for every realistic query on a default install (no ompa[semantic] extra).
+        terms = [w for w in re.split(r"\W+", query_lower) if len(w) > 1]
+        if not terms:
+            terms = [query_lower]
+
+        def _score(text: str) -> float:
+            """Fraction of query terms present. 1.0 = every term matched."""
+            low = text.lower()
+            return sum(1 for t in terms if t in low) / len(terms)
+
         # Search through indexed chunks first
         if self.chunks:
             for chunk in self.chunks:
-                if query_lower in chunk["text"].lower():
+                s = _score(chunk["text"])
+                if s > 0:
                     results.append(
                         SearchResult(
                             path=chunk["path"],
                             content_excerpt=chunk["text"][:200],
-                            score=1.0,
+                            score=s,
                             match_type="keyword",
                         )
                     )
-                    if len(results) >= limit:
-                        break
-            return results
+            results.sort(key=lambda r: r.score, reverse=True)
+            return results[:limit]
 
         # Fallback: scan the vault directory
         vault_path = self.index_path.parent.parent  # .palace/semantic_index -> vault
@@ -321,21 +335,22 @@ class SemanticIndex:
                     continue
                 try:
                     content = md_file.read_text(encoding="utf-8")
-                    for line_content in content.split("\n"):
-                        if query_lower in line_content.lower():
-                            results.append(
-                                SearchResult(
-                                    path=str(md_file),
-                                    content_excerpt=line_content[:200],
-                                    score=1.0,
-                                    match_type="keyword",
-                                )
+                    s = _score(content)
+                    if s > 0:
+                        best_line = next(
+                            (ln for ln in content.split("\n") if any(t in ln.lower() for t in terms)),
+                            content[:200],
+                        )
+                        results.append(
+                            SearchResult(
+                                path=str(md_file),
+                                content_excerpt=best_line[:200],
+                                score=s,
+                                match_type="keyword",
                             )
-                            break
+                        )
                 except Exception as e:
                     logger.debug("Skipping %s: %s", md_file, e)
-                if len(results) >= limit:
-                    break
 
         return results
 
