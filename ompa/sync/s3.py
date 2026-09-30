@@ -5,7 +5,6 @@ from __future__ import annotations
 import logging
 import os
 from pathlib import Path
-from typing import Optional
 
 from .base import SyncBackend, SyncResult
 
@@ -45,10 +44,10 @@ class S3SyncBackend(SyncBackend):
         self,
         bucket: str,
         prefix: str = "ompa-vault/",
-        endpoint_url: Optional[str] = None,
+        endpoint_url: str | None = None,
         region_name: str = "auto",
-        aws_access_key_id: Optional[str] = None,
-        aws_secret_access_key: Optional[str] = None,
+        aws_access_key_id: str | None = None,
+        aws_secret_access_key: str | None = None,
         include_palace: bool = True,
         storage_class: str = "STANDARD",
     ):
@@ -57,7 +56,9 @@ class S3SyncBackend(SyncBackend):
         self.endpoint_url = endpoint_url
         self.region_name = region_name
         self.aws_access_key_id = aws_access_key_id or os.environ.get("AWS_ACCESS_KEY_ID")
-        self.aws_secret_access_key = aws_secret_access_key or os.environ.get("AWS_SECRET_ACCESS_KEY")
+        self.aws_secret_access_key = aws_secret_access_key or os.environ.get(
+            "AWS_SECRET_ACCESS_KEY"
+        )
         self.include_palace = include_palace
         self.storage_class = storage_class
         self._client = None
@@ -72,9 +73,8 @@ class S3SyncBackend(SyncBackend):
                 import boto3
             except ImportError:
                 raise ImportError(
-                    "boto3 is required for the S3 backend. "
-                    "Install with: pip install ompa[s3]"
-                )
+                    "boto3 is required for the S3 backend. Install with: pip install ompa[s3]"
+                ) from None
             kwargs = {"region_name": self.region_name}
             if self.endpoint_url:
                 kwargs["endpoint_url"] = self.endpoint_url
@@ -96,10 +96,14 @@ class S3SyncBackend(SyncBackend):
             # Always include .md files; include .palace/ if enabled
             if f.suffix == ".md":
                 files.append(f)
-            elif self.include_palace and parts and parts[0] == ".palace":
+            elif (
+                self.include_palace
+                and parts
+                and parts[0] == ".palace"
+                and "semantic_index" not in str(rel)
+            ):
                 # Skip large binary/model files in semantic_index
-                if "semantic_index" not in str(rel):
-                    files.append(f)
+                files.append(f)
         return files
 
     def push(self, vault_path: Path, message: str = "") -> SyncResult:
@@ -155,7 +159,7 @@ class S3SyncBackend(SyncBackend):
             for page in pages:
                 for obj in page.get("Contents", []):
                     key = obj["Key"]
-                    rel_key = key[len(self.prefix):]
+                    rel_key = key[len(self.prefix) :]
                     if not rel_key:
                         continue
 
