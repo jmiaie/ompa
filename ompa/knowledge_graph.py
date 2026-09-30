@@ -23,7 +23,6 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -35,10 +34,10 @@ class Triple:
     subject: str
     predicate: str
     object: str
-    valid_from: Optional[str] = None
-    valid_to: Optional[str] = None
+    valid_from: str | None = None
+    valid_to: str | None = None
     confidence: float = 1.0
-    source_file: Optional[str] = None
+    source_file: str | None = None
 
 
 def _row_to_triple(row: sqlite3.Row) -> Triple:
@@ -239,9 +238,7 @@ class KnowledgeGraph:
                 ),
             )
 
-    def invalidate(
-        self, subject: str, predicate: str, obj: str, ended: str = None
-    ) -> None:
+    def invalidate(self, subject: str, predicate: str, obj: str, ended: str = None) -> None:
         """
         Invalidate a triple by setting its valid_to date.
         The fact is no longer current but remains queryable historically.
@@ -364,9 +361,7 @@ class KnowledgeGraph:
                     # Sub-folder (e.g., work/active, org/people)
                     if len(parts) > 2:
                         subfolder = f"{parts[0]}/{parts[1]}"
-                        self.add_triple(
-                            note_name, "in_subfolder", subfolder, source=source
-                        )
+                        self.add_triple(note_name, "in_subfolder", subfolder, source=source)
                         count += 1
             except ValueError:
                 pass
@@ -392,9 +387,7 @@ class KnowledgeGraph:
 
         return count
 
-    def populate_from_vault(
-        self, vault_path: Path, exclude_patterns: list = None
-    ) -> int:
+    def populate_from_vault(self, vault_path: Path, exclude_patterns: list = None) -> int:
         """
         Scan all vault notes and populate the knowledge graph.
 

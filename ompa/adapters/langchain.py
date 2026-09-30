@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -26,11 +26,12 @@ logger = logging.getLogger(__name__)
 def _require_langchain():
     try:
         import langchain_core  # noqa: F401
+
         return True
     except ImportError:
         raise ImportError(
             "LangChain is not installed. Install with: pip install ompa[langchain]"
-        )
+        ) from None
 
 
 class OmpaMemory:
@@ -78,7 +79,9 @@ class OmpaMemory:
         self.vault_path = Path(vault_path)
         self.memory_key = memory_key
         self.return_messages = return_messages
-        self._ao = Ompa(vault_path=vault_path, agent_name=agent_name, enable_semantic=enable_semantic)
+        self._ao = Ompa(
+            vault_path=vault_path, agent_name=agent_name, enable_semantic=enable_semantic
+        )
         self._session_context: str = ""
         self._started = False
 
@@ -108,6 +111,7 @@ class OmpaMemory:
         if self.return_messages:
             try:
                 from langchain_core.messages import SystemMessage
+
                 return {self.memory_key: [SystemMessage(content=context)]}
             except ImportError:
                 pass
@@ -173,6 +177,7 @@ class OmpaRetriever:
         results = self._ao.search(query, limit=self.k)
         try:
             from langchain_core.documents import Document
+
             return [
                 Document(
                     page_content=r.content_excerpt,
@@ -183,7 +188,10 @@ class OmpaRetriever:
         except ImportError:
             # Return dicts if langchain_core not installed
             return [
-                {"page_content": r.content_excerpt, "metadata": {"source": r.path, "score": r.score}}
+                {
+                    "page_content": r.content_excerpt,
+                    "metadata": {"source": r.path, "score": r.score},
+                }
                 for r in results
             ]
 

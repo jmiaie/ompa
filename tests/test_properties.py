@@ -267,8 +267,10 @@ class TestVaultProperties:
             note = vault.get_brain_note(note_name)
 
             assert note is not None, f"Expected to retrieve brain note '{note_name}'"
-            assert content in note.content, (
-                f"Content {content!r} not found in note"
+            # Note.from_file normalizes with str.strip(); round-trip preserves
+            # semantic content, not leading/trailing whitespace.
+            assert content.strip() in note.content, (
+                f"Content {content!r} not found in note after strip-on-read"
             )
 
     @given(

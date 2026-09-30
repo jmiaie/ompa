@@ -9,6 +9,20 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- **Why OMPA vs raw Obsidian?** consulting one-pager (`docs/why-ompa.md`) — agent-memory wedge, dual-vault hygiene, Locus + CognitionOS companion stack.
+- README + docs home cross-links to [Locus](https://github.com/jmiaie/locus) (vectorless retrieval) and [CognitionOS](https://github.com/jmiaie/cognition-os) (compliance productization).
+
+### Changed
+
+- Pin `ruff==0.11.13` in `pyproject.toml` optional `dev` deps; per-file ignore `B008` on `ompa/cli.py` (typer.Option defaults).
+- Apply `ruff format` + autofix/`B904`/`E741`/`F841`/`SIM102` cleanups across `ompa/` so CI Lint & Format can go green (pairs with PR #12 CI pin/split).
+
+### Fixed
+
+- Property test `test_brain_note_roundtrip`: assert against strip-on-read content so Hypothesis examples with leading/trailing spaces do not flake (`Note.from_file` normalizes with `str.strip()`).
+
 ---
 
 ## [1.0.8] — 2026-05-09

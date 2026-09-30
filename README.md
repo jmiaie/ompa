@@ -45,6 +45,20 @@ OMPA solves all three:
 
 ---
 
+## Companion stack
+
+OMPA is the **memory + temporal KG** layer. For retrieval and compliance, pair it with:
+
+| Layer | Project | Role |
+|---|---|---|
+| Memory schema | **OMPA** ([PyPI](https://pypi.org/project/ompa/)) | Vault · palace · temporal KG · MCP · lifecycle hooks |
+| Explainable retrieval | **[Locus](https://github.com/jmiaie/locus)** ([`locus-rag`](https://pypi.org/project/locus-rag/)) | Vectorless RAG — BM25 + KG + link walking, zero GPU |
+| Compliance product | **[CognitionOS](https://github.com/jmiaie/cognition-os)** | Audit · RBAC · retention · PHI redaction on top of Locus + OMPA |
+
+**Consulting one-pager:** [Why OMPA vs raw Obsidian?](docs/why-ompa.md)
+
+---
+
 ## Three-Layer Architecture
 
 ```

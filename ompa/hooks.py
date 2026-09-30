@@ -5,15 +5,14 @@ Handles session_start, user_message, post_tool, pre_compact, and stop events.
 
 import json
 import logging
-from datetime import datetime
 from dataclasses import dataclass
-from typing import Optional
+from datetime import datetime
 from pathlib import Path
+from typing import TYPE_CHECKING, Optional
 
-from .vault import Vault, Note
 from .classifier import MessageClassifier
 from .token_counter import count_tokens
-from typing import TYPE_CHECKING
+from .vault import Note, Vault
 
 if TYPE_CHECKING:
     from .core import Ompa
@@ -40,7 +39,7 @@ class HookResult:
     success: bool
     output: str = ""
     tokens_hint: int = 0
-    error: Optional[str] = None
+    error: str | None = None
 
 
 class Hook:
@@ -70,9 +69,7 @@ class SessionStartHook(Hook):
 
     def execute(self, context: HookContext, **kwargs) -> HookResult:
         try:
-            vault = (
-                context.memory.vault if context.memory else Vault(context.vault_path)
-            )
+            vault = context.memory.vault if context.memory else Vault(context.vault_path)
             lines = []
             lines.append("## Session Context")
             lines.append(f"**Date:** {context.timestamp.strftime('%Y-%m-%d (%A)')}")
@@ -83,9 +80,7 @@ class SessionStartHook(Hook):
             if north_star:
                 content = north_star.content
                 lines.append("### North Star (Current Goals)")
-                lines.append(
-                    self._extract_section(content, "Current Focus") or content[:500]
-                )
+                lines.append(self._extract_section(content, "Current Focus") or content[:500])
                 lines.append("")
 
             # Recent git changes
@@ -212,9 +207,7 @@ class UserMessageHook(Hook):
                     lines.append(f"  - {hint}")
 
             output = "\n".join(lines)
-            return HookResult(
-                hook_name=self.name, success=True, output=output, tokens_hint=100
-            )
+            return HookResult(hook_name=self.name, success=True, output=output, tokens_hint=100)
         except Exception as e:
             logger.error("UserMessageHook failed: %s", e, exc_info=True)
             return HookResult(hook_name=self.name, success=False, error=str(e))
@@ -243,9 +236,7 @@ class PostToolHook(Hook):
         # Extract file path from tool input
         file_path = tool_input.get("file_path") or tool_input.get("path")
         if not file_path:
-            return HookResult(
-                hook_name=self.name, success=True, output="(skipped - no file path)"
-            )
+            return HookResult(hook_name=self.name, success=True, output="(skipped - no file path)")
 
         path = Path(file_path)
         if path.suffix != ".md":
@@ -342,9 +333,7 @@ class StopHook(Hook):
 
     def execute(self, context: HookContext, **kwargs) -> HookResult:
         try:
-            vault = (
-                context.memory.vault if context.memory else Vault(context.vault_path)
-            )
+            vault = context.memory.vault if context.memory else Vault(context.vault_path)
             lines = []
             lines.append("## Wrap-Up Checklist")
             lines.append("")
@@ -360,9 +349,7 @@ class StopHook(Hook):
             # Brain notes count
             all_notes = vault.list_notes()
             brain_index = [
-                n.path.relative_to(context.vault_path)
-                for n in all_notes
-                if "brain" in str(n.path)
+                n.path.relative_to(context.vault_path) for n in all_notes if "brain" in str(n.path)
             ]
             lines.append(f"**Brain notes:** {len(brain_index)}")
 
@@ -383,16 +370,12 @@ class StopHook(Hook):
                         f"{kg_stats['current_facts']} current facts"
                     )
                     if kg_stats["triple_count"] == 0:
-                        lines.append(
-                            "**WARNING:** KG is empty — run `ao kg-populate` or `ao sync`"
-                        )
+                        lines.append("**WARNING:** KG is empty — run `ao kg-populate` or `ao sync`")
                 except Exception as e:
                     logger.debug("KG stats unavailable in wrap-up: %s", e)
 
             output = "\n".join(lines)
-            return HookResult(
-                hook_name=self.name, success=True, output=output, tokens_hint=200
-            )
+            return HookResult(hook_name=self.name, success=True, output=output, tokens_hint=200)
         except Exception as e:
             logger.error("StopHook failed: %s", e, exc_info=True)
             return HookResult(hook_name=self.name, success=False, error=str(e))
@@ -435,14 +418,10 @@ class HookManager:
         context = self._create_context(memory)
         return self.hooks["user_message"].execute(context, message=message)
 
-    def run_post_tool(
-        self, tool_name: str, tool_input: dict, memory=None
-    ) -> HookResult:
+    def run_post_tool(self, tool_name: str, tool_input: dict, memory=None) -> HookResult:
         """Run post tool hook."""
         context = self._create_context(memory)
-        return self.hooks["post_tool"].execute(
-            context, tool_name=tool_name, tool_input=tool_input
-        )
+        return self.hooks["post_tool"].execute(context, tool_name=tool_name, tool_input=tool_input)
 
     def run_pre_compact(self, transcript: str, memory=None) -> HookResult:
         """Run pre-compact hook."""

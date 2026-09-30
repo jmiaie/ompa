@@ -20,12 +20,10 @@ CLI:
 
 from __future__ import annotations
 
-import json
 import logging
 import sqlite3
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -191,9 +189,7 @@ class VaultMigrator:
         # Check if composite indexes exist (added in v2)
         try:
             conn = sqlite3.connect(str(kg_path))
-            rows = conn.execute(
-                "SELECT name FROM sqlite_master WHERE type='index'"
-            ).fetchall()
+            rows = conn.execute("SELECT name FROM sqlite_master WHERE type='index'").fetchall()
             conn.close()
             index_names = {r[0] for r in rows}
             if "idx_triples_subject_date" in index_names:
