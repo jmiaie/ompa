@@ -32,7 +32,7 @@ import logging
 from concurrent.futures import ThreadPoolExecutor
 from functools import partial
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -249,7 +249,7 @@ class AsyncOmpa:
     # Context manager
     # ------------------------------------------------------------------
 
-    async def __aenter__(self) -> "AsyncOmpa":
+    async def __aenter__(self) -> AsyncOmpa:
         await self.session_start()
         return self
 

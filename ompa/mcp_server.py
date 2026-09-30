@@ -141,9 +141,7 @@ def ao_palace_rooms(wing: str, vault_path: str = ".") -> dict:
     return {"wing": wing, "rooms": rooms}
 
 
-def ao_palace_tunnel(
-    wing_a: str, wing_b: str, room: str, vault_path: str = "."
-) -> dict:
+def ao_palace_tunnel(wing_a: str, wing_b: str, room: str, vault_path: str = ".") -> dict:
     """Create a tunnel between two wings."""
     ao = Ompa(vault_path=vault_path, enable_semantic=False)
     ao.palace.create_tunnel(wing_a, wing_b, room)

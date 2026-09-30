@@ -21,8 +21,8 @@ git (default), S3/R2, or rsync — critical for multi-node deployments.
 
 from .base import SyncBackend, SyncResult
 from .git import GitSyncBackend
-from .s3 import S3SyncBackend
 from .rsync import RsyncBackend
+from .s3 import S3SyncBackend
 
 __all__ = [
     "SyncBackend",
