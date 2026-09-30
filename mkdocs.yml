@@ -47,6 +47,7 @@ plugins:
 nav:
   - Home: index.md
   - Quickstart: quickstart.md
+  - Why OMPA: why-ompa.md
   - Guides:
     - Lifecycle Hooks: guides/hooks.md
     - MCP Server: guides/mcp.md

@@ -40,8 +40,22 @@ ao search "database decisions"
 ao wrap-up
 ```
 
+
+## Why OMPA (vs raw Obsidian)?
+
+For consulting leads: **[Why OMPA vs raw Obsidian?](why-ompa.md)** — one page on the agent-memory wedge, dual-vault hygiene, and the Locus / CognitionOS companion stack.
+
+## Companion stack
+
+| Layer | Project | Role |
+|---|---|---|
+| Memory | **OMPA** | Vault + palace + temporal KG |
+| Retrieval | **[Locus](https://github.com/jmiaie/locus)** | Vectorless, explainable RAG |
+| Compliance | **[CognitionOS](https://github.com/jmiaie/cognition-os)** | Audit / RBAC / retention productization |
+
 ## What's next
 
+- [Why OMPA vs raw Obsidian?](why-ompa.md) — consulting one-pager
 - [Quickstart guide](quickstart.md) — detailed walkthrough
 - [Lifecycle Hooks](guides/hooks.md) — wire OMPA into any agent
 - [MCP Server](guides/mcp.md) — Claude Desktop / Cursor setup
