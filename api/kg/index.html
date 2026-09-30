@@ -23,7 +23,7 @@
       
       
       <link rel="icon" href="../../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
     
     
       
@@ -31,7 +31,7 @@
       
     
     
-      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
       
         
         <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
@@ -264,6 +264,25 @@
   
   
   
+    <li class="md-tabs__item">
+      <a href="../../why-ompa/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Why OMPA
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
     
     
       <li class="md-tabs__item">
@@ -425,6 +444,33 @@
   
   
   
+    <li class="md-nav__item">
+      <a href="../../why-ompa/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Why OMPA
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
     
     
     
@@ -439,10 +485,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
         
           
-          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
             
   
   
@@ -460,8 +506,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_3">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -615,10 +661,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" checked>
         
           
-          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
             
   
   
@@ -636,8 +682,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
-          <label class="md-nav__title" for="__nav_4">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_5">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -1306,36 +1352,36 @@
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">ompa</span><span class="w"> </span><span class="kn">import</span> <span class="n">KnowledgeGraph</span>
 </code></pre></div>
 <h2 id="constructor">Constructor<a class="headerlink" href="#constructor" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="n">kg</span> <span class="o">=</span> <span class="n">KnowledgeGraph</span><span class="p">(</span><span class="n">db_path</span><span class="o">=</span><span class="s2">&quot;./.palace/knowledge_graph.sqlite3&quot;</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="n">kg</span> <span class="o">=</span> <span class="n">KnowledgeGraph</span><span class="p">(</span><span class="n">db_path</span><span class="o">=</span><span class="s2">"./.palace/knowledge_graph.sqlite3"</span><span class="p">)</span>
 </code></pre></div>
 <h2 id="adding-triples">Adding triples<a class="headerlink" href="#adding-triples" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="n">kg</span><span class="o">.</span><span class="n">add_triple</span><span class="p">(</span>
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>    <span class="n">subject</span><span class="o">=</span><span class="s2">&quot;Kai&quot;</span><span class="p">,</span>
-<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>    <span class="n">predicate</span><span class="o">=</span><span class="s2">&quot;works_on&quot;</span><span class="p">,</span>
-<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>    <span class="nb">object</span><span class="o">=</span><span class="s2">&quot;auth-service&quot;</span><span class="p">,</span>
-<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>    <span class="n">valid_from</span><span class="o">=</span><span class="s2">&quot;2026-01-01&quot;</span><span class="p">,</span>         <span class="c1"># optional ISO date</span>
-<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>    <span class="n">valid_to</span><span class="o">=</span><span class="s2">&quot;2026-06-30&quot;</span><span class="p">,</span>           <span class="c1"># optional — open-ended if omitted</span>
-<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>    <span class="n">source</span><span class="o">=</span><span class="s2">&quot;work/decisions/auth.md&quot;</span><span class="p">,</span> <span class="c1"># optional provenance</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>    <span class="n">subject</span><span class="o">=</span><span class="s2">"Kai"</span><span class="p">,</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>    <span class="n">predicate</span><span class="o">=</span><span class="s2">"works_on"</span><span class="p">,</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>    <span class="nb">object</span><span class="o">=</span><span class="s2">"auth-service"</span><span class="p">,</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>    <span class="n">valid_from</span><span class="o">=</span><span class="s2">"2026-01-01"</span><span class="p">,</span>         <span class="c1"># optional ISO date</span>
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>    <span class="n">valid_to</span><span class="o">=</span><span class="s2">"2026-06-30"</span><span class="p">,</span>           <span class="c1"># optional — open-ended if omitted</span>
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>    <span class="n">source</span><span class="o">=</span><span class="s2">"work/decisions/auth.md"</span><span class="p">,</span> <span class="c1"># optional provenance</span>
 <a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="p">)</span>
 </code></pre></div>
 <h2 id="querying">Querying<a class="headerlink" href="#querying" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># All current facts about an entity</span>
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="n">triples</span><span class="p">:</span> <span class="nb">list</span> <span class="o">=</span> <span class="n">kg</span><span class="o">.</span><span class="n">query_entity</span><span class="p">(</span><span class="s2">&quot;Kai&quot;</span><span class="p">)</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="n">triples</span><span class="p">:</span> <span class="nb">list</span> <span class="o">=</span> <span class="n">kg</span><span class="o">.</span><span class="n">query_entity</span><span class="p">(</span><span class="s2">"Kai"</span><span class="p">)</span>
 <a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>
 <a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="c1"># Facts as of a specific date</span>
-<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="n">triples</span> <span class="o">=</span> <span class="n">kg</span><span class="o">.</span><span class="n">query_entity</span><span class="p">(</span><span class="s2">&quot;Kai&quot;</span><span class="p">,</span> <span class="n">as_of</span><span class="o">=</span><span class="s2">&quot;2025-12-31&quot;</span><span class="p">)</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="n">triples</span> <span class="o">=</span> <span class="n">kg</span><span class="o">.</span><span class="n">query_entity</span><span class="p">(</span><span class="s2">"Kai"</span><span class="p">,</span> <span class="n">as_of</span><span class="o">=</span><span class="s2">"2025-12-31"</span><span class="p">)</span>
 <a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>
 <a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="c1"># Entity timeline (all events, sorted by date)</span>
-<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="n">timeline</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">]</span> <span class="o">=</span> <span class="n">kg</span><span class="o">.</span><span class="n">timeline</span><span class="p">(</span><span class="s2">&quot;auth-service&quot;</span><span class="p">)</span>
+<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="n">timeline</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">]</span> <span class="o">=</span> <span class="n">kg</span><span class="o">.</span><span class="n">timeline</span><span class="p">(</span><span class="s2">"auth-service"</span><span class="p">)</span>
 </code></pre></div>
 <h2 id="auto-population-from-vault">Auto-population from vault<a class="headerlink" href="#auto-population-from-vault" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1"># Populate from all notes in a vault</span>
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="n">count</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">kg</span><span class="o">.</span><span class="n">populate_from_vault</span><span class="p">(</span><span class="s2">&quot;./workspace&quot;</span><span class="p">)</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="n">count</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">kg</span><span class="o">.</span><span class="n">populate_from_vault</span><span class="p">(</span><span class="s2">"./workspace"</span><span class="p">)</span>
 <a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>
 <a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="c1"># Populate from a single note</span>
 <a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="n">count</span> <span class="o">=</span> <span class="n">kg</span><span class="o">.</span><span class="n">populate_from_note</span><span class="p">(</span>
-<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>    <span class="n">note_path</span><span class="o">=</span><span class="n">Path</span><span class="p">(</span><span class="s2">&quot;work/decisions/postgres.md&quot;</span><span class="p">),</span>
-<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>    <span class="n">vault_root</span><span class="o">=</span><span class="n">Path</span><span class="p">(</span><span class="s2">&quot;./workspace&quot;</span><span class="p">),</span>
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>    <span class="n">note_path</span><span class="o">=</span><span class="n">Path</span><span class="p">(</span><span class="s2">"work/decisions/postgres.md"</span><span class="p">),</span>
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>    <span class="n">vault_root</span><span class="o">=</span><span class="n">Path</span><span class="p">(</span><span class="s2">"./workspace"</span><span class="p">),</span>
 <a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a><span class="p">)</span>
 </code></pre></div>
 <p>Auto-population extracts:</p>
@@ -1347,21 +1393,21 @@
 <h2 id="statistics">Statistics<a class="headerlink" href="#statistics" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="n">stats</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">=</span> <span class="n">kg</span><span class="o">.</span><span class="n">stats</span><span class="p">()</span>
 <a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="c1"># {</span>
-<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="c1">#   &quot;entity_count&quot;: 15,</span>
-<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="c1">#   &quot;triple_count&quot;: 87,</span>
-<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="c1">#   &quot;current_facts&quot;: 62,</span>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="c1">#   "entity_count": 15,</span>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="c1">#   "triple_count": 87,</span>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="c1">#   "current_facts": 62,</span>
 <a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="c1"># }</span>
 </code></pre></div>
 <h2 id="temporal-validity">Temporal validity<a class="headerlink" href="#temporal-validity" title="Permanent link">&para;</a></h2>
 <p>Triples support validity windows. A triple is "current" if today falls within <code>[valid_from, valid_to]</code> (open-ended if <code>valid_to</code> is null).</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="c1"># Fact valid for Q1 2026</span>
-<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="n">kg</span><span class="o">.</span><span class="n">add_triple</span><span class="p">(</span><span class="s2">&quot;Kai&quot;</span><span class="p">,</span> <span class="s2">&quot;role&quot;</span><span class="p">,</span> <span class="s2">&quot;tech-lead&quot;</span><span class="p">,</span> <span class="n">valid_from</span><span class="o">=</span><span class="s2">&quot;2026-01-01&quot;</span><span class="p">,</span> <span class="n">valid_to</span><span class="o">=</span><span class="s2">&quot;2026-03-31&quot;</span><span class="p">)</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="n">kg</span><span class="o">.</span><span class="n">add_triple</span><span class="p">(</span><span class="s2">"Kai"</span><span class="p">,</span> <span class="s2">"role"</span><span class="p">,</span> <span class="s2">"tech-lead"</span><span class="p">,</span> <span class="n">valid_from</span><span class="o">=</span><span class="s2">"2026-01-01"</span><span class="p">,</span> <span class="n">valid_to</span><span class="o">=</span><span class="s2">"2026-03-31"</span><span class="p">)</span>
 <a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>
 <a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="c1"># Fact still valid (no end date)</span>
-<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="n">kg</span><span class="o">.</span><span class="n">add_triple</span><span class="p">(</span><span class="s2">&quot;Kai&quot;</span><span class="p">,</span> <span class="s2">&quot;works_on&quot;</span><span class="p">,</span> <span class="s2">&quot;Orion&quot;</span><span class="p">,</span> <span class="n">valid_from</span><span class="o">=</span><span class="s2">&quot;2026-01-01&quot;</span><span class="p">)</span>
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="n">kg</span><span class="o">.</span><span class="n">add_triple</span><span class="p">(</span><span class="s2">"Kai"</span><span class="p">,</span> <span class="s2">"works_on"</span><span class="p">,</span> <span class="s2">"Orion"</span><span class="p">,</span> <span class="n">valid_from</span><span class="o">=</span><span class="s2">"2026-01-01"</span><span class="p">)</span>
 <a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>
 <a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="c1"># Query as of a past date</span>
-<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a><span class="n">old_facts</span> <span class="o">=</span> <span class="n">kg</span><span class="o">.</span><span class="n">query_entity</span><span class="p">(</span><span class="s2">&quot;Kai&quot;</span><span class="p">,</span> <span class="n">as_of</span><span class="o">=</span><span class="s2">&quot;2025-06-01&quot;</span><span class="p">)</span>
+<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a><span class="n">old_facts</span> <span class="o">=</span> <span class="n">kg</span><span class="o">.</span><span class="n">query_entity</span><span class="p">(</span><span class="s2">"Kai"</span><span class="p">,</span> <span class="n">as_of</span><span class="o">=</span><span class="s2">"2025-06-01"</span><span class="p">)</span>
 </code></pre></div>
 
 
@@ -1793,21 +1839,21 @@
 <a id="__codelineno-0-62" name="__codelineno-0-62"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">_init_db</span><span class="p">()</span>
 <a id="__codelineno-0-63" name="__codelineno-0-63"></a>
 <a id="__codelineno-0-64" name="__codelineno-0-64"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">_get_connection</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">sqlite3</span><span class="o">.</span><span class="n">Connection</span><span class="p">:</span>
-<a id="__codelineno-0-65" name="__codelineno-0-65"></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;Return a thread-local connection, creating one if needed.&quot;&quot;&quot;</span>
-<a id="__codelineno-0-66" name="__codelineno-0-66"></a>        <span class="k">if</span> <span class="ow">not</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_local</span><span class="p">,</span> <span class="s2">&quot;conn&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">):</span>
+<a id="__codelineno-0-65" name="__codelineno-0-65"></a><span class="w">        </span><span class="sd">"""Return a thread-local connection, creating one if needed."""</span>
+<a id="__codelineno-0-66" name="__codelineno-0-66"></a>        <span class="k">if</span> <span class="ow">not</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_local</span><span class="p">,</span> <span class="s2">"conn"</span><span class="p">,</span> <span class="kc">None</span><span class="p">):</span>
 <a id="__codelineno-0-67" name="__codelineno-0-67"></a>            <span class="n">conn</span> <span class="o">=</span> <span class="n">sqlite3</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">db_path</span><span class="p">),</span> <span class="n">check_same_thread</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
 <a id="__codelineno-0-68" name="__codelineno-0-68"></a>            <span class="n">conn</span><span class="o">.</span><span class="n">row_factory</span> <span class="o">=</span> <span class="n">sqlite3</span><span class="o">.</span><span class="n">Row</span>
-<a id="__codelineno-0-69" name="__codelineno-0-69"></a>            <span class="c1"># WAL mode: readers don&#39;t block writers; writers don&#39;t block readers.</span>
+<a id="__codelineno-0-69" name="__codelineno-0-69"></a>            <span class="c1"># WAL mode: readers don't block writers; writers don't block readers.</span>
 <a id="__codelineno-0-70" name="__codelineno-0-70"></a>            <span class="c1"># Persists in the db file — only needed once, idempotent thereafter.</span>
-<a id="__codelineno-0-71" name="__codelineno-0-71"></a>            <span class="n">conn</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">&quot;PRAGMA journal_mode=WAL&quot;</span><span class="p">)</span>
+<a id="__codelineno-0-71" name="__codelineno-0-71"></a>            <span class="n">conn</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">"PRAGMA journal_mode=WAL"</span><span class="p">)</span>
 <a id="__codelineno-0-72" name="__codelineno-0-72"></a>            <span class="c1"># NORMAL is safe with WAL and significantly faster than FULL.</span>
-<a id="__codelineno-0-73" name="__codelineno-0-73"></a>            <span class="n">conn</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">&quot;PRAGMA synchronous=NORMAL&quot;</span><span class="p">)</span>
+<a id="__codelineno-0-73" name="__codelineno-0-73"></a>            <span class="n">conn</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">"PRAGMA synchronous=NORMAL"</span><span class="p">)</span>
 <a id="__codelineno-0-74" name="__codelineno-0-74"></a>            <span class="bp">self</span><span class="o">.</span><span class="n">_local</span><span class="o">.</span><span class="n">conn</span> <span class="o">=</span> <span class="n">conn</span>
 <a id="__codelineno-0-75" name="__codelineno-0-75"></a>        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_local</span><span class="o">.</span><span class="n">conn</span>
 <a id="__codelineno-0-76" name="__codelineno-0-76"></a>
 <a id="__codelineno-0-77" name="__codelineno-0-77"></a>    <span class="nd">@contextmanager</span>
 <a id="__codelineno-0-78" name="__codelineno-0-78"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">_conn</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-<a id="__codelineno-0-79" name="__codelineno-0-79"></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;Yield the thread-local connection for a single transaction.&quot;&quot;&quot;</span>
+<a id="__codelineno-0-79" name="__codelineno-0-79"></a><span class="w">        </span><span class="sd">"""Yield the thread-local connection for a single transaction."""</span>
 <a id="__codelineno-0-80" name="__codelineno-0-80"></a>        <span class="n">conn</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_connection</span><span class="p">()</span>
 <a id="__codelineno-0-81" name="__codelineno-0-81"></a>        <span class="k">try</span><span class="p">:</span>
 <a id="__codelineno-0-82" name="__codelineno-0-82"></a>            <span class="k">yield</span> <span class="n">conn</span>
@@ -1817,13 +1863,13 @@
 <a id="__codelineno-0-86" name="__codelineno-0-86"></a>            <span class="k">raise</span>
 <a id="__codelineno-0-87" name="__codelineno-0-87"></a>
 <a id="__codelineno-0-88" name="__codelineno-0-88"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">_init_db</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-0-89" name="__codelineno-0-89"></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;Initialize the database schema and indexes.&quot;&quot;&quot;</span>
+<a id="__codelineno-0-89" name="__codelineno-0-89"></a><span class="w">        </span><span class="sd">"""Initialize the database schema and indexes."""</span>
 <a id="__codelineno-0-90" name="__codelineno-0-90"></a>        <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">_conn</span><span class="p">()</span> <span class="k">as</span> <span class="n">conn</span><span class="p">:</span>
-<a id="__codelineno-0-91" name="__codelineno-0-91"></a>            <span class="n">conn</span><span class="o">.</span><span class="n">executescript</span><span class="p">(</span><span class="s2">&quot;&quot;&quot;</span>
+<a id="__codelineno-0-91" name="__codelineno-0-91"></a>            <span class="n">conn</span><span class="o">.</span><span class="n">executescript</span><span class="p">(</span><span class="s2">"""</span>
 <a id="__codelineno-0-92" name="__codelineno-0-92"></a><span class="s2">                CREATE TABLE IF NOT EXISTS entities (</span>
 <a id="__codelineno-0-93" name="__codelineno-0-93"></a><span class="s2">                    id TEXT PRIMARY KEY,</span>
 <a id="__codelineno-0-94" name="__codelineno-0-94"></a><span class="s2">                    name TEXT NOT NULL,</span>
-<a id="__codelineno-0-95" name="__codelineno-0-95"></a><span class="s2">                    type TEXT DEFAULT &#39;unknown&#39;,</span>
+<a id="__codelineno-0-95" name="__codelineno-0-95"></a><span class="s2">                    type TEXT DEFAULT 'unknown',</span>
 <a id="__codelineno-0-96" name="__codelineno-0-96"></a><span class="s2">                    created_at TEXT DEFAULT CURRENT_TIMESTAMP</span>
 <a id="__codelineno-0-97" name="__codelineno-0-97"></a><span class="s2">                );</span>
 <a id="__codelineno-0-98" name="__codelineno-0-98"></a>
@@ -1851,64 +1897,64 @@
 <a id="__codelineno-0-120" name="__codelineno-0-120"></a><span class="s2">                    ON triples(object, predicate);</span>
 <a id="__codelineno-0-121" name="__codelineno-0-121"></a><span class="s2">                CREATE INDEX IF NOT EXISTS idx_triples_validity</span>
 <a id="__codelineno-0-122" name="__codelineno-0-122"></a><span class="s2">                    ON triples(valid_from, valid_to);</span>
-<a id="__codelineno-0-123" name="__codelineno-0-123"></a><span class="s2">            &quot;&quot;&quot;</span><span class="p">)</span>
+<a id="__codelineno-0-123" name="__codelineno-0-123"></a><span class="s2">            """</span><span class="p">)</span>
 <a id="__codelineno-0-124" name="__codelineno-0-124"></a>
 <a id="__codelineno-0-125" name="__codelineno-0-125"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">_entity_id</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
-<a id="__codelineno-0-126" name="__codelineno-0-126"></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;Generate a stable ID for an entity.&quot;&quot;&quot;</span>
+<a id="__codelineno-0-126" name="__codelineno-0-126"></a><span class="w">        </span><span class="sd">"""Generate a stable ID for an entity."""</span>
 <a id="__codelineno-0-127" name="__codelineno-0-127"></a>        <span class="k">return</span> <span class="n">hashlib</span><span class="o">.</span><span class="n">sha256</span><span class="p">(</span><span class="n">name</span><span class="o">.</span><span class="n">encode</span><span class="p">())</span><span class="o">.</span><span class="n">hexdigest</span><span class="p">()[:</span><span class="mi">16</span><span class="p">]</span>
 <a id="__codelineno-0-128" name="__codelineno-0-128"></a>
 <a id="__codelineno-0-129" name="__codelineno-0-129"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">_triple_id</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">subject</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">predicate</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">obj</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
-<a id="__codelineno-0-130" name="__codelineno-0-130"></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;Generate a stable ID for a triple.&quot;&quot;&quot;</span>
-<a id="__codelineno-0-131" name="__codelineno-0-131"></a>        <span class="n">key</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">subject</span><span class="si">}</span><span class="s2">|</span><span class="si">{</span><span class="n">predicate</span><span class="si">}</span><span class="s2">|</span><span class="si">{</span><span class="n">obj</span><span class="si">}</span><span class="s2">&quot;</span>
+<a id="__codelineno-0-130" name="__codelineno-0-130"></a><span class="w">        </span><span class="sd">"""Generate a stable ID for a triple."""</span>
+<a id="__codelineno-0-131" name="__codelineno-0-131"></a>        <span class="n">key</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">subject</span><span class="si">}</span><span class="s2">|</span><span class="si">{</span><span class="n">predicate</span><span class="si">}</span><span class="s2">|</span><span class="si">{</span><span class="n">obj</span><span class="si">}</span><span class="s2">"</span>
 <a id="__codelineno-0-132" name="__codelineno-0-132"></a>        <span class="k">return</span> <span class="n">hashlib</span><span class="o">.</span><span class="n">sha256</span><span class="p">(</span><span class="n">key</span><span class="o">.</span><span class="n">encode</span><span class="p">())</span><span class="o">.</span><span class="n">hexdigest</span><span class="p">()[:</span><span class="mi">16</span><span class="p">]</span>
 <a id="__codelineno-0-133" name="__codelineno-0-133"></a>
 <a id="__codelineno-0-134" name="__codelineno-0-134"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">_now</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
-<a id="__codelineno-0-135" name="__codelineno-0-135"></a>        <span class="k">return</span> <span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span><span class="s2">&quot;%Y-%m-</span><span class="si">%d</span><span class="s2">&quot;</span><span class="p">)</span>
+<a id="__codelineno-0-135" name="__codelineno-0-135"></a>        <span class="k">return</span> <span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span><span class="s2">"%Y-%m-</span><span class="si">%d</span><span class="s2">"</span><span class="p">)</span>
 <a id="__codelineno-0-136" name="__codelineno-0-136"></a>
 <a id="__codelineno-0-137" name="__codelineno-0-137"></a>    <span class="c1"># -------------------------------------------------------------------------</span>
 <a id="__codelineno-0-138" name="__codelineno-0-138"></a>    <span class="c1"># Entity operations</span>
 <a id="__codelineno-0-139" name="__codelineno-0-139"></a>    <span class="c1"># -------------------------------------------------------------------------</span>
 <a id="__codelineno-0-140" name="__codelineno-0-140"></a>
-<a id="__codelineno-0-141" name="__codelineno-0-141"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">add_entity</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">entity_type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;unknown&quot;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-0-142" name="__codelineno-0-142"></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;Add an entity.&quot;&quot;&quot;</span>
+<a id="__codelineno-0-141" name="__codelineno-0-141"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">add_entity</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">entity_type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"unknown"</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-0-142" name="__codelineno-0-142"></a><span class="w">        </span><span class="sd">"""Add an entity."""</span>
 <a id="__codelineno-0-143" name="__codelineno-0-143"></a>        <span class="n">entity_id</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_entity_id</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
 <a id="__codelineno-0-144" name="__codelineno-0-144"></a>        <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">_conn</span><span class="p">()</span> <span class="k">as</span> <span class="n">conn</span><span class="p">:</span>
 <a id="__codelineno-0-145" name="__codelineno-0-145"></a>            <span class="n">conn</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span>
-<a id="__codelineno-0-146" name="__codelineno-0-146"></a>                <span class="s2">&quot;INSERT OR IGNORE INTO entities (id, name, type) VALUES (?, ?, ?)&quot;</span><span class="p">,</span>
+<a id="__codelineno-0-146" name="__codelineno-0-146"></a>                <span class="s2">"INSERT OR IGNORE INTO entities (id, name, type) VALUES (?, ?, ?)"</span><span class="p">,</span>
 <a id="__codelineno-0-147" name="__codelineno-0-147"></a>                <span class="p">(</span><span class="n">entity_id</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">entity_type</span><span class="p">),</span>
 <a id="__codelineno-0-148" name="__codelineno-0-148"></a>            <span class="p">)</span>
 <a id="__codelineno-0-149" name="__codelineno-0-149"></a>
 <a id="__codelineno-0-150" name="__codelineno-0-150"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">query_entity</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">as_of</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">Triple</span><span class="p">]:</span>
-<a id="__codelineno-0-151" name="__codelineno-0-151"></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<a id="__codelineno-0-151" name="__codelineno-0-151"></a><span class="w">        </span><span class="sd">"""</span>
 <a id="__codelineno-0-152" name="__codelineno-0-152"></a><span class="sd">        Query all current triples for an entity.</span>
 <a id="__codelineno-0-153" name="__codelineno-0-153"></a>
 <a id="__codelineno-0-154" name="__codelineno-0-154"></a><span class="sd">        Args:</span>
 <a id="__codelineno-0-155" name="__codelineno-0-155"></a><span class="sd">            name: Entity name</span>
 <a id="__codelineno-0-156" name="__codelineno-0-156"></a><span class="sd">            as_of: YYYY-MM-DD date for historical query. Defaults to today.</span>
-<a id="__codelineno-0-157" name="__codelineno-0-157"></a><span class="sd">        &quot;&quot;&quot;</span>
+<a id="__codelineno-0-157" name="__codelineno-0-157"></a><span class="sd">        """</span>
 <a id="__codelineno-0-158" name="__codelineno-0-158"></a>        <span class="n">as_of</span> <span class="o">=</span> <span class="n">as_of</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">_now</span><span class="p">()</span>
 <a id="__codelineno-0-159" name="__codelineno-0-159"></a>
 <a id="__codelineno-0-160" name="__codelineno-0-160"></a>        <span class="c1"># Filter in SQL for performance</span>
-<a id="__codelineno-0-161" name="__codelineno-0-161"></a>        <span class="n">query</span> <span class="o">=</span> <span class="s2">&quot;&quot;&quot;</span>
+<a id="__codelineno-0-161" name="__codelineno-0-161"></a>        <span class="n">query</span> <span class="o">=</span> <span class="s2">"""</span>
 <a id="__codelineno-0-162" name="__codelineno-0-162"></a><span class="s2">            SELECT subject, predicate, object, valid_from, valid_to, confidence, source_file</span>
 <a id="__codelineno-0-163" name="__codelineno-0-163"></a><span class="s2">            FROM triples</span>
 <a id="__codelineno-0-164" name="__codelineno-0-164"></a><span class="s2">            WHERE (subject = ? OR object = ?)</span>
 <a id="__codelineno-0-165" name="__codelineno-0-165"></a><span class="s2">              AND (valid_from IS NULL OR valid_from &lt;= ?)</span>
 <a id="__codelineno-0-166" name="__codelineno-0-166"></a><span class="s2">              AND (valid_to IS NULL OR valid_to &gt;= ?)</span>
 <a id="__codelineno-0-167" name="__codelineno-0-167"></a><span class="s2">            ORDER BY valid_from DESC</span>
-<a id="__codelineno-0-168" name="__codelineno-0-168"></a><span class="s2">        &quot;&quot;&quot;</span>
+<a id="__codelineno-0-168" name="__codelineno-0-168"></a><span class="s2">        """</span>
 <a id="__codelineno-0-169" name="__codelineno-0-169"></a>        <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">_conn</span><span class="p">()</span> <span class="k">as</span> <span class="n">conn</span><span class="p">:</span>
 <a id="__codelineno-0-170" name="__codelineno-0-170"></a>            <span class="n">rows</span> <span class="o">=</span> <span class="n">conn</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="n">query</span><span class="p">,</span> <span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">as_of</span><span class="p">,</span> <span class="n">as_of</span><span class="p">))</span><span class="o">.</span><span class="n">fetchall</span><span class="p">()</span>
 <a id="__codelineno-0-171" name="__codelineno-0-171"></a>
 <a id="__codelineno-0-172" name="__codelineno-0-172"></a>        <span class="k">return</span> <span class="p">[</span><span class="n">_row_to_triple</span><span class="p">(</span><span class="n">row</span><span class="p">)</span> <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">rows</span><span class="p">]</span>
 <a id="__codelineno-0-173" name="__codelineno-0-173"></a>
 <a id="__codelineno-0-174" name="__codelineno-0-174"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">query_relation</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">subject</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">predicate</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">Triple</span><span class="p">]:</span>
-<a id="__codelineno-0-175" name="__codelineno-0-175"></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;Query all triples matching a specific subject+predicate.&quot;&quot;&quot;</span>
+<a id="__codelineno-0-175" name="__codelineno-0-175"></a><span class="w">        </span><span class="sd">"""Query all triples matching a specific subject+predicate."""</span>
 <a id="__codelineno-0-176" name="__codelineno-0-176"></a>        <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">_conn</span><span class="p">()</span> <span class="k">as</span> <span class="n">conn</span><span class="p">:</span>
 <a id="__codelineno-0-177" name="__codelineno-0-177"></a>            <span class="n">rows</span> <span class="o">=</span> <span class="n">conn</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span>
-<a id="__codelineno-0-178" name="__codelineno-0-178"></a><span class="w">                </span><span class="sd">&quot;&quot;&quot;SELECT subject, predicate, object, valid_from, valid_to, confidence, source_file</span>
+<a id="__codelineno-0-178" name="__codelineno-0-178"></a><span class="w">                </span><span class="sd">"""SELECT subject, predicate, object, valid_from, valid_to, confidence, source_file</span>
 <a id="__codelineno-0-179" name="__codelineno-0-179"></a><span class="sd">                   FROM triples</span>
-<a id="__codelineno-0-180" name="__codelineno-0-180"></a><span class="sd">                   WHERE subject = ? AND predicate = ?&quot;&quot;&quot;</span><span class="p">,</span>
+<a id="__codelineno-0-180" name="__codelineno-0-180"></a><span class="sd">                   WHERE subject = ? AND predicate = ?"""</span><span class="p">,</span>
 <a id="__codelineno-0-181" name="__codelineno-0-181"></a>                <span class="p">(</span><span class="n">subject</span><span class="p">,</span> <span class="n">predicate</span><span class="p">),</span>
 <a id="__codelineno-0-182" name="__codelineno-0-182"></a>            <span class="p">)</span><span class="o">.</span><span class="n">fetchall</span><span class="p">()</span>
 <a id="__codelineno-0-183" name="__codelineno-0-183"></a>        <span class="k">return</span> <span class="p">[</span><span class="n">_row_to_triple</span><span class="p">(</span><span class="n">r</span><span class="p">)</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">rows</span><span class="p">]</span>
@@ -1927,18 +1973,18 @@
 <a id="__codelineno-0-196" name="__codelineno-0-196"></a>        <span class="n">confidence</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span><span class="p">,</span>
 <a id="__codelineno-0-197" name="__codelineno-0-197"></a>        <span class="n">source</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <a id="__codelineno-0-198" name="__codelineno-0-198"></a>    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-0-199" name="__codelineno-0-199"></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<a id="__codelineno-0-199" name="__codelineno-0-199"></a><span class="w">        </span><span class="sd">"""</span>
 <a id="__codelineno-0-200" name="__codelineno-0-200"></a><span class="sd">        Add a fact triple to the knowledge graph.</span>
 <a id="__codelineno-0-201" name="__codelineno-0-201"></a>
 <a id="__codelineno-0-202" name="__codelineno-0-202"></a><span class="sd">        Args:</span>
-<a id="__codelineno-0-203" name="__codelineno-0-203"></a><span class="sd">            subject: Subject entity (e.g., &quot;Kai&quot;)</span>
-<a id="__codelineno-0-204" name="__codelineno-0-204"></a><span class="sd">            predicate: Relationship (e.g., &quot;works_on&quot;, &quot;completed&quot;, &quot;recommended&quot;)</span>
-<a id="__codelineno-0-205" name="__codelineno-0-205"></a><span class="sd">            object: Object entity (e.g., &quot;Orion&quot;)</span>
+<a id="__codelineno-0-203" name="__codelineno-0-203"></a><span class="sd">            subject: Subject entity (e.g., "Kai")</span>
+<a id="__codelineno-0-204" name="__codelineno-0-204"></a><span class="sd">            predicate: Relationship (e.g., "works_on", "completed", "recommended")</span>
+<a id="__codelineno-0-205" name="__codelineno-0-205"></a><span class="sd">            object: Object entity (e.g., "Orion")</span>
 <a id="__codelineno-0-206" name="__codelineno-0-206"></a><span class="sd">            valid_from: Start date (YYYY-MM-DD). None = always true.</span>
 <a id="__codelineno-0-207" name="__codelineno-0-207"></a><span class="sd">            valid_to: End date (YYYY-MM-DD). None = still true.</span>
 <a id="__codelineno-0-208" name="__codelineno-0-208"></a><span class="sd">            confidence: Confidence 0-1. Default 1.0.</span>
 <a id="__codelineno-0-209" name="__codelineno-0-209"></a><span class="sd">            source: Source file or drawer reference.</span>
-<a id="__codelineno-0-210" name="__codelineno-0-210"></a><span class="sd">        &quot;&quot;&quot;</span>
+<a id="__codelineno-0-210" name="__codelineno-0-210"></a><span class="sd">        """</span>
 <a id="__codelineno-0-211" name="__codelineno-0-211"></a>        <span class="n">triple_id</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_triple_id</span><span class="p">(</span><span class="n">subject</span><span class="p">,</span> <span class="n">predicate</span><span class="p">,</span> <span class="nb">object</span><span class="p">)</span>
 <a id="__codelineno-0-212" name="__codelineno-0-212"></a>        <span class="n">valid_from</span> <span class="o">=</span> <span class="n">valid_from</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">_now</span><span class="p">()</span>
 <a id="__codelineno-0-213" name="__codelineno-0-213"></a>        <span class="n">subject_id</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_entity_id</span><span class="p">(</span><span class="n">subject</span><span class="p">)</span>
@@ -1947,17 +1993,17 @@
 <a id="__codelineno-0-216" name="__codelineno-0-216"></a>        <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">_conn</span><span class="p">()</span> <span class="k">as</span> <span class="n">conn</span><span class="p">:</span>
 <a id="__codelineno-0-217" name="__codelineno-0-217"></a>            <span class="c1"># Ensure entities exist (single transaction)</span>
 <a id="__codelineno-0-218" name="__codelineno-0-218"></a>            <span class="n">conn</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span>
-<a id="__codelineno-0-219" name="__codelineno-0-219"></a>                <span class="s2">&quot;INSERT OR IGNORE INTO entities (id, name, type) VALUES (?, ?, ?)&quot;</span><span class="p">,</span>
-<a id="__codelineno-0-220" name="__codelineno-0-220"></a>                <span class="p">(</span><span class="n">subject_id</span><span class="p">,</span> <span class="n">subject</span><span class="p">,</span> <span class="s2">&quot;unknown&quot;</span><span class="p">),</span>
+<a id="__codelineno-0-219" name="__codelineno-0-219"></a>                <span class="s2">"INSERT OR IGNORE INTO entities (id, name, type) VALUES (?, ?, ?)"</span><span class="p">,</span>
+<a id="__codelineno-0-220" name="__codelineno-0-220"></a>                <span class="p">(</span><span class="n">subject_id</span><span class="p">,</span> <span class="n">subject</span><span class="p">,</span> <span class="s2">"unknown"</span><span class="p">),</span>
 <a id="__codelineno-0-221" name="__codelineno-0-221"></a>            <span class="p">)</span>
 <a id="__codelineno-0-222" name="__codelineno-0-222"></a>            <span class="n">conn</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span>
-<a id="__codelineno-0-223" name="__codelineno-0-223"></a>                <span class="s2">&quot;INSERT OR IGNORE INTO entities (id, name, type) VALUES (?, ?, ?)&quot;</span><span class="p">,</span>
-<a id="__codelineno-0-224" name="__codelineno-0-224"></a>                <span class="p">(</span><span class="n">object_id</span><span class="p">,</span> <span class="nb">object</span><span class="p">,</span> <span class="s2">&quot;unknown&quot;</span><span class="p">),</span>
+<a id="__codelineno-0-223" name="__codelineno-0-223"></a>                <span class="s2">"INSERT OR IGNORE INTO entities (id, name, type) VALUES (?, ?, ?)"</span><span class="p">,</span>
+<a id="__codelineno-0-224" name="__codelineno-0-224"></a>                <span class="p">(</span><span class="n">object_id</span><span class="p">,</span> <span class="nb">object</span><span class="p">,</span> <span class="s2">"unknown"</span><span class="p">),</span>
 <a id="__codelineno-0-225" name="__codelineno-0-225"></a>            <span class="p">)</span>
 <a id="__codelineno-0-226" name="__codelineno-0-226"></a>            <span class="n">conn</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span>
-<a id="__codelineno-0-227" name="__codelineno-0-227"></a><span class="w">                </span><span class="sd">&quot;&quot;&quot;INSERT OR REPLACE INTO triples</span>
+<a id="__codelineno-0-227" name="__codelineno-0-227"></a><span class="w">                </span><span class="sd">"""INSERT OR REPLACE INTO triples</span>
 <a id="__codelineno-0-228" name="__codelineno-0-228"></a><span class="sd">                   (id, subject, predicate, object, valid_from, valid_to, confidence, source_file)</span>
-<a id="__codelineno-0-229" name="__codelineno-0-229"></a><span class="sd">                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)&quot;&quot;&quot;</span><span class="p">,</span>
+<a id="__codelineno-0-229" name="__codelineno-0-229"></a><span class="sd">                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)"""</span><span class="p">,</span>
 <a id="__codelineno-0-230" name="__codelineno-0-230"></a>                <span class="p">(</span>
 <a id="__codelineno-0-231" name="__codelineno-0-231"></a>                    <span class="n">triple_id</span><span class="p">,</span>
 <a id="__codelineno-0-232" name="__codelineno-0-232"></a>                    <span class="n">subject</span><span class="p">,</span>
@@ -1973,15 +2019,15 @@
 <a id="__codelineno-0-242" name="__codelineno-0-242"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">invalidate</span><span class="p">(</span>
 <a id="__codelineno-0-243" name="__codelineno-0-243"></a>        <span class="bp">self</span><span class="p">,</span> <span class="n">subject</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">predicate</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">obj</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">ended</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span>
 <a id="__codelineno-0-244" name="__codelineno-0-244"></a>    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-0-245" name="__codelineno-0-245"></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<a id="__codelineno-0-245" name="__codelineno-0-245"></a><span class="w">        </span><span class="sd">"""</span>
 <a id="__codelineno-0-246" name="__codelineno-0-246"></a><span class="sd">        Invalidate a triple by setting its valid_to date.</span>
 <a id="__codelineno-0-247" name="__codelineno-0-247"></a><span class="sd">        The fact is no longer current but remains queryable historically.</span>
-<a id="__codelineno-0-248" name="__codelineno-0-248"></a><span class="sd">        &quot;&quot;&quot;</span>
+<a id="__codelineno-0-248" name="__codelineno-0-248"></a><span class="sd">        """</span>
 <a id="__codelineno-0-249" name="__codelineno-0-249"></a>        <span class="n">ended</span> <span class="o">=</span> <span class="n">ended</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">_now</span><span class="p">()</span>
 <a id="__codelineno-0-250" name="__codelineno-0-250"></a>        <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">_conn</span><span class="p">()</span> <span class="k">as</span> <span class="n">conn</span><span class="p">:</span>
 <a id="__codelineno-0-251" name="__codelineno-0-251"></a>            <span class="n">conn</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span>
-<a id="__codelineno-0-252" name="__codelineno-0-252"></a><span class="w">                </span><span class="sd">&quot;&quot;&quot;UPDATE triples SET valid_to = ?</span>
-<a id="__codelineno-0-253" name="__codelineno-0-253"></a><span class="sd">                   WHERE subject = ? AND predicate = ? AND object = ? AND valid_to IS NULL&quot;&quot;&quot;</span><span class="p">,</span>
+<a id="__codelineno-0-252" name="__codelineno-0-252"></a><span class="w">                </span><span class="sd">"""UPDATE triples SET valid_to = ?</span>
+<a id="__codelineno-0-253" name="__codelineno-0-253"></a><span class="sd">                   WHERE subject = ? AND predicate = ? AND object = ? AND valid_to IS NULL"""</span><span class="p">,</span>
 <a id="__codelineno-0-254" name="__codelineno-0-254"></a>                <span class="p">(</span><span class="n">ended</span><span class="p">,</span> <span class="n">subject</span><span class="p">,</span> <span class="n">predicate</span><span class="p">,</span> <span class="n">obj</span><span class="p">),</span>
 <a id="__codelineno-0-255" name="__codelineno-0-255"></a>            <span class="p">)</span>
 <a id="__codelineno-0-256" name="__codelineno-0-256"></a>
@@ -1990,39 +2036,39 @@
 <a id="__codelineno-0-259" name="__codelineno-0-259"></a>    <span class="c1"># -------------------------------------------------------------------------</span>
 <a id="__codelineno-0-260" name="__codelineno-0-260"></a>
 <a id="__codelineno-0-261" name="__codelineno-0-261"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">timeline</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">entity</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">]:</span>
-<a id="__codelineno-0-262" name="__codelineno-0-262"></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<a id="__codelineno-0-262" name="__codelineno-0-262"></a><span class="w">        </span><span class="sd">"""</span>
 <a id="__codelineno-0-263" name="__codelineno-0-263"></a><span class="sd">        Get the chronological story of an entity.</span>
 <a id="__codelineno-0-264" name="__codelineno-0-264"></a><span class="sd">        Returns all triples ordered by valid_from with direction indicators.</span>
-<a id="__codelineno-0-265" name="__codelineno-0-265"></a><span class="sd">        &quot;&quot;&quot;</span>
+<a id="__codelineno-0-265" name="__codelineno-0-265"></a><span class="sd">        """</span>
 <a id="__codelineno-0-266" name="__codelineno-0-266"></a>        <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">_conn</span><span class="p">()</span> <span class="k">as</span> <span class="n">conn</span><span class="p">:</span>
 <a id="__codelineno-0-267" name="__codelineno-0-267"></a>            <span class="n">rows</span> <span class="o">=</span> <span class="n">conn</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span>
-<a id="__codelineno-0-268" name="__codelineno-0-268"></a><span class="w">                </span><span class="sd">&quot;&quot;&quot;SELECT subject, predicate, object, valid_from, valid_to, source_file</span>
+<a id="__codelineno-0-268" name="__codelineno-0-268"></a><span class="w">                </span><span class="sd">"""SELECT subject, predicate, object, valid_from, valid_to, source_file</span>
 <a id="__codelineno-0-269" name="__codelineno-0-269"></a><span class="sd">                   FROM triples</span>
 <a id="__codelineno-0-270" name="__codelineno-0-270"></a><span class="sd">                   WHERE subject = ? OR object = ?</span>
-<a id="__codelineno-0-271" name="__codelineno-0-271"></a><span class="sd">                   ORDER BY valid_from ASC NULLS FIRST&quot;&quot;&quot;</span><span class="p">,</span>
+<a id="__codelineno-0-271" name="__codelineno-0-271"></a><span class="sd">                   ORDER BY valid_from ASC NULLS FIRST"""</span><span class="p">,</span>
 <a id="__codelineno-0-272" name="__codelineno-0-272"></a>                <span class="p">(</span><span class="n">entity</span><span class="p">,</span> <span class="n">entity</span><span class="p">),</span>
 <a id="__codelineno-0-273" name="__codelineno-0-273"></a>            <span class="p">)</span><span class="o">.</span><span class="n">fetchall</span><span class="p">()</span>
 <a id="__codelineno-0-274" name="__codelineno-0-274"></a>
 <a id="__codelineno-0-275" name="__codelineno-0-275"></a>        <span class="n">timeline</span> <span class="o">=</span> <span class="p">[]</span>
 <a id="__codelineno-0-276" name="__codelineno-0-276"></a>        <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">rows</span><span class="p">:</span>
 <a id="__codelineno-0-277" name="__codelineno-0-277"></a>            <span class="c1"># Determine direction and label</span>
-<a id="__codelineno-0-278" name="__codelineno-0-278"></a>            <span class="k">if</span> <span class="n">row</span><span class="p">[</span><span class="s2">&quot;subject&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="n">entity</span><span class="p">:</span>
-<a id="__codelineno-0-279" name="__codelineno-0-279"></a>                <span class="n">direction</span> <span class="o">=</span> <span class="s2">&quot;outbound&quot;</span>
-<a id="__codelineno-0-280" name="__codelineno-0-280"></a>                <span class="n">label</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">entity</span><span class="si">}</span><span class="s2"> --</span><span class="si">{</span><span class="n">row</span><span class="p">[</span><span class="s1">&#39;predicate&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">--&gt; </span><span class="si">{</span><span class="n">row</span><span class="p">[</span><span class="s1">&#39;object&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span>
+<a id="__codelineno-0-278" name="__codelineno-0-278"></a>            <span class="k">if</span> <span class="n">row</span><span class="p">[</span><span class="s2">"subject"</span><span class="p">]</span> <span class="o">==</span> <span class="n">entity</span><span class="p">:</span>
+<a id="__codelineno-0-279" name="__codelineno-0-279"></a>                <span class="n">direction</span> <span class="o">=</span> <span class="s2">"outbound"</span>
+<a id="__codelineno-0-280" name="__codelineno-0-280"></a>                <span class="n">label</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">entity</span><span class="si">}</span><span class="s2"> --</span><span class="si">{</span><span class="n">row</span><span class="p">[</span><span class="s1">'predicate'</span><span class="p">]</span><span class="si">}</span><span class="s2">--&gt; </span><span class="si">{</span><span class="n">row</span><span class="p">[</span><span class="s1">'object'</span><span class="p">]</span><span class="si">}</span><span class="s2">"</span>
 <a id="__codelineno-0-281" name="__codelineno-0-281"></a>            <span class="k">else</span><span class="p">:</span>
-<a id="__codelineno-0-282" name="__codelineno-0-282"></a>                <span class="n">direction</span> <span class="o">=</span> <span class="s2">&quot;inbound&quot;</span>
-<a id="__codelineno-0-283" name="__codelineno-0-283"></a>                <span class="n">label</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">row</span><span class="p">[</span><span class="s1">&#39;subject&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2"> --</span><span class="si">{</span><span class="n">row</span><span class="p">[</span><span class="s1">&#39;predicate&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">--&gt; </span><span class="si">{</span><span class="n">entity</span><span class="si">}</span><span class="s2">&quot;</span>
+<a id="__codelineno-0-282" name="__codelineno-0-282"></a>                <span class="n">direction</span> <span class="o">=</span> <span class="s2">"inbound"</span>
+<a id="__codelineno-0-283" name="__codelineno-0-283"></a>                <span class="n">label</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">row</span><span class="p">[</span><span class="s1">'subject'</span><span class="p">]</span><span class="si">}</span><span class="s2"> --</span><span class="si">{</span><span class="n">row</span><span class="p">[</span><span class="s1">'predicate'</span><span class="p">]</span><span class="si">}</span><span class="s2">--&gt; </span><span class="si">{</span><span class="n">entity</span><span class="si">}</span><span class="s2">"</span>
 <a id="__codelineno-0-284" name="__codelineno-0-284"></a>
 <a id="__codelineno-0-285" name="__codelineno-0-285"></a>            <span class="n">timeline</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
 <a id="__codelineno-0-286" name="__codelineno-0-286"></a>                <span class="p">{</span>
-<a id="__codelineno-0-287" name="__codelineno-0-287"></a>                    <span class="s2">&quot;date&quot;</span><span class="p">:</span> <span class="n">row</span><span class="p">[</span><span class="s2">&quot;valid_from&quot;</span><span class="p">],</span>
-<a id="__codelineno-0-288" name="__codelineno-0-288"></a>                    <span class="s2">&quot;end_date&quot;</span><span class="p">:</span> <span class="n">row</span><span class="p">[</span><span class="s2">&quot;valid_to&quot;</span><span class="p">],</span>
-<a id="__codelineno-0-289" name="__codelineno-0-289"></a>                    <span class="s2">&quot;direction&quot;</span><span class="p">:</span> <span class="n">direction</span><span class="p">,</span>
-<a id="__codelineno-0-290" name="__codelineno-0-290"></a>                    <span class="s2">&quot;subject&quot;</span><span class="p">:</span> <span class="n">row</span><span class="p">[</span><span class="s2">&quot;subject&quot;</span><span class="p">],</span>
-<a id="__codelineno-0-291" name="__codelineno-0-291"></a>                    <span class="s2">&quot;predicate&quot;</span><span class="p">:</span> <span class="n">row</span><span class="p">[</span><span class="s2">&quot;predicate&quot;</span><span class="p">],</span>
-<a id="__codelineno-0-292" name="__codelineno-0-292"></a>                    <span class="s2">&quot;object&quot;</span><span class="p">:</span> <span class="n">row</span><span class="p">[</span><span class="s2">&quot;object&quot;</span><span class="p">],</span>
-<a id="__codelineno-0-293" name="__codelineno-0-293"></a>                    <span class="s2">&quot;label&quot;</span><span class="p">:</span> <span class="n">label</span><span class="p">,</span>
-<a id="__codelineno-0-294" name="__codelineno-0-294"></a>                    <span class="s2">&quot;source&quot;</span><span class="p">:</span> <span class="n">row</span><span class="p">[</span><span class="s2">&quot;source_file&quot;</span><span class="p">],</span>
+<a id="__codelineno-0-287" name="__codelineno-0-287"></a>                    <span class="s2">"date"</span><span class="p">:</span> <span class="n">row</span><span class="p">[</span><span class="s2">"valid_from"</span><span class="p">],</span>
+<a id="__codelineno-0-288" name="__codelineno-0-288"></a>                    <span class="s2">"end_date"</span><span class="p">:</span> <span class="n">row</span><span class="p">[</span><span class="s2">"valid_to"</span><span class="p">],</span>
+<a id="__codelineno-0-289" name="__codelineno-0-289"></a>                    <span class="s2">"direction"</span><span class="p">:</span> <span class="n">direction</span><span class="p">,</span>
+<a id="__codelineno-0-290" name="__codelineno-0-290"></a>                    <span class="s2">"subject"</span><span class="p">:</span> <span class="n">row</span><span class="p">[</span><span class="s2">"subject"</span><span class="p">],</span>
+<a id="__codelineno-0-291" name="__codelineno-0-291"></a>                    <span class="s2">"predicate"</span><span class="p">:</span> <span class="n">row</span><span class="p">[</span><span class="s2">"predicate"</span><span class="p">],</span>
+<a id="__codelineno-0-292" name="__codelineno-0-292"></a>                    <span class="s2">"object"</span><span class="p">:</span> <span class="n">row</span><span class="p">[</span><span class="s2">"object"</span><span class="p">],</span>
+<a id="__codelineno-0-293" name="__codelineno-0-293"></a>                    <span class="s2">"label"</span><span class="p">:</span> <span class="n">label</span><span class="p">,</span>
+<a id="__codelineno-0-294" name="__codelineno-0-294"></a>                    <span class="s2">"source"</span><span class="p">:</span> <span class="n">row</span><span class="p">[</span><span class="s2">"source_file"</span><span class="p">],</span>
 <a id="__codelineno-0-295" name="__codelineno-0-295"></a>                <span class="p">}</span>
 <a id="__codelineno-0-296" name="__codelineno-0-296"></a>            <span class="p">)</span>
 <a id="__codelineno-0-297" name="__codelineno-0-297"></a>        <span class="k">return</span> <span class="n">timeline</span>
@@ -2032,7 +2078,7 @@
 <a id="__codelineno-0-301" name="__codelineno-0-301"></a>    <span class="c1"># -------------------------------------------------------------------------</span>
 <a id="__codelineno-0-302" name="__codelineno-0-302"></a>
 <a id="__codelineno-0-303" name="__codelineno-0-303"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">populate_from_note</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">note_path</span><span class="p">:</span> <span class="n">Path</span><span class="p">,</span> <span class="n">vault_path</span><span class="p">:</span> <span class="n">Path</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
-<a id="__codelineno-0-304" name="__codelineno-0-304"></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<a id="__codelineno-0-304" name="__codelineno-0-304"></a><span class="w">        </span><span class="sd">"""</span>
 <a id="__codelineno-0-305" name="__codelineno-0-305"></a><span class="sd">        Extract and store triples from a single vault note.</span>
 <a id="__codelineno-0-306" name="__codelineno-0-306"></a>
 <a id="__codelineno-0-307" name="__codelineno-0-307"></a><span class="sd">        Extracts:</span>
@@ -2042,8 +2088,8 @@
 <a id="__codelineno-0-311" name="__codelineno-0-311"></a><span class="sd">        - Frontmatter date: note --created_on--&gt; date</span>
 <a id="__codelineno-0-312" name="__codelineno-0-312"></a>
 <a id="__codelineno-0-313" name="__codelineno-0-313"></a><span class="sd">        Returns the number of triples added.</span>
-<a id="__codelineno-0-314" name="__codelineno-0-314"></a><span class="sd">        &quot;&quot;&quot;</span>
-<a id="__codelineno-0-315" name="__codelineno-0-315"></a>        <span class="k">if</span> <span class="ow">not</span> <span class="n">note_path</span><span class="o">.</span><span class="n">exists</span><span class="p">()</span> <span class="ow">or</span> <span class="n">note_path</span><span class="o">.</span><span class="n">suffix</span> <span class="o">!=</span> <span class="s2">&quot;.md&quot;</span><span class="p">:</span>
+<a id="__codelineno-0-314" name="__codelineno-0-314"></a><span class="sd">        """</span>
+<a id="__codelineno-0-315" name="__codelineno-0-315"></a>        <span class="k">if</span> <span class="ow">not</span> <span class="n">note_path</span><span class="o">.</span><span class="n">exists</span><span class="p">()</span> <span class="ow">or</span> <span class="n">note_path</span><span class="o">.</span><span class="n">suffix</span> <span class="o">!=</span> <span class="s2">".md"</span><span class="p">:</span>
 <a id="__codelineno-0-316" name="__codelineno-0-316"></a>            <span class="k">return</span> <span class="mi">0</span>
 <a id="__codelineno-0-317" name="__codelineno-0-317"></a>
 <a id="__codelineno-0-318" name="__codelineno-0-318"></a>        <span class="n">count</span> <span class="o">=</span> <span class="mi">0</span>
@@ -2058,29 +2104,29 @@
 <a id="__codelineno-0-327" name="__codelineno-0-327"></a>            <span class="n">metadata</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">post</span><span class="o">.</span><span class="n">metadata</span><span class="p">)</span>
 <a id="__codelineno-0-328" name="__codelineno-0-328"></a>        <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
 <a id="__codelineno-0-329" name="__codelineno-0-329"></a>            <span class="k">try</span><span class="p">:</span>
-<a id="__codelineno-0-330" name="__codelineno-0-330"></a>                <span class="n">content</span> <span class="o">=</span> <span class="n">note_path</span><span class="o">.</span><span class="n">read_text</span><span class="p">(</span><span class="n">encoding</span><span class="o">=</span><span class="s2">&quot;utf-8&quot;</span><span class="p">)</span>
+<a id="__codelineno-0-330" name="__codelineno-0-330"></a>                <span class="n">content</span> <span class="o">=</span> <span class="n">note_path</span><span class="o">.</span><span class="n">read_text</span><span class="p">(</span><span class="n">encoding</span><span class="o">=</span><span class="s2">"utf-8"</span><span class="p">)</span>
 <a id="__codelineno-0-331" name="__codelineno-0-331"></a>                <span class="n">metadata</span> <span class="o">=</span> <span class="p">{}</span>
 <a id="__codelineno-0-332" name="__codelineno-0-332"></a>            <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
-<a id="__codelineno-0-333" name="__codelineno-0-333"></a>                <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">&quot;Could not read </span><span class="si">%s</span><span class="s2">: </span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">note_path</span><span class="p">,</span> <span class="n">e</span><span class="p">)</span>
+<a id="__codelineno-0-333" name="__codelineno-0-333"></a>                <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"Could not read </span><span class="si">%s</span><span class="s2">: </span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span> <span class="n">note_path</span><span class="p">,</span> <span class="n">e</span><span class="p">)</span>
 <a id="__codelineno-0-334" name="__codelineno-0-334"></a>                <span class="k">return</span> <span class="mi">0</span>
 <a id="__codelineno-0-335" name="__codelineno-0-335"></a>
 <a id="__codelineno-0-336" name="__codelineno-0-336"></a>        <span class="c1"># 1. Wikilinks → links_to triples</span>
-<a id="__codelineno-0-337" name="__codelineno-0-337"></a>        <span class="n">wikilinks</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">findall</span><span class="p">(</span><span class="sa">r</span><span class="s2">&quot;\[\[([^\]]+)\]\]&quot;</span><span class="p">,</span> <span class="n">content</span><span class="p">)</span>
+<a id="__codelineno-0-337" name="__codelineno-0-337"></a>        <span class="n">wikilinks</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">findall</span><span class="p">(</span><span class="sa">r</span><span class="s2">"\[\[([^\]]+)\]\]"</span><span class="p">,</span> <span class="n">content</span><span class="p">)</span>
 <a id="__codelineno-0-338" name="__codelineno-0-338"></a>        <span class="k">for</span> <span class="n">link</span> <span class="ow">in</span> <span class="n">wikilinks</span><span class="p">:</span>
 <a id="__codelineno-0-339" name="__codelineno-0-339"></a>            <span class="c1"># Strip display text from piped links: [[target|display]]</span>
-<a id="__codelineno-0-340" name="__codelineno-0-340"></a>            <span class="n">target</span> <span class="o">=</span> <span class="n">link</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;|&quot;</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+<a id="__codelineno-0-340" name="__codelineno-0-340"></a>            <span class="n">target</span> <span class="o">=</span> <span class="n">link</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">"|"</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
 <a id="__codelineno-0-341" name="__codelineno-0-341"></a>            <span class="k">if</span> <span class="n">target</span><span class="p">:</span>
-<a id="__codelineno-0-342" name="__codelineno-0-342"></a>                <span class="bp">self</span><span class="o">.</span><span class="n">add_triple</span><span class="p">(</span><span class="n">note_name</span><span class="p">,</span> <span class="s2">&quot;links_to&quot;</span><span class="p">,</span> <span class="n">target</span><span class="p">,</span> <span class="n">source</span><span class="o">=</span><span class="n">source</span><span class="p">)</span>
+<a id="__codelineno-0-342" name="__codelineno-0-342"></a>                <span class="bp">self</span><span class="o">.</span><span class="n">add_triple</span><span class="p">(</span><span class="n">note_name</span><span class="p">,</span> <span class="s2">"links_to"</span><span class="p">,</span> <span class="n">target</span><span class="p">,</span> <span class="n">source</span><span class="o">=</span><span class="n">source</span><span class="p">)</span>
 <a id="__codelineno-0-343" name="__codelineno-0-343"></a>                <span class="n">count</span> <span class="o">+=</span> <span class="mi">1</span>
 <a id="__codelineno-0-344" name="__codelineno-0-344"></a>
 <a id="__codelineno-0-345" name="__codelineno-0-345"></a>        <span class="c1"># 2. Frontmatter tags → has_tag triples</span>
-<a id="__codelineno-0-346" name="__codelineno-0-346"></a>        <span class="n">tags</span> <span class="o">=</span> <span class="n">metadata</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;tags&quot;</span><span class="p">,</span> <span class="p">[])</span>
+<a id="__codelineno-0-346" name="__codelineno-0-346"></a>        <span class="n">tags</span> <span class="o">=</span> <span class="n">metadata</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"tags"</span><span class="p">,</span> <span class="p">[])</span>
 <a id="__codelineno-0-347" name="__codelineno-0-347"></a>        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">tags</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
-<a id="__codelineno-0-348" name="__codelineno-0-348"></a>            <span class="n">tags</span> <span class="o">=</span> <span class="p">[</span><span class="n">t</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span> <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">tags</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;,&quot;</span><span class="p">)</span> <span class="k">if</span> <span class="n">t</span><span class="o">.</span><span class="n">strip</span><span class="p">()]</span>
+<a id="__codelineno-0-348" name="__codelineno-0-348"></a>            <span class="n">tags</span> <span class="o">=</span> <span class="p">[</span><span class="n">t</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span> <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">tags</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">","</span><span class="p">)</span> <span class="k">if</span> <span class="n">t</span><span class="o">.</span><span class="n">strip</span><span class="p">()]</span>
 <a id="__codelineno-0-349" name="__codelineno-0-349"></a>        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">tags</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
 <a id="__codelineno-0-350" name="__codelineno-0-350"></a>            <span class="k">for</span> <span class="n">tag</span> <span class="ow">in</span> <span class="n">tags</span><span class="p">:</span>
 <a id="__codelineno-0-351" name="__codelineno-0-351"></a>                <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">tag</span><span class="p">,</span> <span class="nb">str</span><span class="p">)</span> <span class="ow">and</span> <span class="n">tag</span><span class="o">.</span><span class="n">strip</span><span class="p">():</span>
-<a id="__codelineno-0-352" name="__codelineno-0-352"></a>                    <span class="bp">self</span><span class="o">.</span><span class="n">add_triple</span><span class="p">(</span><span class="n">note_name</span><span class="p">,</span> <span class="s2">&quot;has_tag&quot;</span><span class="p">,</span> <span class="n">tag</span><span class="o">.</span><span class="n">strip</span><span class="p">(),</span> <span class="n">source</span><span class="o">=</span><span class="n">source</span><span class="p">)</span>
+<a id="__codelineno-0-352" name="__codelineno-0-352"></a>                    <span class="bp">self</span><span class="o">.</span><span class="n">add_triple</span><span class="p">(</span><span class="n">note_name</span><span class="p">,</span> <span class="s2">"has_tag"</span><span class="p">,</span> <span class="n">tag</span><span class="o">.</span><span class="n">strip</span><span class="p">(),</span> <span class="n">source</span><span class="o">=</span><span class="n">source</span><span class="p">)</span>
 <a id="__codelineno-0-353" name="__codelineno-0-353"></a>                    <span class="n">count</span> <span class="o">+=</span> <span class="mi">1</span>
 <a id="__codelineno-0-354" name="__codelineno-0-354"></a>
 <a id="__codelineno-0-355" name="__codelineno-0-355"></a>        <span class="c1"># 3. Folder membership</span>
@@ -2090,25 +2136,25 @@
 <a id="__codelineno-0-359" name="__codelineno-0-359"></a>                <span class="n">parts</span> <span class="o">=</span> <span class="n">rel</span><span class="o">.</span><span class="n">parts</span>
 <a id="__codelineno-0-360" name="__codelineno-0-360"></a>                <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">parts</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
 <a id="__codelineno-0-361" name="__codelineno-0-361"></a>                    <span class="n">folder</span> <span class="o">=</span> <span class="n">parts</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>  <span class="c1"># top-level: brain, work, org, perf</span>
-<a id="__codelineno-0-362" name="__codelineno-0-362"></a>                    <span class="bp">self</span><span class="o">.</span><span class="n">add_triple</span><span class="p">(</span><span class="n">note_name</span><span class="p">,</span> <span class="s2">&quot;in_folder&quot;</span><span class="p">,</span> <span class="n">folder</span><span class="p">,</span> <span class="n">source</span><span class="o">=</span><span class="n">source</span><span class="p">)</span>
+<a id="__codelineno-0-362" name="__codelineno-0-362"></a>                    <span class="bp">self</span><span class="o">.</span><span class="n">add_triple</span><span class="p">(</span><span class="n">note_name</span><span class="p">,</span> <span class="s2">"in_folder"</span><span class="p">,</span> <span class="n">folder</span><span class="p">,</span> <span class="n">source</span><span class="o">=</span><span class="n">source</span><span class="p">)</span>
 <a id="__codelineno-0-363" name="__codelineno-0-363"></a>                    <span class="n">count</span> <span class="o">+=</span> <span class="mi">1</span>
 <a id="__codelineno-0-364" name="__codelineno-0-364"></a>                    <span class="c1"># Sub-folder (e.g., work/active, org/people)</span>
 <a id="__codelineno-0-365" name="__codelineno-0-365"></a>                    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">parts</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">2</span><span class="p">:</span>
-<a id="__codelineno-0-366" name="__codelineno-0-366"></a>                        <span class="n">subfolder</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">parts</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="n">parts</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span>
+<a id="__codelineno-0-366" name="__codelineno-0-366"></a>                        <span class="n">subfolder</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">parts</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="n">parts</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="si">}</span><span class="s2">"</span>
 <a id="__codelineno-0-367" name="__codelineno-0-367"></a>                        <span class="bp">self</span><span class="o">.</span><span class="n">add_triple</span><span class="p">(</span>
-<a id="__codelineno-0-368" name="__codelineno-0-368"></a>                            <span class="n">note_name</span><span class="p">,</span> <span class="s2">&quot;in_subfolder&quot;</span><span class="p">,</span> <span class="n">subfolder</span><span class="p">,</span> <span class="n">source</span><span class="o">=</span><span class="n">source</span>
+<a id="__codelineno-0-368" name="__codelineno-0-368"></a>                            <span class="n">note_name</span><span class="p">,</span> <span class="s2">"in_subfolder"</span><span class="p">,</span> <span class="n">subfolder</span><span class="p">,</span> <span class="n">source</span><span class="o">=</span><span class="n">source</span>
 <a id="__codelineno-0-369" name="__codelineno-0-369"></a>                        <span class="p">)</span>
 <a id="__codelineno-0-370" name="__codelineno-0-370"></a>                        <span class="n">count</span> <span class="o">+=</span> <span class="mi">1</span>
 <a id="__codelineno-0-371" name="__codelineno-0-371"></a>            <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
 <a id="__codelineno-0-372" name="__codelineno-0-372"></a>                <span class="k">pass</span>
 <a id="__codelineno-0-373" name="__codelineno-0-373"></a>
 <a id="__codelineno-0-374" name="__codelineno-0-374"></a>        <span class="c1"># 4. Frontmatter date → created_on</span>
-<a id="__codelineno-0-375" name="__codelineno-0-375"></a>        <span class="n">date_val</span> <span class="o">=</span> <span class="n">metadata</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;date&quot;</span><span class="p">)</span>
+<a id="__codelineno-0-375" name="__codelineno-0-375"></a>        <span class="n">date_val</span> <span class="o">=</span> <span class="n">metadata</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"date"</span><span class="p">)</span>
 <a id="__codelineno-0-376" name="__codelineno-0-376"></a>        <span class="k">if</span> <span class="n">date_val</span><span class="p">:</span>
 <a id="__codelineno-0-377" name="__codelineno-0-377"></a>            <span class="n">date_str</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">date_val</span><span class="p">)[:</span><span class="mi">10</span><span class="p">]</span>  <span class="c1"># YYYY-MM-DD</span>
 <a id="__codelineno-0-378" name="__codelineno-0-378"></a>            <span class="bp">self</span><span class="o">.</span><span class="n">add_triple</span><span class="p">(</span>
 <a id="__codelineno-0-379" name="__codelineno-0-379"></a>                <span class="n">note_name</span><span class="p">,</span>
-<a id="__codelineno-0-380" name="__codelineno-0-380"></a>                <span class="s2">&quot;created_on&quot;</span><span class="p">,</span>
+<a id="__codelineno-0-380" name="__codelineno-0-380"></a>                <span class="s2">"created_on"</span><span class="p">,</span>
 <a id="__codelineno-0-381" name="__codelineno-0-381"></a>                <span class="n">date_str</span><span class="p">,</span>
 <a id="__codelineno-0-382" name="__codelineno-0-382"></a>                <span class="n">valid_from</span><span class="o">=</span><span class="n">date_str</span><span class="p">,</span>
 <a id="__codelineno-0-383" name="__codelineno-0-383"></a>                <span class="n">source</span><span class="o">=</span><span class="n">source</span><span class="p">,</span>
@@ -2116,9 +2162,9 @@
 <a id="__codelineno-0-385" name="__codelineno-0-385"></a>            <span class="n">count</span> <span class="o">+=</span> <span class="mi">1</span>
 <a id="__codelineno-0-386" name="__codelineno-0-386"></a>
 <a id="__codelineno-0-387" name="__codelineno-0-387"></a>        <span class="c1"># 5. Frontmatter description → has_description (for search context)</span>
-<a id="__codelineno-0-388" name="__codelineno-0-388"></a>        <span class="n">desc</span> <span class="o">=</span> <span class="n">metadata</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;description&quot;</span><span class="p">)</span>
+<a id="__codelineno-0-388" name="__codelineno-0-388"></a>        <span class="n">desc</span> <span class="o">=</span> <span class="n">metadata</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"description"</span><span class="p">)</span>
 <a id="__codelineno-0-389" name="__codelineno-0-389"></a>        <span class="k">if</span> <span class="n">desc</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">desc</span><span class="p">,</span> <span class="nb">str</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">desc</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">10</span><span class="p">:</span>
-<a id="__codelineno-0-390" name="__codelineno-0-390"></a>            <span class="bp">self</span><span class="o">.</span><span class="n">add_entity</span><span class="p">(</span><span class="n">note_name</span><span class="p">,</span> <span class="n">entity_type</span><span class="o">=</span><span class="s2">&quot;note&quot;</span><span class="p">)</span>
+<a id="__codelineno-0-390" name="__codelineno-0-390"></a>            <span class="bp">self</span><span class="o">.</span><span class="n">add_entity</span><span class="p">(</span><span class="n">note_name</span><span class="p">,</span> <span class="n">entity_type</span><span class="o">=</span><span class="s2">"note"</span><span class="p">)</span>
 <a id="__codelineno-0-391" name="__codelineno-0-391"></a>            <span class="n">count</span> <span class="o">+=</span> <span class="mi">1</span>
 <a id="__codelineno-0-392" name="__codelineno-0-392"></a>
 <a id="__codelineno-0-393" name="__codelineno-0-393"></a>        <span class="k">return</span> <span class="n">count</span>
@@ -2126,7 +2172,7 @@
 <a id="__codelineno-0-395" name="__codelineno-0-395"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">populate_from_vault</span><span class="p">(</span>
 <a id="__codelineno-0-396" name="__codelineno-0-396"></a>        <span class="bp">self</span><span class="p">,</span> <span class="n">vault_path</span><span class="p">:</span> <span class="n">Path</span><span class="p">,</span> <span class="n">exclude_patterns</span><span class="p">:</span> <span class="nb">list</span> <span class="o">=</span> <span class="kc">None</span>
 <a id="__codelineno-0-397" name="__codelineno-0-397"></a>    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
-<a id="__codelineno-0-398" name="__codelineno-0-398"></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<a id="__codelineno-0-398" name="__codelineno-0-398"></a><span class="w">        </span><span class="sd">"""</span>
 <a id="__codelineno-0-399" name="__codelineno-0-399"></a><span class="sd">        Scan all vault notes and populate the knowledge graph.</span>
 <a id="__codelineno-0-400" name="__codelineno-0-400"></a>
 <a id="__codelineno-0-401" name="__codelineno-0-401"></a><span class="sd">        Args:</span>
@@ -2135,20 +2181,20 @@
 <a id="__codelineno-0-404" name="__codelineno-0-404"></a>
 <a id="__codelineno-0-405" name="__codelineno-0-405"></a><span class="sd">        Returns:</span>
 <a id="__codelineno-0-406" name="__codelineno-0-406"></a><span class="sd">            Total number of triples added.</span>
-<a id="__codelineno-0-407" name="__codelineno-0-407"></a><span class="sd">        &quot;&quot;&quot;</span>
+<a id="__codelineno-0-407" name="__codelineno-0-407"></a><span class="sd">        """</span>
 <a id="__codelineno-0-408" name="__codelineno-0-408"></a>        <span class="kn">from</span><span class="w"> </span><span class="nn">.vault</span><span class="w"> </span><span class="kn">import</span> <span class="n">DEFAULT_EXCLUDE_PATTERNS</span>
 <a id="__codelineno-0-409" name="__codelineno-0-409"></a>
 <a id="__codelineno-0-410" name="__codelineno-0-410"></a>        <span class="n">exclude_patterns</span> <span class="o">=</span> <span class="n">exclude_patterns</span> <span class="ow">or</span> <span class="n">DEFAULT_EXCLUDE_PATTERNS</span>
 <a id="__codelineno-0-411" name="__codelineno-0-411"></a>        <span class="n">total</span> <span class="o">=</span> <span class="mi">0</span>
 <a id="__codelineno-0-412" name="__codelineno-0-412"></a>        <span class="n">vault_path</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">vault_path</span><span class="p">)</span>
 <a id="__codelineno-0-413" name="__codelineno-0-413"></a>
-<a id="__codelineno-0-414" name="__codelineno-0-414"></a>        <span class="k">for</span> <span class="n">md_file</span> <span class="ow">in</span> <span class="n">vault_path</span><span class="o">.</span><span class="n">rglob</span><span class="p">(</span><span class="s2">&quot;*.md&quot;</span><span class="p">):</span>
+<a id="__codelineno-0-414" name="__codelineno-0-414"></a>        <span class="k">for</span> <span class="n">md_file</span> <span class="ow">in</span> <span class="n">vault_path</span><span class="o">.</span><span class="n">rglob</span><span class="p">(</span><span class="s2">"*.md"</span><span class="p">):</span>
 <a id="__codelineno-0-415" name="__codelineno-0-415"></a>            <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="n">excl</span> <span class="ow">in</span> <span class="nb">str</span><span class="p">(</span><span class="n">md_file</span><span class="p">)</span> <span class="k">for</span> <span class="n">excl</span> <span class="ow">in</span> <span class="n">exclude_patterns</span><span class="p">):</span>
 <a id="__codelineno-0-416" name="__codelineno-0-416"></a>                <span class="k">continue</span>
 <a id="__codelineno-0-417" name="__codelineno-0-417"></a>            <span class="n">added</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">populate_from_note</span><span class="p">(</span><span class="n">md_file</span><span class="p">,</span> <span class="n">vault_path</span><span class="p">)</span>
 <a id="__codelineno-0-418" name="__codelineno-0-418"></a>            <span class="n">total</span> <span class="o">+=</span> <span class="n">added</span>
 <a id="__codelineno-0-419" name="__codelineno-0-419"></a>
-<a id="__codelineno-0-420" name="__codelineno-0-420"></a>        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;KG populated: </span><span class="si">%d</span><span class="s2"> triples from vault </span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">total</span><span class="p">,</span> <span class="n">vault_path</span><span class="p">)</span>
+<a id="__codelineno-0-420" name="__codelineno-0-420"></a>        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">"KG populated: </span><span class="si">%d</span><span class="s2"> triples from vault </span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span> <span class="n">total</span><span class="p">,</span> <span class="n">vault_path</span><span class="p">)</span>
 <a id="__codelineno-0-421" name="__codelineno-0-421"></a>        <span class="k">return</span> <span class="n">total</span>
 <a id="__codelineno-0-422" name="__codelineno-0-422"></a>
 <a id="__codelineno-0-423" name="__codelineno-0-423"></a>    <span class="c1"># -------------------------------------------------------------------------</span>
@@ -2156,31 +2202,31 @@
 <a id="__codelineno-0-425" name="__codelineno-0-425"></a>    <span class="c1"># -------------------------------------------------------------------------</span>
 <a id="__codelineno-0-426" name="__codelineno-0-426"></a>
 <a id="__codelineno-0-427" name="__codelineno-0-427"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">stats</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
-<a id="__codelineno-0-428" name="__codelineno-0-428"></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;Get knowledge graph statistics.&quot;&quot;&quot;</span>
+<a id="__codelineno-0-428" name="__codelineno-0-428"></a><span class="w">        </span><span class="sd">"""Get knowledge graph statistics."""</span>
 <a id="__codelineno-0-429" name="__codelineno-0-429"></a>        <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">_conn</span><span class="p">()</span> <span class="k">as</span> <span class="n">conn</span><span class="p">:</span>
-<a id="__codelineno-0-430" name="__codelineno-0-430"></a>            <span class="n">entity_count</span> <span class="o">=</span> <span class="n">conn</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">&quot;SELECT COUNT(*) FROM entities&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">fetchone</span><span class="p">()[</span><span class="mi">0</span><span class="p">]</span>
-<a id="__codelineno-0-431" name="__codelineno-0-431"></a>            <span class="n">triple_count</span> <span class="o">=</span> <span class="n">conn</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">&quot;SELECT COUNT(*) FROM triples&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">fetchone</span><span class="p">()[</span><span class="mi">0</span><span class="p">]</span>
+<a id="__codelineno-0-430" name="__codelineno-0-430"></a>            <span class="n">entity_count</span> <span class="o">=</span> <span class="n">conn</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">"SELECT COUNT(*) FROM entities"</span><span class="p">)</span><span class="o">.</span><span class="n">fetchone</span><span class="p">()[</span><span class="mi">0</span><span class="p">]</span>
+<a id="__codelineno-0-431" name="__codelineno-0-431"></a>            <span class="n">triple_count</span> <span class="o">=</span> <span class="n">conn</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">"SELECT COUNT(*) FROM triples"</span><span class="p">)</span><span class="o">.</span><span class="n">fetchone</span><span class="p">()[</span><span class="mi">0</span><span class="p">]</span>
 <a id="__codelineno-0-432" name="__codelineno-0-432"></a>
 <a id="__codelineno-0-433" name="__codelineno-0-433"></a>            <span class="n">oldest</span> <span class="o">=</span> <span class="n">conn</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span>
-<a id="__codelineno-0-434" name="__codelineno-0-434"></a>                <span class="s2">&quot;SELECT MIN(valid_from) FROM triples WHERE valid_from IS NOT NULL&quot;</span>
+<a id="__codelineno-0-434" name="__codelineno-0-434"></a>                <span class="s2">"SELECT MIN(valid_from) FROM triples WHERE valid_from IS NOT NULL"</span>
 <a id="__codelineno-0-435" name="__codelineno-0-435"></a>            <span class="p">)</span><span class="o">.</span><span class="n">fetchone</span><span class="p">()[</span><span class="mi">0</span><span class="p">]</span>
 <a id="__codelineno-0-436" name="__codelineno-0-436"></a>            <span class="n">newest</span> <span class="o">=</span> <span class="n">conn</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span>
-<a id="__codelineno-0-437" name="__codelineno-0-437"></a>                <span class="s2">&quot;SELECT MAX(valid_from) FROM triples WHERE valid_from IS NOT NULL&quot;</span>
+<a id="__codelineno-0-437" name="__codelineno-0-437"></a>                <span class="s2">"SELECT MAX(valid_from) FROM triples WHERE valid_from IS NOT NULL"</span>
 <a id="__codelineno-0-438" name="__codelineno-0-438"></a>            <span class="p">)</span><span class="o">.</span><span class="n">fetchone</span><span class="p">()[</span><span class="mi">0</span><span class="p">]</span>
 <a id="__codelineno-0-439" name="__codelineno-0-439"></a>
 <a id="__codelineno-0-440" name="__codelineno-0-440"></a>            <span class="n">now</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_now</span><span class="p">()</span>
 <a id="__codelineno-0-441" name="__codelineno-0-441"></a>            <span class="n">current</span> <span class="o">=</span> <span class="n">conn</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span>
-<a id="__codelineno-0-442" name="__codelineno-0-442"></a>                <span class="s2">&quot;SELECT COUNT(*) FROM triples WHERE (valid_to IS NULL OR valid_to &gt;= ?)&quot;</span><span class="p">,</span>
+<a id="__codelineno-0-442" name="__codelineno-0-442"></a>                <span class="s2">"SELECT COUNT(*) FROM triples WHERE (valid_to IS NULL OR valid_to &gt;= ?)"</span><span class="p">,</span>
 <a id="__codelineno-0-443" name="__codelineno-0-443"></a>                <span class="p">(</span><span class="n">now</span><span class="p">,),</span>
 <a id="__codelineno-0-444" name="__codelineno-0-444"></a>            <span class="p">)</span><span class="o">.</span><span class="n">fetchone</span><span class="p">()[</span><span class="mi">0</span><span class="p">]</span>
 <a id="__codelineno-0-445" name="__codelineno-0-445"></a>
 <a id="__codelineno-0-446" name="__codelineno-0-446"></a>        <span class="k">return</span> <span class="p">{</span>
-<a id="__codelineno-0-447" name="__codelineno-0-447"></a>            <span class="s2">&quot;entity_count&quot;</span><span class="p">:</span> <span class="n">entity_count</span><span class="p">,</span>
-<a id="__codelineno-0-448" name="__codelineno-0-448"></a>            <span class="s2">&quot;triple_count&quot;</span><span class="p">:</span> <span class="n">triple_count</span><span class="p">,</span>
-<a id="__codelineno-0-449" name="__codelineno-0-449"></a>            <span class="s2">&quot;current_facts&quot;</span><span class="p">:</span> <span class="n">current</span><span class="p">,</span>
-<a id="__codelineno-0-450" name="__codelineno-0-450"></a>            <span class="s2">&quot;expired_facts&quot;</span><span class="p">:</span> <span class="n">triple_count</span> <span class="o">-</span> <span class="n">current</span><span class="p">,</span>
-<a id="__codelineno-0-451" name="__codelineno-0-451"></a>            <span class="s2">&quot;oldest_fact&quot;</span><span class="p">:</span> <span class="n">oldest</span><span class="p">,</span>
-<a id="__codelineno-0-452" name="__codelineno-0-452"></a>            <span class="s2">&quot;newest_fact&quot;</span><span class="p">:</span> <span class="n">newest</span><span class="p">,</span>
+<a id="__codelineno-0-447" name="__codelineno-0-447"></a>            <span class="s2">"entity_count"</span><span class="p">:</span> <span class="n">entity_count</span><span class="p">,</span>
+<a id="__codelineno-0-448" name="__codelineno-0-448"></a>            <span class="s2">"triple_count"</span><span class="p">:</span> <span class="n">triple_count</span><span class="p">,</span>
+<a id="__codelineno-0-449" name="__codelineno-0-449"></a>            <span class="s2">"current_facts"</span><span class="p">:</span> <span class="n">current</span><span class="p">,</span>
+<a id="__codelineno-0-450" name="__codelineno-0-450"></a>            <span class="s2">"expired_facts"</span><span class="p">:</span> <span class="n">triple_count</span> <span class="o">-</span> <span class="n">current</span><span class="p">,</span>
+<a id="__codelineno-0-451" name="__codelineno-0-451"></a>            <span class="s2">"oldest_fact"</span><span class="p">:</span> <span class="n">oldest</span><span class="p">,</span>
+<a id="__codelineno-0-452" name="__codelineno-0-452"></a>            <span class="s2">"newest_fact"</span><span class="p">:</span> <span class="n">newest</span><span class="p">,</span>
 <a id="__codelineno-0-453" name="__codelineno-0-453"></a>        <span class="p">}</span>
 </code></pre></div></td></tr></table></div>
               </details>
@@ -2202,7 +2248,7 @@
 
 
 <h3 id="ompa.knowledge_graph.KnowledgeGraph.add_entity" class="doc doc-heading">
-<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">add_entity</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">entity_type</span><span class="o">=</span><span class="s1">&#39;unknown&#39;</span><span class="p">)</span></code>
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">add_entity</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">entity_type</span><span class="o">=</span><span class="s1">'unknown'</span><span class="p">)</span></code>
 
 <a href="#ompa.knowledge_graph.KnowledgeGraph.add_entity" class="headerlink" title="Permanent link">&para;</a></h3>
 
@@ -2221,12 +2267,12 @@
 <span class="normal"><a href="#__codelineno-0-145">145</a></span>
 <span class="normal"><a href="#__codelineno-0-146">146</a></span>
 <span class="normal"><a href="#__codelineno-0-147">147</a></span>
-<span class="normal"><a href="#__codelineno-0-148">148</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-141" name="__codelineno-0-141"></a><span class="k">def</span><span class="w"> </span><span class="nf">add_entity</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">entity_type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;unknown&quot;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-0-142" name="__codelineno-0-142"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Add an entity.&quot;&quot;&quot;</span>
+<span class="normal"><a href="#__codelineno-0-148">148</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-141" name="__codelineno-0-141"></a><span class="k">def</span><span class="w"> </span><span class="nf">add_entity</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">entity_type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"unknown"</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-0-142" name="__codelineno-0-142"></a><span class="w">    </span><span class="sd">"""Add an entity."""</span>
 <a id="__codelineno-0-143" name="__codelineno-0-143"></a>    <span class="n">entity_id</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_entity_id</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
 <a id="__codelineno-0-144" name="__codelineno-0-144"></a>    <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">_conn</span><span class="p">()</span> <span class="k">as</span> <span class="n">conn</span><span class="p">:</span>
 <a id="__codelineno-0-145" name="__codelineno-0-145"></a>        <span class="n">conn</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span>
-<a id="__codelineno-0-146" name="__codelineno-0-146"></a>            <span class="s2">&quot;INSERT OR IGNORE INTO entities (id, name, type) VALUES (?, ?, ?)&quot;</span><span class="p">,</span>
+<a id="__codelineno-0-146" name="__codelineno-0-146"></a>            <span class="s2">"INSERT OR IGNORE INTO entities (id, name, type) VALUES (?, ?, ?)"</span><span class="p">,</span>
 <a id="__codelineno-0-147" name="__codelineno-0-147"></a>            <span class="p">(</span><span class="n">entity_id</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">entity_type</span><span class="p">),</span>
 <a id="__codelineno-0-148" name="__codelineno-0-148"></a>        <span class="p">)</span>
 </code></pre></div></td></tr></table></div>
@@ -2439,18 +2485,18 @@
 <a id="__codelineno-0-196" name="__codelineno-0-196"></a>    <span class="n">confidence</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span><span class="p">,</span>
 <a id="__codelineno-0-197" name="__codelineno-0-197"></a>    <span class="n">source</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <a id="__codelineno-0-198" name="__codelineno-0-198"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-0-199" name="__codelineno-0-199"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<a id="__codelineno-0-199" name="__codelineno-0-199"></a><span class="w">    </span><span class="sd">"""</span>
 <a id="__codelineno-0-200" name="__codelineno-0-200"></a><span class="sd">    Add a fact triple to the knowledge graph.</span>
 <a id="__codelineno-0-201" name="__codelineno-0-201"></a>
 <a id="__codelineno-0-202" name="__codelineno-0-202"></a><span class="sd">    Args:</span>
-<a id="__codelineno-0-203" name="__codelineno-0-203"></a><span class="sd">        subject: Subject entity (e.g., &quot;Kai&quot;)</span>
-<a id="__codelineno-0-204" name="__codelineno-0-204"></a><span class="sd">        predicate: Relationship (e.g., &quot;works_on&quot;, &quot;completed&quot;, &quot;recommended&quot;)</span>
-<a id="__codelineno-0-205" name="__codelineno-0-205"></a><span class="sd">        object: Object entity (e.g., &quot;Orion&quot;)</span>
+<a id="__codelineno-0-203" name="__codelineno-0-203"></a><span class="sd">        subject: Subject entity (e.g., "Kai")</span>
+<a id="__codelineno-0-204" name="__codelineno-0-204"></a><span class="sd">        predicate: Relationship (e.g., "works_on", "completed", "recommended")</span>
+<a id="__codelineno-0-205" name="__codelineno-0-205"></a><span class="sd">        object: Object entity (e.g., "Orion")</span>
 <a id="__codelineno-0-206" name="__codelineno-0-206"></a><span class="sd">        valid_from: Start date (YYYY-MM-DD). None = always true.</span>
 <a id="__codelineno-0-207" name="__codelineno-0-207"></a><span class="sd">        valid_to: End date (YYYY-MM-DD). None = still true.</span>
 <a id="__codelineno-0-208" name="__codelineno-0-208"></a><span class="sd">        confidence: Confidence 0-1. Default 1.0.</span>
 <a id="__codelineno-0-209" name="__codelineno-0-209"></a><span class="sd">        source: Source file or drawer reference.</span>
-<a id="__codelineno-0-210" name="__codelineno-0-210"></a><span class="sd">    &quot;&quot;&quot;</span>
+<a id="__codelineno-0-210" name="__codelineno-0-210"></a><span class="sd">    """</span>
 <a id="__codelineno-0-211" name="__codelineno-0-211"></a>    <span class="n">triple_id</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_triple_id</span><span class="p">(</span><span class="n">subject</span><span class="p">,</span> <span class="n">predicate</span><span class="p">,</span> <span class="nb">object</span><span class="p">)</span>
 <a id="__codelineno-0-212" name="__codelineno-0-212"></a>    <span class="n">valid_from</span> <span class="o">=</span> <span class="n">valid_from</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">_now</span><span class="p">()</span>
 <a id="__codelineno-0-213" name="__codelineno-0-213"></a>    <span class="n">subject_id</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_entity_id</span><span class="p">(</span><span class="n">subject</span><span class="p">)</span>
@@ -2459,17 +2505,17 @@
 <a id="__codelineno-0-216" name="__codelineno-0-216"></a>    <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">_conn</span><span class="p">()</span> <span class="k">as</span> <span class="n">conn</span><span class="p">:</span>
 <a id="__codelineno-0-217" name="__codelineno-0-217"></a>        <span class="c1"># Ensure entities exist (single transaction)</span>
 <a id="__codelineno-0-218" name="__codelineno-0-218"></a>        <span class="n">conn</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span>
-<a id="__codelineno-0-219" name="__codelineno-0-219"></a>            <span class="s2">&quot;INSERT OR IGNORE INTO entities (id, name, type) VALUES (?, ?, ?)&quot;</span><span class="p">,</span>
-<a id="__codelineno-0-220" name="__codelineno-0-220"></a>            <span class="p">(</span><span class="n">subject_id</span><span class="p">,</span> <span class="n">subject</span><span class="p">,</span> <span class="s2">&quot;unknown&quot;</span><span class="p">),</span>
+<a id="__codelineno-0-219" name="__codelineno-0-219"></a>            <span class="s2">"INSERT OR IGNORE INTO entities (id, name, type) VALUES (?, ?, ?)"</span><span class="p">,</span>
+<a id="__codelineno-0-220" name="__codelineno-0-220"></a>            <span class="p">(</span><span class="n">subject_id</span><span class="p">,</span> <span class="n">subject</span><span class="p">,</span> <span class="s2">"unknown"</span><span class="p">),</span>
 <a id="__codelineno-0-221" name="__codelineno-0-221"></a>        <span class="p">)</span>
 <a id="__codelineno-0-222" name="__codelineno-0-222"></a>        <span class="n">conn</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span>
-<a id="__codelineno-0-223" name="__codelineno-0-223"></a>            <span class="s2">&quot;INSERT OR IGNORE INTO entities (id, name, type) VALUES (?, ?, ?)&quot;</span><span class="p">,</span>
-<a id="__codelineno-0-224" name="__codelineno-0-224"></a>            <span class="p">(</span><span class="n">object_id</span><span class="p">,</span> <span class="nb">object</span><span class="p">,</span> <span class="s2">&quot;unknown&quot;</span><span class="p">),</span>
+<a id="__codelineno-0-223" name="__codelineno-0-223"></a>            <span class="s2">"INSERT OR IGNORE INTO entities (id, name, type) VALUES (?, ?, ?)"</span><span class="p">,</span>
+<a id="__codelineno-0-224" name="__codelineno-0-224"></a>            <span class="p">(</span><span class="n">object_id</span><span class="p">,</span> <span class="nb">object</span><span class="p">,</span> <span class="s2">"unknown"</span><span class="p">),</span>
 <a id="__codelineno-0-225" name="__codelineno-0-225"></a>        <span class="p">)</span>
 <a id="__codelineno-0-226" name="__codelineno-0-226"></a>        <span class="n">conn</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span>
-<a id="__codelineno-0-227" name="__codelineno-0-227"></a><span class="w">            </span><span class="sd">&quot;&quot;&quot;INSERT OR REPLACE INTO triples</span>
+<a id="__codelineno-0-227" name="__codelineno-0-227"></a><span class="w">            </span><span class="sd">"""INSERT OR REPLACE INTO triples</span>
 <a id="__codelineno-0-228" name="__codelineno-0-228"></a><span class="sd">               (id, subject, predicate, object, valid_from, valid_to, confidence, source_file)</span>
-<a id="__codelineno-0-229" name="__codelineno-0-229"></a><span class="sd">               VALUES (?, ?, ?, ?, ?, ?, ?, ?)&quot;&quot;&quot;</span><span class="p">,</span>
+<a id="__codelineno-0-229" name="__codelineno-0-229"></a><span class="sd">               VALUES (?, ?, ?, ?, ?, ?, ?, ?)"""</span><span class="p">,</span>
 <a id="__codelineno-0-230" name="__codelineno-0-230"></a>            <span class="p">(</span>
 <a id="__codelineno-0-231" name="__codelineno-0-231"></a>                <span class="n">triple_id</span><span class="p">,</span>
 <a id="__codelineno-0-232" name="__codelineno-0-232"></a>                <span class="n">subject</span><span class="p">,</span>
@@ -2520,15 +2566,15 @@ The fact is no longer current but remains queryable historically.</p>
 <span class="normal"><a href="#__codelineno-0-255">255</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-242" name="__codelineno-0-242"></a><span class="k">def</span><span class="w"> </span><span class="nf">invalidate</span><span class="p">(</span>
 <a id="__codelineno-0-243" name="__codelineno-0-243"></a>    <span class="bp">self</span><span class="p">,</span> <span class="n">subject</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">predicate</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">obj</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">ended</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span>
 <a id="__codelineno-0-244" name="__codelineno-0-244"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-0-245" name="__codelineno-0-245"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<a id="__codelineno-0-245" name="__codelineno-0-245"></a><span class="w">    </span><span class="sd">"""</span>
 <a id="__codelineno-0-246" name="__codelineno-0-246"></a><span class="sd">    Invalidate a triple by setting its valid_to date.</span>
 <a id="__codelineno-0-247" name="__codelineno-0-247"></a><span class="sd">    The fact is no longer current but remains queryable historically.</span>
-<a id="__codelineno-0-248" name="__codelineno-0-248"></a><span class="sd">    &quot;&quot;&quot;</span>
+<a id="__codelineno-0-248" name="__codelineno-0-248"></a><span class="sd">    """</span>
 <a id="__codelineno-0-249" name="__codelineno-0-249"></a>    <span class="n">ended</span> <span class="o">=</span> <span class="n">ended</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">_now</span><span class="p">()</span>
 <a id="__codelineno-0-250" name="__codelineno-0-250"></a>    <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">_conn</span><span class="p">()</span> <span class="k">as</span> <span class="n">conn</span><span class="p">:</span>
 <a id="__codelineno-0-251" name="__codelineno-0-251"></a>        <span class="n">conn</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span>
-<a id="__codelineno-0-252" name="__codelineno-0-252"></a><span class="w">            </span><span class="sd">&quot;&quot;&quot;UPDATE triples SET valid_to = ?</span>
-<a id="__codelineno-0-253" name="__codelineno-0-253"></a><span class="sd">               WHERE subject = ? AND predicate = ? AND object = ? AND valid_to IS NULL&quot;&quot;&quot;</span><span class="p">,</span>
+<a id="__codelineno-0-252" name="__codelineno-0-252"></a><span class="w">            </span><span class="sd">"""UPDATE triples SET valid_to = ?</span>
+<a id="__codelineno-0-253" name="__codelineno-0-253"></a><span class="sd">               WHERE subject = ? AND predicate = ? AND object = ? AND valid_to IS NULL"""</span><span class="p">,</span>
 <a id="__codelineno-0-254" name="__codelineno-0-254"></a>            <span class="p">(</span><span class="n">ended</span><span class="p">,</span> <span class="n">subject</span><span class="p">,</span> <span class="n">predicate</span><span class="p">,</span> <span class="n">obj</span><span class="p">),</span>
 <a id="__codelineno-0-255" name="__codelineno-0-255"></a>        <span class="p">)</span>
 </code></pre></div></td></tr></table></div>
@@ -2650,7 +2696,7 @@ The fact is no longer current but remains queryable historically.</p>
 <span class="normal"><a href="#__codelineno-0-391">391</a></span>
 <span class="normal"><a href="#__codelineno-0-392">392</a></span>
 <span class="normal"><a href="#__codelineno-0-393">393</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-303" name="__codelineno-0-303"></a><span class="k">def</span><span class="w"> </span><span class="nf">populate_from_note</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">note_path</span><span class="p">:</span> <span class="n">Path</span><span class="p">,</span> <span class="n">vault_path</span><span class="p">:</span> <span class="n">Path</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
-<a id="__codelineno-0-304" name="__codelineno-0-304"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<a id="__codelineno-0-304" name="__codelineno-0-304"></a><span class="w">    </span><span class="sd">"""</span>
 <a id="__codelineno-0-305" name="__codelineno-0-305"></a><span class="sd">    Extract and store triples from a single vault note.</span>
 <a id="__codelineno-0-306" name="__codelineno-0-306"></a>
 <a id="__codelineno-0-307" name="__codelineno-0-307"></a><span class="sd">    Extracts:</span>
@@ -2660,8 +2706,8 @@ The fact is no longer current but remains queryable historically.</p>
 <a id="__codelineno-0-311" name="__codelineno-0-311"></a><span class="sd">    - Frontmatter date: note --created_on--&gt; date</span>
 <a id="__codelineno-0-312" name="__codelineno-0-312"></a>
 <a id="__codelineno-0-313" name="__codelineno-0-313"></a><span class="sd">    Returns the number of triples added.</span>
-<a id="__codelineno-0-314" name="__codelineno-0-314"></a><span class="sd">    &quot;&quot;&quot;</span>
-<a id="__codelineno-0-315" name="__codelineno-0-315"></a>    <span class="k">if</span> <span class="ow">not</span> <span class="n">note_path</span><span class="o">.</span><span class="n">exists</span><span class="p">()</span> <span class="ow">or</span> <span class="n">note_path</span><span class="o">.</span><span class="n">suffix</span> <span class="o">!=</span> <span class="s2">&quot;.md&quot;</span><span class="p">:</span>
+<a id="__codelineno-0-314" name="__codelineno-0-314"></a><span class="sd">    """</span>
+<a id="__codelineno-0-315" name="__codelineno-0-315"></a>    <span class="k">if</span> <span class="ow">not</span> <span class="n">note_path</span><span class="o">.</span><span class="n">exists</span><span class="p">()</span> <span class="ow">or</span> <span class="n">note_path</span><span class="o">.</span><span class="n">suffix</span> <span class="o">!=</span> <span class="s2">".md"</span><span class="p">:</span>
 <a id="__codelineno-0-316" name="__codelineno-0-316"></a>        <span class="k">return</span> <span class="mi">0</span>
 <a id="__codelineno-0-317" name="__codelineno-0-317"></a>
 <a id="__codelineno-0-318" name="__codelineno-0-318"></a>    <span class="n">count</span> <span class="o">=</span> <span class="mi">0</span>
@@ -2676,29 +2722,29 @@ The fact is no longer current but remains queryable historically.</p>
 <a id="__codelineno-0-327" name="__codelineno-0-327"></a>        <span class="n">metadata</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">post</span><span class="o">.</span><span class="n">metadata</span><span class="p">)</span>
 <a id="__codelineno-0-328" name="__codelineno-0-328"></a>    <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
 <a id="__codelineno-0-329" name="__codelineno-0-329"></a>        <span class="k">try</span><span class="p">:</span>
-<a id="__codelineno-0-330" name="__codelineno-0-330"></a>            <span class="n">content</span> <span class="o">=</span> <span class="n">note_path</span><span class="o">.</span><span class="n">read_text</span><span class="p">(</span><span class="n">encoding</span><span class="o">=</span><span class="s2">&quot;utf-8&quot;</span><span class="p">)</span>
+<a id="__codelineno-0-330" name="__codelineno-0-330"></a>            <span class="n">content</span> <span class="o">=</span> <span class="n">note_path</span><span class="o">.</span><span class="n">read_text</span><span class="p">(</span><span class="n">encoding</span><span class="o">=</span><span class="s2">"utf-8"</span><span class="p">)</span>
 <a id="__codelineno-0-331" name="__codelineno-0-331"></a>            <span class="n">metadata</span> <span class="o">=</span> <span class="p">{}</span>
 <a id="__codelineno-0-332" name="__codelineno-0-332"></a>        <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
-<a id="__codelineno-0-333" name="__codelineno-0-333"></a>            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">&quot;Could not read </span><span class="si">%s</span><span class="s2">: </span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">note_path</span><span class="p">,</span> <span class="n">e</span><span class="p">)</span>
+<a id="__codelineno-0-333" name="__codelineno-0-333"></a>            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"Could not read </span><span class="si">%s</span><span class="s2">: </span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span> <span class="n">note_path</span><span class="p">,</span> <span class="n">e</span><span class="p">)</span>
 <a id="__codelineno-0-334" name="__codelineno-0-334"></a>            <span class="k">return</span> <span class="mi">0</span>
 <a id="__codelineno-0-335" name="__codelineno-0-335"></a>
 <a id="__codelineno-0-336" name="__codelineno-0-336"></a>    <span class="c1"># 1. Wikilinks → links_to triples</span>
-<a id="__codelineno-0-337" name="__codelineno-0-337"></a>    <span class="n">wikilinks</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">findall</span><span class="p">(</span><span class="sa">r</span><span class="s2">&quot;\[\[([^\]]+)\]\]&quot;</span><span class="p">,</span> <span class="n">content</span><span class="p">)</span>
+<a id="__codelineno-0-337" name="__codelineno-0-337"></a>    <span class="n">wikilinks</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">findall</span><span class="p">(</span><span class="sa">r</span><span class="s2">"\[\[([^\]]+)\]\]"</span><span class="p">,</span> <span class="n">content</span><span class="p">)</span>
 <a id="__codelineno-0-338" name="__codelineno-0-338"></a>    <span class="k">for</span> <span class="n">link</span> <span class="ow">in</span> <span class="n">wikilinks</span><span class="p">:</span>
 <a id="__codelineno-0-339" name="__codelineno-0-339"></a>        <span class="c1"># Strip display text from piped links: [[target|display]]</span>
-<a id="__codelineno-0-340" name="__codelineno-0-340"></a>        <span class="n">target</span> <span class="o">=</span> <span class="n">link</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;|&quot;</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+<a id="__codelineno-0-340" name="__codelineno-0-340"></a>        <span class="n">target</span> <span class="o">=</span> <span class="n">link</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">"|"</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
 <a id="__codelineno-0-341" name="__codelineno-0-341"></a>        <span class="k">if</span> <span class="n">target</span><span class="p">:</span>
-<a id="__codelineno-0-342" name="__codelineno-0-342"></a>            <span class="bp">self</span><span class="o">.</span><span class="n">add_triple</span><span class="p">(</span><span class="n">note_name</span><span class="p">,</span> <span class="s2">&quot;links_to&quot;</span><span class="p">,</span> <span class="n">target</span><span class="p">,</span> <span class="n">source</span><span class="o">=</span><span class="n">source</span><span class="p">)</span>
+<a id="__codelineno-0-342" name="__codelineno-0-342"></a>            <span class="bp">self</span><span class="o">.</span><span class="n">add_triple</span><span class="p">(</span><span class="n">note_name</span><span class="p">,</span> <span class="s2">"links_to"</span><span class="p">,</span> <span class="n">target</span><span class="p">,</span> <span class="n">source</span><span class="o">=</span><span class="n">source</span><span class="p">)</span>
 <a id="__codelineno-0-343" name="__codelineno-0-343"></a>            <span class="n">count</span> <span class="o">+=</span> <span class="mi">1</span>
 <a id="__codelineno-0-344" name="__codelineno-0-344"></a>
 <a id="__codelineno-0-345" name="__codelineno-0-345"></a>    <span class="c1"># 2. Frontmatter tags → has_tag triples</span>
-<a id="__codelineno-0-346" name="__codelineno-0-346"></a>    <span class="n">tags</span> <span class="o">=</span> <span class="n">metadata</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;tags&quot;</span><span class="p">,</span> <span class="p">[])</span>
+<a id="__codelineno-0-346" name="__codelineno-0-346"></a>    <span class="n">tags</span> <span class="o">=</span> <span class="n">metadata</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"tags"</span><span class="p">,</span> <span class="p">[])</span>
 <a id="__codelineno-0-347" name="__codelineno-0-347"></a>    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">tags</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
-<a id="__codelineno-0-348" name="__codelineno-0-348"></a>        <span class="n">tags</span> <span class="o">=</span> <span class="p">[</span><span class="n">t</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span> <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">tags</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;,&quot;</span><span class="p">)</span> <span class="k">if</span> <span class="n">t</span><span class="o">.</span><span class="n">strip</span><span class="p">()]</span>
+<a id="__codelineno-0-348" name="__codelineno-0-348"></a>        <span class="n">tags</span> <span class="o">=</span> <span class="p">[</span><span class="n">t</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span> <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">tags</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">","</span><span class="p">)</span> <span class="k">if</span> <span class="n">t</span><span class="o">.</span><span class="n">strip</span><span class="p">()]</span>
 <a id="__codelineno-0-349" name="__codelineno-0-349"></a>    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">tags</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
 <a id="__codelineno-0-350" name="__codelineno-0-350"></a>        <span class="k">for</span> <span class="n">tag</span> <span class="ow">in</span> <span class="n">tags</span><span class="p">:</span>
 <a id="__codelineno-0-351" name="__codelineno-0-351"></a>            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">tag</span><span class="p">,</span> <span class="nb">str</span><span class="p">)</span> <span class="ow">and</span> <span class="n">tag</span><span class="o">.</span><span class="n">strip</span><span class="p">():</span>
-<a id="__codelineno-0-352" name="__codelineno-0-352"></a>                <span class="bp">self</span><span class="o">.</span><span class="n">add_triple</span><span class="p">(</span><span class="n">note_name</span><span class="p">,</span> <span class="s2">&quot;has_tag&quot;</span><span class="p">,</span> <span class="n">tag</span><span class="o">.</span><span class="n">strip</span><span class="p">(),</span> <span class="n">source</span><span class="o">=</span><span class="n">source</span><span class="p">)</span>
+<a id="__codelineno-0-352" name="__codelineno-0-352"></a>                <span class="bp">self</span><span class="o">.</span><span class="n">add_triple</span><span class="p">(</span><span class="n">note_name</span><span class="p">,</span> <span class="s2">"has_tag"</span><span class="p">,</span> <span class="n">tag</span><span class="o">.</span><span class="n">strip</span><span class="p">(),</span> <span class="n">source</span><span class="o">=</span><span class="n">source</span><span class="p">)</span>
 <a id="__codelineno-0-353" name="__codelineno-0-353"></a>                <span class="n">count</span> <span class="o">+=</span> <span class="mi">1</span>
 <a id="__codelineno-0-354" name="__codelineno-0-354"></a>
 <a id="__codelineno-0-355" name="__codelineno-0-355"></a>    <span class="c1"># 3. Folder membership</span>
@@ -2708,25 +2754,25 @@ The fact is no longer current but remains queryable historically.</p>
 <a id="__codelineno-0-359" name="__codelineno-0-359"></a>            <span class="n">parts</span> <span class="o">=</span> <span class="n">rel</span><span class="o">.</span><span class="n">parts</span>
 <a id="__codelineno-0-360" name="__codelineno-0-360"></a>            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">parts</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
 <a id="__codelineno-0-361" name="__codelineno-0-361"></a>                <span class="n">folder</span> <span class="o">=</span> <span class="n">parts</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>  <span class="c1"># top-level: brain, work, org, perf</span>
-<a id="__codelineno-0-362" name="__codelineno-0-362"></a>                <span class="bp">self</span><span class="o">.</span><span class="n">add_triple</span><span class="p">(</span><span class="n">note_name</span><span class="p">,</span> <span class="s2">&quot;in_folder&quot;</span><span class="p">,</span> <span class="n">folder</span><span class="p">,</span> <span class="n">source</span><span class="o">=</span><span class="n">source</span><span class="p">)</span>
+<a id="__codelineno-0-362" name="__codelineno-0-362"></a>                <span class="bp">self</span><span class="o">.</span><span class="n">add_triple</span><span class="p">(</span><span class="n">note_name</span><span class="p">,</span> <span class="s2">"in_folder"</span><span class="p">,</span> <span class="n">folder</span><span class="p">,</span> <span class="n">source</span><span class="o">=</span><span class="n">source</span><span class="p">)</span>
 <a id="__codelineno-0-363" name="__codelineno-0-363"></a>                <span class="n">count</span> <span class="o">+=</span> <span class="mi">1</span>
 <a id="__codelineno-0-364" name="__codelineno-0-364"></a>                <span class="c1"># Sub-folder (e.g., work/active, org/people)</span>
 <a id="__codelineno-0-365" name="__codelineno-0-365"></a>                <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">parts</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">2</span><span class="p">:</span>
-<a id="__codelineno-0-366" name="__codelineno-0-366"></a>                    <span class="n">subfolder</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">parts</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="n">parts</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span>
+<a id="__codelineno-0-366" name="__codelineno-0-366"></a>                    <span class="n">subfolder</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">parts</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="n">parts</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="si">}</span><span class="s2">"</span>
 <a id="__codelineno-0-367" name="__codelineno-0-367"></a>                    <span class="bp">self</span><span class="o">.</span><span class="n">add_triple</span><span class="p">(</span>
-<a id="__codelineno-0-368" name="__codelineno-0-368"></a>                        <span class="n">note_name</span><span class="p">,</span> <span class="s2">&quot;in_subfolder&quot;</span><span class="p">,</span> <span class="n">subfolder</span><span class="p">,</span> <span class="n">source</span><span class="o">=</span><span class="n">source</span>
+<a id="__codelineno-0-368" name="__codelineno-0-368"></a>                        <span class="n">note_name</span><span class="p">,</span> <span class="s2">"in_subfolder"</span><span class="p">,</span> <span class="n">subfolder</span><span class="p">,</span> <span class="n">source</span><span class="o">=</span><span class="n">source</span>
 <a id="__codelineno-0-369" name="__codelineno-0-369"></a>                    <span class="p">)</span>
 <a id="__codelineno-0-370" name="__codelineno-0-370"></a>                    <span class="n">count</span> <span class="o">+=</span> <span class="mi">1</span>
 <a id="__codelineno-0-371" name="__codelineno-0-371"></a>        <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
 <a id="__codelineno-0-372" name="__codelineno-0-372"></a>            <span class="k">pass</span>
 <a id="__codelineno-0-373" name="__codelineno-0-373"></a>
 <a id="__codelineno-0-374" name="__codelineno-0-374"></a>    <span class="c1"># 4. Frontmatter date → created_on</span>
-<a id="__codelineno-0-375" name="__codelineno-0-375"></a>    <span class="n">date_val</span> <span class="o">=</span> <span class="n">metadata</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;date&quot;</span><span class="p">)</span>
+<a id="__codelineno-0-375" name="__codelineno-0-375"></a>    <span class="n">date_val</span> <span class="o">=</span> <span class="n">metadata</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"date"</span><span class="p">)</span>
 <a id="__codelineno-0-376" name="__codelineno-0-376"></a>    <span class="k">if</span> <span class="n">date_val</span><span class="p">:</span>
 <a id="__codelineno-0-377" name="__codelineno-0-377"></a>        <span class="n">date_str</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">date_val</span><span class="p">)[:</span><span class="mi">10</span><span class="p">]</span>  <span class="c1"># YYYY-MM-DD</span>
 <a id="__codelineno-0-378" name="__codelineno-0-378"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">add_triple</span><span class="p">(</span>
 <a id="__codelineno-0-379" name="__codelineno-0-379"></a>            <span class="n">note_name</span><span class="p">,</span>
-<a id="__codelineno-0-380" name="__codelineno-0-380"></a>            <span class="s2">&quot;created_on&quot;</span><span class="p">,</span>
+<a id="__codelineno-0-380" name="__codelineno-0-380"></a>            <span class="s2">"created_on"</span><span class="p">,</span>
 <a id="__codelineno-0-381" name="__codelineno-0-381"></a>            <span class="n">date_str</span><span class="p">,</span>
 <a id="__codelineno-0-382" name="__codelineno-0-382"></a>            <span class="n">valid_from</span><span class="o">=</span><span class="n">date_str</span><span class="p">,</span>
 <a id="__codelineno-0-383" name="__codelineno-0-383"></a>            <span class="n">source</span><span class="o">=</span><span class="n">source</span><span class="p">,</span>
@@ -2734,9 +2780,9 @@ The fact is no longer current but remains queryable historically.</p>
 <a id="__codelineno-0-385" name="__codelineno-0-385"></a>        <span class="n">count</span> <span class="o">+=</span> <span class="mi">1</span>
 <a id="__codelineno-0-386" name="__codelineno-0-386"></a>
 <a id="__codelineno-0-387" name="__codelineno-0-387"></a>    <span class="c1"># 5. Frontmatter description → has_description (for search context)</span>
-<a id="__codelineno-0-388" name="__codelineno-0-388"></a>    <span class="n">desc</span> <span class="o">=</span> <span class="n">metadata</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;description&quot;</span><span class="p">)</span>
+<a id="__codelineno-0-388" name="__codelineno-0-388"></a>    <span class="n">desc</span> <span class="o">=</span> <span class="n">metadata</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"description"</span><span class="p">)</span>
 <a id="__codelineno-0-389" name="__codelineno-0-389"></a>    <span class="k">if</span> <span class="n">desc</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">desc</span><span class="p">,</span> <span class="nb">str</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">desc</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">10</span><span class="p">:</span>
-<a id="__codelineno-0-390" name="__codelineno-0-390"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">add_entity</span><span class="p">(</span><span class="n">note_name</span><span class="p">,</span> <span class="n">entity_type</span><span class="o">=</span><span class="s2">&quot;note&quot;</span><span class="p">)</span>
+<a id="__codelineno-0-390" name="__codelineno-0-390"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">add_entity</span><span class="p">(</span><span class="n">note_name</span><span class="p">,</span> <span class="n">entity_type</span><span class="o">=</span><span class="s2">"note"</span><span class="p">)</span>
 <a id="__codelineno-0-391" name="__codelineno-0-391"></a>        <span class="n">count</span> <span class="o">+=</span> <span class="mi">1</span>
 <a id="__codelineno-0-392" name="__codelineno-0-392"></a>
 <a id="__codelineno-0-393" name="__codelineno-0-393"></a>    <span class="k">return</span> <span class="n">count</span>
@@ -2861,7 +2907,7 @@ The fact is no longer current but remains queryable historically.</p>
 <span class="normal"><a href="#__codelineno-0-421">421</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-395" name="__codelineno-0-395"></a><span class="k">def</span><span class="w"> </span><span class="nf">populate_from_vault</span><span class="p">(</span>
 <a id="__codelineno-0-396" name="__codelineno-0-396"></a>    <span class="bp">self</span><span class="p">,</span> <span class="n">vault_path</span><span class="p">:</span> <span class="n">Path</span><span class="p">,</span> <span class="n">exclude_patterns</span><span class="p">:</span> <span class="nb">list</span> <span class="o">=</span> <span class="kc">None</span>
 <a id="__codelineno-0-397" name="__codelineno-0-397"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
-<a id="__codelineno-0-398" name="__codelineno-0-398"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<a id="__codelineno-0-398" name="__codelineno-0-398"></a><span class="w">    </span><span class="sd">"""</span>
 <a id="__codelineno-0-399" name="__codelineno-0-399"></a><span class="sd">    Scan all vault notes and populate the knowledge graph.</span>
 <a id="__codelineno-0-400" name="__codelineno-0-400"></a>
 <a id="__codelineno-0-401" name="__codelineno-0-401"></a><span class="sd">    Args:</span>
@@ -2870,20 +2916,20 @@ The fact is no longer current but remains queryable historically.</p>
 <a id="__codelineno-0-404" name="__codelineno-0-404"></a>
 <a id="__codelineno-0-405" name="__codelineno-0-405"></a><span class="sd">    Returns:</span>
 <a id="__codelineno-0-406" name="__codelineno-0-406"></a><span class="sd">        Total number of triples added.</span>
-<a id="__codelineno-0-407" name="__codelineno-0-407"></a><span class="sd">    &quot;&quot;&quot;</span>
+<a id="__codelineno-0-407" name="__codelineno-0-407"></a><span class="sd">    """</span>
 <a id="__codelineno-0-408" name="__codelineno-0-408"></a>    <span class="kn">from</span><span class="w"> </span><span class="nn">.vault</span><span class="w"> </span><span class="kn">import</span> <span class="n">DEFAULT_EXCLUDE_PATTERNS</span>
 <a id="__codelineno-0-409" name="__codelineno-0-409"></a>
 <a id="__codelineno-0-410" name="__codelineno-0-410"></a>    <span class="n">exclude_patterns</span> <span class="o">=</span> <span class="n">exclude_patterns</span> <span class="ow">or</span> <span class="n">DEFAULT_EXCLUDE_PATTERNS</span>
 <a id="__codelineno-0-411" name="__codelineno-0-411"></a>    <span class="n">total</span> <span class="o">=</span> <span class="mi">0</span>
 <a id="__codelineno-0-412" name="__codelineno-0-412"></a>    <span class="n">vault_path</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">vault_path</span><span class="p">)</span>
 <a id="__codelineno-0-413" name="__codelineno-0-413"></a>
-<a id="__codelineno-0-414" name="__codelineno-0-414"></a>    <span class="k">for</span> <span class="n">md_file</span> <span class="ow">in</span> <span class="n">vault_path</span><span class="o">.</span><span class="n">rglob</span><span class="p">(</span><span class="s2">&quot;*.md&quot;</span><span class="p">):</span>
+<a id="__codelineno-0-414" name="__codelineno-0-414"></a>    <span class="k">for</span> <span class="n">md_file</span> <span class="ow">in</span> <span class="n">vault_path</span><span class="o">.</span><span class="n">rglob</span><span class="p">(</span><span class="s2">"*.md"</span><span class="p">):</span>
 <a id="__codelineno-0-415" name="__codelineno-0-415"></a>        <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="n">excl</span> <span class="ow">in</span> <span class="nb">str</span><span class="p">(</span><span class="n">md_file</span><span class="p">)</span> <span class="k">for</span> <span class="n">excl</span> <span class="ow">in</span> <span class="n">exclude_patterns</span><span class="p">):</span>
 <a id="__codelineno-0-416" name="__codelineno-0-416"></a>            <span class="k">continue</span>
 <a id="__codelineno-0-417" name="__codelineno-0-417"></a>        <span class="n">added</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">populate_from_note</span><span class="p">(</span><span class="n">md_file</span><span class="p">,</span> <span class="n">vault_path</span><span class="p">)</span>
 <a id="__codelineno-0-418" name="__codelineno-0-418"></a>        <span class="n">total</span> <span class="o">+=</span> <span class="n">added</span>
 <a id="__codelineno-0-419" name="__codelineno-0-419"></a>
-<a id="__codelineno-0-420" name="__codelineno-0-420"></a>    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;KG populated: </span><span class="si">%d</span><span class="s2"> triples from vault </span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">total</span><span class="p">,</span> <span class="n">vault_path</span><span class="p">)</span>
+<a id="__codelineno-0-420" name="__codelineno-0-420"></a>    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">"KG populated: </span><span class="si">%d</span><span class="s2"> triples from vault </span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span> <span class="n">total</span><span class="p">,</span> <span class="n">vault_path</span><span class="p">)</span>
 <a id="__codelineno-0-421" name="__codelineno-0-421"></a>    <span class="k">return</span> <span class="n">total</span>
 </code></pre></div></td></tr></table></div>
             </details>
@@ -2977,24 +3023,24 @@ The fact is no longer current but remains queryable historically.</p>
 <span class="normal"><a href="#__codelineno-0-170">170</a></span>
 <span class="normal"><a href="#__codelineno-0-171">171</a></span>
 <span class="normal"><a href="#__codelineno-0-172">172</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-150" name="__codelineno-0-150"></a><span class="k">def</span><span class="w"> </span><span class="nf">query_entity</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">as_of</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">Triple</span><span class="p">]:</span>
-<a id="__codelineno-0-151" name="__codelineno-0-151"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<a id="__codelineno-0-151" name="__codelineno-0-151"></a><span class="w">    </span><span class="sd">"""</span>
 <a id="__codelineno-0-152" name="__codelineno-0-152"></a><span class="sd">    Query all current triples for an entity.</span>
 <a id="__codelineno-0-153" name="__codelineno-0-153"></a>
 <a id="__codelineno-0-154" name="__codelineno-0-154"></a><span class="sd">    Args:</span>
 <a id="__codelineno-0-155" name="__codelineno-0-155"></a><span class="sd">        name: Entity name</span>
 <a id="__codelineno-0-156" name="__codelineno-0-156"></a><span class="sd">        as_of: YYYY-MM-DD date for historical query. Defaults to today.</span>
-<a id="__codelineno-0-157" name="__codelineno-0-157"></a><span class="sd">    &quot;&quot;&quot;</span>
+<a id="__codelineno-0-157" name="__codelineno-0-157"></a><span class="sd">    """</span>
 <a id="__codelineno-0-158" name="__codelineno-0-158"></a>    <span class="n">as_of</span> <span class="o">=</span> <span class="n">as_of</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">_now</span><span class="p">()</span>
 <a id="__codelineno-0-159" name="__codelineno-0-159"></a>
 <a id="__codelineno-0-160" name="__codelineno-0-160"></a>    <span class="c1"># Filter in SQL for performance</span>
-<a id="__codelineno-0-161" name="__codelineno-0-161"></a>    <span class="n">query</span> <span class="o">=</span> <span class="s2">&quot;&quot;&quot;</span>
+<a id="__codelineno-0-161" name="__codelineno-0-161"></a>    <span class="n">query</span> <span class="o">=</span> <span class="s2">"""</span>
 <a id="__codelineno-0-162" name="__codelineno-0-162"></a><span class="s2">        SELECT subject, predicate, object, valid_from, valid_to, confidence, source_file</span>
 <a id="__codelineno-0-163" name="__codelineno-0-163"></a><span class="s2">        FROM triples</span>
 <a id="__codelineno-0-164" name="__codelineno-0-164"></a><span class="s2">        WHERE (subject = ? OR object = ?)</span>
 <a id="__codelineno-0-165" name="__codelineno-0-165"></a><span class="s2">          AND (valid_from IS NULL OR valid_from &lt;= ?)</span>
 <a id="__codelineno-0-166" name="__codelineno-0-166"></a><span class="s2">          AND (valid_to IS NULL OR valid_to &gt;= ?)</span>
 <a id="__codelineno-0-167" name="__codelineno-0-167"></a><span class="s2">        ORDER BY valid_from DESC</span>
-<a id="__codelineno-0-168" name="__codelineno-0-168"></a><span class="s2">    &quot;&quot;&quot;</span>
+<a id="__codelineno-0-168" name="__codelineno-0-168"></a><span class="s2">    """</span>
 <a id="__codelineno-0-169" name="__codelineno-0-169"></a>    <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">_conn</span><span class="p">()</span> <span class="k">as</span> <span class="n">conn</span><span class="p">:</span>
 <a id="__codelineno-0-170" name="__codelineno-0-170"></a>        <span class="n">rows</span> <span class="o">=</span> <span class="n">conn</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="n">query</span><span class="p">,</span> <span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">as_of</span><span class="p">,</span> <span class="n">as_of</span><span class="p">))</span><span class="o">.</span><span class="n">fetchall</span><span class="p">()</span>
 <a id="__codelineno-0-171" name="__codelineno-0-171"></a>
@@ -3031,12 +3077,12 @@ The fact is no longer current but remains queryable historically.</p>
 <span class="normal"><a href="#__codelineno-0-181">181</a></span>
 <span class="normal"><a href="#__codelineno-0-182">182</a></span>
 <span class="normal"><a href="#__codelineno-0-183">183</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-174" name="__codelineno-0-174"></a><span class="k">def</span><span class="w"> </span><span class="nf">query_relation</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">subject</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">predicate</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">Triple</span><span class="p">]:</span>
-<a id="__codelineno-0-175" name="__codelineno-0-175"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Query all triples matching a specific subject+predicate.&quot;&quot;&quot;</span>
+<a id="__codelineno-0-175" name="__codelineno-0-175"></a><span class="w">    </span><span class="sd">"""Query all triples matching a specific subject+predicate."""</span>
 <a id="__codelineno-0-176" name="__codelineno-0-176"></a>    <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">_conn</span><span class="p">()</span> <span class="k">as</span> <span class="n">conn</span><span class="p">:</span>
 <a id="__codelineno-0-177" name="__codelineno-0-177"></a>        <span class="n">rows</span> <span class="o">=</span> <span class="n">conn</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span>
-<a id="__codelineno-0-178" name="__codelineno-0-178"></a><span class="w">            </span><span class="sd">&quot;&quot;&quot;SELECT subject, predicate, object, valid_from, valid_to, confidence, source_file</span>
+<a id="__codelineno-0-178" name="__codelineno-0-178"></a><span class="w">            </span><span class="sd">"""SELECT subject, predicate, object, valid_from, valid_to, confidence, source_file</span>
 <a id="__codelineno-0-179" name="__codelineno-0-179"></a><span class="sd">               FROM triples</span>
-<a id="__codelineno-0-180" name="__codelineno-0-180"></a><span class="sd">               WHERE subject = ? AND predicate = ?&quot;&quot;&quot;</span><span class="p">,</span>
+<a id="__codelineno-0-180" name="__codelineno-0-180"></a><span class="sd">               WHERE subject = ? AND predicate = ?"""</span><span class="p">,</span>
 <a id="__codelineno-0-181" name="__codelineno-0-181"></a>            <span class="p">(</span><span class="n">subject</span><span class="p">,</span> <span class="n">predicate</span><span class="p">),</span>
 <a id="__codelineno-0-182" name="__codelineno-0-182"></a>        <span class="p">)</span><span class="o">.</span><span class="n">fetchall</span><span class="p">()</span>
 <a id="__codelineno-0-183" name="__codelineno-0-183"></a>    <span class="k">return</span> <span class="p">[</span><span class="n">_row_to_triple</span><span class="p">(</span><span class="n">r</span><span class="p">)</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">rows</span><span class="p">]</span>
@@ -3089,31 +3135,31 @@ The fact is no longer current but remains queryable historically.</p>
 <span class="normal"><a href="#__codelineno-0-451">451</a></span>
 <span class="normal"><a href="#__codelineno-0-452">452</a></span>
 <span class="normal"><a href="#__codelineno-0-453">453</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-427" name="__codelineno-0-427"></a><span class="k">def</span><span class="w"> </span><span class="nf">stats</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
-<a id="__codelineno-0-428" name="__codelineno-0-428"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Get knowledge graph statistics.&quot;&quot;&quot;</span>
+<a id="__codelineno-0-428" name="__codelineno-0-428"></a><span class="w">    </span><span class="sd">"""Get knowledge graph statistics."""</span>
 <a id="__codelineno-0-429" name="__codelineno-0-429"></a>    <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">_conn</span><span class="p">()</span> <span class="k">as</span> <span class="n">conn</span><span class="p">:</span>
-<a id="__codelineno-0-430" name="__codelineno-0-430"></a>        <span class="n">entity_count</span> <span class="o">=</span> <span class="n">conn</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">&quot;SELECT COUNT(*) FROM entities&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">fetchone</span><span class="p">()[</span><span class="mi">0</span><span class="p">]</span>
-<a id="__codelineno-0-431" name="__codelineno-0-431"></a>        <span class="n">triple_count</span> <span class="o">=</span> <span class="n">conn</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">&quot;SELECT COUNT(*) FROM triples&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">fetchone</span><span class="p">()[</span><span class="mi">0</span><span class="p">]</span>
+<a id="__codelineno-0-430" name="__codelineno-0-430"></a>        <span class="n">entity_count</span> <span class="o">=</span> <span class="n">conn</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">"SELECT COUNT(*) FROM entities"</span><span class="p">)</span><span class="o">.</span><span class="n">fetchone</span><span class="p">()[</span><span class="mi">0</span><span class="p">]</span>
+<a id="__codelineno-0-431" name="__codelineno-0-431"></a>        <span class="n">triple_count</span> <span class="o">=</span> <span class="n">conn</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">"SELECT COUNT(*) FROM triples"</span><span class="p">)</span><span class="o">.</span><span class="n">fetchone</span><span class="p">()[</span><span class="mi">0</span><span class="p">]</span>
 <a id="__codelineno-0-432" name="__codelineno-0-432"></a>
 <a id="__codelineno-0-433" name="__codelineno-0-433"></a>        <span class="n">oldest</span> <span class="o">=</span> <span class="n">conn</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span>
-<a id="__codelineno-0-434" name="__codelineno-0-434"></a>            <span class="s2">&quot;SELECT MIN(valid_from) FROM triples WHERE valid_from IS NOT NULL&quot;</span>
+<a id="__codelineno-0-434" name="__codelineno-0-434"></a>            <span class="s2">"SELECT MIN(valid_from) FROM triples WHERE valid_from IS NOT NULL"</span>
 <a id="__codelineno-0-435" name="__codelineno-0-435"></a>        <span class="p">)</span><span class="o">.</span><span class="n">fetchone</span><span class="p">()[</span><span class="mi">0</span><span class="p">]</span>
 <a id="__codelineno-0-436" name="__codelineno-0-436"></a>        <span class="n">newest</span> <span class="o">=</span> <span class="n">conn</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span>
-<a id="__codelineno-0-437" name="__codelineno-0-437"></a>            <span class="s2">&quot;SELECT MAX(valid_from) FROM triples WHERE valid_from IS NOT NULL&quot;</span>
+<a id="__codelineno-0-437" name="__codelineno-0-437"></a>            <span class="s2">"SELECT MAX(valid_from) FROM triples WHERE valid_from IS NOT NULL"</span>
 <a id="__codelineno-0-438" name="__codelineno-0-438"></a>        <span class="p">)</span><span class="o">.</span><span class="n">fetchone</span><span class="p">()[</span><span class="mi">0</span><span class="p">]</span>
 <a id="__codelineno-0-439" name="__codelineno-0-439"></a>
 <a id="__codelineno-0-440" name="__codelineno-0-440"></a>        <span class="n">now</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_now</span><span class="p">()</span>
 <a id="__codelineno-0-441" name="__codelineno-0-441"></a>        <span class="n">current</span> <span class="o">=</span> <span class="n">conn</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span>
-<a id="__codelineno-0-442" name="__codelineno-0-442"></a>            <span class="s2">&quot;SELECT COUNT(*) FROM triples WHERE (valid_to IS NULL OR valid_to &gt;= ?)&quot;</span><span class="p">,</span>
+<a id="__codelineno-0-442" name="__codelineno-0-442"></a>            <span class="s2">"SELECT COUNT(*) FROM triples WHERE (valid_to IS NULL OR valid_to &gt;= ?)"</span><span class="p">,</span>
 <a id="__codelineno-0-443" name="__codelineno-0-443"></a>            <span class="p">(</span><span class="n">now</span><span class="p">,),</span>
 <a id="__codelineno-0-444" name="__codelineno-0-444"></a>        <span class="p">)</span><span class="o">.</span><span class="n">fetchone</span><span class="p">()[</span><span class="mi">0</span><span class="p">]</span>
 <a id="__codelineno-0-445" name="__codelineno-0-445"></a>
 <a id="__codelineno-0-446" name="__codelineno-0-446"></a>    <span class="k">return</span> <span class="p">{</span>
-<a id="__codelineno-0-447" name="__codelineno-0-447"></a>        <span class="s2">&quot;entity_count&quot;</span><span class="p">:</span> <span class="n">entity_count</span><span class="p">,</span>
-<a id="__codelineno-0-448" name="__codelineno-0-448"></a>        <span class="s2">&quot;triple_count&quot;</span><span class="p">:</span> <span class="n">triple_count</span><span class="p">,</span>
-<a id="__codelineno-0-449" name="__codelineno-0-449"></a>        <span class="s2">&quot;current_facts&quot;</span><span class="p">:</span> <span class="n">current</span><span class="p">,</span>
-<a id="__codelineno-0-450" name="__codelineno-0-450"></a>        <span class="s2">&quot;expired_facts&quot;</span><span class="p">:</span> <span class="n">triple_count</span> <span class="o">-</span> <span class="n">current</span><span class="p">,</span>
-<a id="__codelineno-0-451" name="__codelineno-0-451"></a>        <span class="s2">&quot;oldest_fact&quot;</span><span class="p">:</span> <span class="n">oldest</span><span class="p">,</span>
-<a id="__codelineno-0-452" name="__codelineno-0-452"></a>        <span class="s2">&quot;newest_fact&quot;</span><span class="p">:</span> <span class="n">newest</span><span class="p">,</span>
+<a id="__codelineno-0-447" name="__codelineno-0-447"></a>        <span class="s2">"entity_count"</span><span class="p">:</span> <span class="n">entity_count</span><span class="p">,</span>
+<a id="__codelineno-0-448" name="__codelineno-0-448"></a>        <span class="s2">"triple_count"</span><span class="p">:</span> <span class="n">triple_count</span><span class="p">,</span>
+<a id="__codelineno-0-449" name="__codelineno-0-449"></a>        <span class="s2">"current_facts"</span><span class="p">:</span> <span class="n">current</span><span class="p">,</span>
+<a id="__codelineno-0-450" name="__codelineno-0-450"></a>        <span class="s2">"expired_facts"</span><span class="p">:</span> <span class="n">triple_count</span> <span class="o">-</span> <span class="n">current</span><span class="p">,</span>
+<a id="__codelineno-0-451" name="__codelineno-0-451"></a>        <span class="s2">"oldest_fact"</span><span class="p">:</span> <span class="n">oldest</span><span class="p">,</span>
+<a id="__codelineno-0-452" name="__codelineno-0-452"></a>        <span class="s2">"newest_fact"</span><span class="p">:</span> <span class="n">newest</span><span class="p">,</span>
 <a id="__codelineno-0-453" name="__codelineno-0-453"></a>    <span class="p">}</span>
 </code></pre></div></td></tr></table></div>
             </details>
@@ -3175,39 +3221,39 @@ Returns all triples ordered by valid_from with direction indicators.</p>
 <span class="normal"><a href="#__codelineno-0-295">295</a></span>
 <span class="normal"><a href="#__codelineno-0-296">296</a></span>
 <span class="normal"><a href="#__codelineno-0-297">297</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-261" name="__codelineno-0-261"></a><span class="k">def</span><span class="w"> </span><span class="nf">timeline</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">entity</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">]:</span>
-<a id="__codelineno-0-262" name="__codelineno-0-262"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<a id="__codelineno-0-262" name="__codelineno-0-262"></a><span class="w">    </span><span class="sd">"""</span>
 <a id="__codelineno-0-263" name="__codelineno-0-263"></a><span class="sd">    Get the chronological story of an entity.</span>
 <a id="__codelineno-0-264" name="__codelineno-0-264"></a><span class="sd">    Returns all triples ordered by valid_from with direction indicators.</span>
-<a id="__codelineno-0-265" name="__codelineno-0-265"></a><span class="sd">    &quot;&quot;&quot;</span>
+<a id="__codelineno-0-265" name="__codelineno-0-265"></a><span class="sd">    """</span>
 <a id="__codelineno-0-266" name="__codelineno-0-266"></a>    <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">_conn</span><span class="p">()</span> <span class="k">as</span> <span class="n">conn</span><span class="p">:</span>
 <a id="__codelineno-0-267" name="__codelineno-0-267"></a>        <span class="n">rows</span> <span class="o">=</span> <span class="n">conn</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span>
-<a id="__codelineno-0-268" name="__codelineno-0-268"></a><span class="w">            </span><span class="sd">&quot;&quot;&quot;SELECT subject, predicate, object, valid_from, valid_to, source_file</span>
+<a id="__codelineno-0-268" name="__codelineno-0-268"></a><span class="w">            </span><span class="sd">"""SELECT subject, predicate, object, valid_from, valid_to, source_file</span>
 <a id="__codelineno-0-269" name="__codelineno-0-269"></a><span class="sd">               FROM triples</span>
 <a id="__codelineno-0-270" name="__codelineno-0-270"></a><span class="sd">               WHERE subject = ? OR object = ?</span>
-<a id="__codelineno-0-271" name="__codelineno-0-271"></a><span class="sd">               ORDER BY valid_from ASC NULLS FIRST&quot;&quot;&quot;</span><span class="p">,</span>
+<a id="__codelineno-0-271" name="__codelineno-0-271"></a><span class="sd">               ORDER BY valid_from ASC NULLS FIRST"""</span><span class="p">,</span>
 <a id="__codelineno-0-272" name="__codelineno-0-272"></a>            <span class="p">(</span><span class="n">entity</span><span class="p">,</span> <span class="n">entity</span><span class="p">),</span>
 <a id="__codelineno-0-273" name="__codelineno-0-273"></a>        <span class="p">)</span><span class="o">.</span><span class="n">fetchall</span><span class="p">()</span>
 <a id="__codelineno-0-274" name="__codelineno-0-274"></a>
 <a id="__codelineno-0-275" name="__codelineno-0-275"></a>    <span class="n">timeline</span> <span class="o">=</span> <span class="p">[]</span>
 <a id="__codelineno-0-276" name="__codelineno-0-276"></a>    <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">rows</span><span class="p">:</span>
 <a id="__codelineno-0-277" name="__codelineno-0-277"></a>        <span class="c1"># Determine direction and label</span>
-<a id="__codelineno-0-278" name="__codelineno-0-278"></a>        <span class="k">if</span> <span class="n">row</span><span class="p">[</span><span class="s2">&quot;subject&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="n">entity</span><span class="p">:</span>
-<a id="__codelineno-0-279" name="__codelineno-0-279"></a>            <span class="n">direction</span> <span class="o">=</span> <span class="s2">&quot;outbound&quot;</span>
-<a id="__codelineno-0-280" name="__codelineno-0-280"></a>            <span class="n">label</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">entity</span><span class="si">}</span><span class="s2"> --</span><span class="si">{</span><span class="n">row</span><span class="p">[</span><span class="s1">&#39;predicate&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">--&gt; </span><span class="si">{</span><span class="n">row</span><span class="p">[</span><span class="s1">&#39;object&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span>
+<a id="__codelineno-0-278" name="__codelineno-0-278"></a>        <span class="k">if</span> <span class="n">row</span><span class="p">[</span><span class="s2">"subject"</span><span class="p">]</span> <span class="o">==</span> <span class="n">entity</span><span class="p">:</span>
+<a id="__codelineno-0-279" name="__codelineno-0-279"></a>            <span class="n">direction</span> <span class="o">=</span> <span class="s2">"outbound"</span>
+<a id="__codelineno-0-280" name="__codelineno-0-280"></a>            <span class="n">label</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">entity</span><span class="si">}</span><span class="s2"> --</span><span class="si">{</span><span class="n">row</span><span class="p">[</span><span class="s1">'predicate'</span><span class="p">]</span><span class="si">}</span><span class="s2">--&gt; </span><span class="si">{</span><span class="n">row</span><span class="p">[</span><span class="s1">'object'</span><span class="p">]</span><span class="si">}</span><span class="s2">"</span>
 <a id="__codelineno-0-281" name="__codelineno-0-281"></a>        <span class="k">else</span><span class="p">:</span>
-<a id="__codelineno-0-282" name="__codelineno-0-282"></a>            <span class="n">direction</span> <span class="o">=</span> <span class="s2">&quot;inbound&quot;</span>
-<a id="__codelineno-0-283" name="__codelineno-0-283"></a>            <span class="n">label</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">row</span><span class="p">[</span><span class="s1">&#39;subject&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2"> --</span><span class="si">{</span><span class="n">row</span><span class="p">[</span><span class="s1">&#39;predicate&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">--&gt; </span><span class="si">{</span><span class="n">entity</span><span class="si">}</span><span class="s2">&quot;</span>
+<a id="__codelineno-0-282" name="__codelineno-0-282"></a>            <span class="n">direction</span> <span class="o">=</span> <span class="s2">"inbound"</span>
+<a id="__codelineno-0-283" name="__codelineno-0-283"></a>            <span class="n">label</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">row</span><span class="p">[</span><span class="s1">'subject'</span><span class="p">]</span><span class="si">}</span><span class="s2"> --</span><span class="si">{</span><span class="n">row</span><span class="p">[</span><span class="s1">'predicate'</span><span class="p">]</span><span class="si">}</span><span class="s2">--&gt; </span><span class="si">{</span><span class="n">entity</span><span class="si">}</span><span class="s2">"</span>
 <a id="__codelineno-0-284" name="__codelineno-0-284"></a>
 <a id="__codelineno-0-285" name="__codelineno-0-285"></a>        <span class="n">timeline</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
 <a id="__codelineno-0-286" name="__codelineno-0-286"></a>            <span class="p">{</span>
-<a id="__codelineno-0-287" name="__codelineno-0-287"></a>                <span class="s2">&quot;date&quot;</span><span class="p">:</span> <span class="n">row</span><span class="p">[</span><span class="s2">&quot;valid_from&quot;</span><span class="p">],</span>
-<a id="__codelineno-0-288" name="__codelineno-0-288"></a>                <span class="s2">&quot;end_date&quot;</span><span class="p">:</span> <span class="n">row</span><span class="p">[</span><span class="s2">&quot;valid_to&quot;</span><span class="p">],</span>
-<a id="__codelineno-0-289" name="__codelineno-0-289"></a>                <span class="s2">&quot;direction&quot;</span><span class="p">:</span> <span class="n">direction</span><span class="p">,</span>
-<a id="__codelineno-0-290" name="__codelineno-0-290"></a>                <span class="s2">&quot;subject&quot;</span><span class="p">:</span> <span class="n">row</span><span class="p">[</span><span class="s2">&quot;subject&quot;</span><span class="p">],</span>
-<a id="__codelineno-0-291" name="__codelineno-0-291"></a>                <span class="s2">&quot;predicate&quot;</span><span class="p">:</span> <span class="n">row</span><span class="p">[</span><span class="s2">&quot;predicate&quot;</span><span class="p">],</span>
-<a id="__codelineno-0-292" name="__codelineno-0-292"></a>                <span class="s2">&quot;object&quot;</span><span class="p">:</span> <span class="n">row</span><span class="p">[</span><span class="s2">&quot;object&quot;</span><span class="p">],</span>
-<a id="__codelineno-0-293" name="__codelineno-0-293"></a>                <span class="s2">&quot;label&quot;</span><span class="p">:</span> <span class="n">label</span><span class="p">,</span>
-<a id="__codelineno-0-294" name="__codelineno-0-294"></a>                <span class="s2">&quot;source&quot;</span><span class="p">:</span> <span class="n">row</span><span class="p">[</span><span class="s2">&quot;source_file&quot;</span><span class="p">],</span>
+<a id="__codelineno-0-287" name="__codelineno-0-287"></a>                <span class="s2">"date"</span><span class="p">:</span> <span class="n">row</span><span class="p">[</span><span class="s2">"valid_from"</span><span class="p">],</span>
+<a id="__codelineno-0-288" name="__codelineno-0-288"></a>                <span class="s2">"end_date"</span><span class="p">:</span> <span class="n">row</span><span class="p">[</span><span class="s2">"valid_to"</span><span class="p">],</span>
+<a id="__codelineno-0-289" name="__codelineno-0-289"></a>                <span class="s2">"direction"</span><span class="p">:</span> <span class="n">direction</span><span class="p">,</span>
+<a id="__codelineno-0-290" name="__codelineno-0-290"></a>                <span class="s2">"subject"</span><span class="p">:</span> <span class="n">row</span><span class="p">[</span><span class="s2">"subject"</span><span class="p">],</span>
+<a id="__codelineno-0-291" name="__codelineno-0-291"></a>                <span class="s2">"predicate"</span><span class="p">:</span> <span class="n">row</span><span class="p">[</span><span class="s2">"predicate"</span><span class="p">],</span>
+<a id="__codelineno-0-292" name="__codelineno-0-292"></a>                <span class="s2">"object"</span><span class="p">:</span> <span class="n">row</span><span class="p">[</span><span class="s2">"object"</span><span class="p">],</span>
+<a id="__codelineno-0-293" name="__codelineno-0-293"></a>                <span class="s2">"label"</span><span class="p">:</span> <span class="n">label</span><span class="p">,</span>
+<a id="__codelineno-0-294" name="__codelineno-0-294"></a>                <span class="s2">"source"</span><span class="p">:</span> <span class="n">row</span><span class="p">[</span><span class="s2">"source_file"</span><span class="p">],</span>
 <a id="__codelineno-0-295" name="__codelineno-0-295"></a>            <span class="p">}</span>
 <a id="__codelineno-0-296" name="__codelineno-0-296"></a>        <span class="p">)</span>
 <a id="__codelineno-0-297" name="__codelineno-0-297"></a>    <span class="k">return</span> <span class="n">timeline</span>
@@ -3311,7 +3357,7 @@ Returns all triples ordered by valid_from with direction indicators.</p>
       <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.sections", "navigation.top", "navigation.tracking", "search.suggest", "search.highlight", "content.tabs.link", "content.code.annotate", "content.code.copy"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
       
     
   </body>

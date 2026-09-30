@@ -23,7 +23,7 @@
       
       
       <link rel="icon" href="../../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
     
     
       
@@ -31,7 +31,7 @@
       
     
     
-      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
       
         
         <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
@@ -264,6 +264,25 @@
   
   
   
+    <li class="md-tabs__item">
+      <a href="../../why-ompa/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Why OMPA
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
     
     
       <li class="md-tabs__item">
@@ -425,6 +444,33 @@
   
   
   
+    <li class="md-nav__item">
+      <a href="../../why-ompa/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Why OMPA
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
     
     
     
@@ -439,10 +485,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
         
           
-          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
             
   
   
@@ -460,8 +506,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_3">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -615,10 +661,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" checked>
         
           
-          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
             
   
   
@@ -636,8 +682,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
-          <label class="md-nav__title" for="__nav_4">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_5">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -1679,20 +1725,20 @@
 <h2 id="memory-operations">Memory operations<a class="headerlink" href="#memory-operations" title="Permanent link">&para;</a></h2>
 <h3 id="ao-classify"><code>ao classify</code><a class="headerlink" href="#ao-classify" title="Permanent link">&para;</a></h3>
 <p>Classify a message and show routing hints.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>ao<span class="w"> </span>classify<span class="w"> </span><span class="s2">&quot;We decided to use Postgres&quot;</span>
-<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>ao<span class="w"> </span>classify<span class="w"> </span><span class="s2">&quot;The API went down for 20 minutes&quot;</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>ao<span class="w"> </span>classify<span class="w"> </span><span class="s2">"We decided to use Postgres"</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>ao<span class="w"> </span>classify<span class="w"> </span><span class="s2">"The API went down for 20 minutes"</span>
 </code></pre></div>
 <h3 id="ao-search"><code>ao search</code><a class="headerlink" href="#ao-search" title="Permanent link">&para;</a></h3>
 <p>Semantic search across the vault.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>ao<span class="w"> </span>search<span class="w"> </span><span class="s2">&quot;authentication decisions&quot;</span>
-<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>ao<span class="w"> </span>search<span class="w"> </span><span class="s2">&quot;postgres&quot;</span><span class="w"> </span>--limit<span class="w"> </span><span class="m">10</span>
-<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>ao<span class="w"> </span>search<span class="w"> </span><span class="s2">&quot;decisions&quot;</span><span class="w"> </span>--vault<span class="w"> </span>shared<span class="w">          </span><span class="c1"># Dual-vault</span>
-<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a>ao<span class="w"> </span>search<span class="w"> </span><span class="s2">&quot;drafts&quot;</span><span class="w"> </span>--vault<span class="w"> </span>personal
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>ao<span class="w"> </span>search<span class="w"> </span><span class="s2">"authentication decisions"</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>ao<span class="w"> </span>search<span class="w"> </span><span class="s2">"postgres"</span><span class="w"> </span>--limit<span class="w"> </span><span class="m">10</span>
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>ao<span class="w"> </span>search<span class="w"> </span><span class="s2">"decisions"</span><span class="w"> </span>--vault<span class="w"> </span>shared<span class="w">          </span><span class="c1"># Dual-vault</span>
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a>ao<span class="w"> </span>search<span class="w"> </span><span class="s2">"drafts"</span><span class="w"> </span>--vault<span class="w"> </span>personal
 </code></pre></div>
 <h3 id="ao-write-note"><code>ao write-note</code><a class="headerlink" href="#ao-write-note" title="Permanent link">&para;</a></h3>
 <p>Write content to the vault with auto-classification.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>ao<span class="w"> </span>write-note<span class="w"> </span><span class="s2">&quot;We won the Acme contract&quot;</span><span class="w"> </span>--tags<span class="w"> </span>win,enterprise
-<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>ao<span class="w"> </span>write-note<span class="w"> </span><span class="s2">&quot;Private notes&quot;</span><span class="w"> </span>--vault<span class="w"> </span>personal<span class="w">  </span><span class="c1"># Dual-vault</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>ao<span class="w"> </span>write-note<span class="w"> </span><span class="s2">"We won the Acme contract"</span><span class="w"> </span>--tags<span class="w"> </span>win,enterprise
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>ao<span class="w"> </span>write-note<span class="w"> </span><span class="s2">"Private notes"</span><span class="w"> </span>--vault<span class="w"> </span>personal<span class="w">  </span><span class="c1"># Dual-vault</span>
 </code></pre></div>
 <h2 id="knowledge-graph">Knowledge graph<a class="headerlink" href="#knowledge-graph" title="Permanent link">&para;</a></h2>
 <h3 id="ao-kg-query"><code>ao kg-query</code><a class="headerlink" href="#ao-kg-query" title="Permanent link">&para;</a></h3>
@@ -1840,7 +1886,7 @@
       <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.sections", "navigation.top", "navigation.tracking", "search.suggest", "search.highlight", "content.tabs.link", "content.code.annotate", "content.code.copy"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
       
     
   </body>
