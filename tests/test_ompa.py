@@ -1257,3 +1257,254 @@ class TestSemanticIndex:
             count = idx.index_vault(vault)
             assert len(called) == 1  # _init_model was triggered
             assert count >= 1
+
+
+# ---------------------------------------------------------------------------
+# Regression: temporal history must survive re-assertion
+# ---------------------------------------------------------------------------
+
+
+class TestTemporalHistory:
+    """Re-asserting an invalidated fact must not overwrite its earlier interval."""
+
+    def _kg(self, tmpdir):
+        from ompa import KnowledgeGraph
+
+        return KnowledgeGraph(db_path=os.path.join(tmpdir, "kg.sqlite3"))
+
+    @staticmethod
+    def _objects(kg, entity, as_of):
+        return {t.object for t in kg.query_entity(entity, as_of=as_of) if t.predicate == "works_on"}
+
+    def test_reassert_after_invalidate_preserves_earlier_interval(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            kg = self._kg(tmpdir)
+            kg.add_triple("Kai", "works_on", "Orion", valid_from="2020-01-01")
+            kg.invalidate("Kai", "works_on", "Orion", ended="2020-12-31")
+            kg.add_triple("Kai", "works_on", "Atlas", valid_from="2021-01-01")
+            kg.invalidate("Kai", "works_on", "Atlas", ended="2021-12-31")
+            kg.add_triple("Kai", "works_on", "Orion", valid_from="2022-06-01")  # back on Orion
+
+            assert self._objects(kg, "Kai", "2020-06-15") == {"Orion"}
+            assert self._objects(kg, "Kai", "2021-06-15") == {"Atlas"}
+            assert self._objects(kg, "Kai", "2022-01-15") == set()  # gap between stints
+            assert self._objects(kg, "Kai", "2023-01-01") == {"Orion"}
+
+            orion = [e for e in kg.timeline("Kai") if e["object"] == "Orion"]
+            assert [(e["date"], e["end_date"]) for e in orion] == [
+                ("2020-01-01", "2020-12-31"),
+                ("2022-06-01", None),
+            ]
+
+    def test_repeated_assertion_of_current_fact_is_idempotent(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            kg = self._kg(tmpdir)
+            kg.add_triple("Kai", "works_on", "Orion", valid_from="2024-01-01")
+            kg.add_triple("Kai", "works_on", "Orion", valid_from="2024-03-01")
+            kg.add_triple("Kai", "works_on", "Orion")  # defaults to today
+            rows = kg.query_relation("Kai", "works_on")
+            assert len(rows) == 1
+            assert rows[0].valid_from == "2024-01-01" and rows[0].valid_to is None
+
+    def test_overlapping_closed_intervals_merge(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            kg = self._kg(tmpdir)
+            kg.add_triple(
+                "Kai", "works_on", "Orion", valid_from="2020-01-01", valid_to="2020-06-30"
+            )
+            kg.add_triple(
+                "Kai", "works_on", "Orion", valid_from="2020-06-01", valid_to="2020-12-31"
+            )
+            kg.add_triple(
+                "Kai", "works_on", "Orion", valid_from="2023-01-01", valid_to="2023-02-01"
+            )
+            rows = sorted(kg.query_relation("Kai", "works_on"), key=lambda t: t.valid_from)
+            assert [(t.valid_from, t.valid_to) for t in rows] == [
+                ("2020-01-01", "2020-12-31"),
+                ("2023-01-01", "2023-02-01"),
+            ]
+
+    def test_populate_from_note_twice_does_not_duplicate(self):
+        from pathlib import Path
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            kg = self._kg(tmpdir)
+            note = Path(tmpdir) / "work" / "orion.md"
+            note.parent.mkdir(parents=True)
+            note.write_text("---\ntags: [decision]\n---\nSee [[Atlas]].\n", encoding="utf-8")
+            kg.populate_from_note(note, Path(tmpdir))
+            first = kg.stats()["triple_count"]
+            kg.populate_from_note(note, Path(tmpdir))
+            assert kg.stats()["triple_count"] == first
+
+    def test_randomized_histories_point_in_time_exact(self):
+        """Seeded property check: every point-in-time query matches ground truth."""
+        import random
+        from datetime import date, timedelta
+
+        for seed in range(5):
+            rng = random.Random(seed)
+            with tempfile.TemporaryDirectory() as tmpdir:
+                kg = self._kg(tmpdir)
+                truth = []
+                for e in range(10):
+                    t, prev = date(2020, 1, 1) + timedelta(days=rng.randint(0, 50)), None
+                    for _ in range(rng.randint(2, 5)):
+                        obj = prev if prev and rng.random() < 0.5 else f"p{rng.randrange(4)}"
+                        end = t + timedelta(days=rng.randint(10, 300))
+                        kg.add_triple(f"e{e}", "works_on", obj, valid_from=t.isoformat())
+                        kg.invalidate(f"e{e}", "works_on", obj, ended=end.isoformat())
+                        truth.append((f"e{e}", obj, t, end))
+                        prev, t = obj, end + timedelta(days=rng.randint(1, 60))
+                for _ in range(200):
+                    ent = f"e{rng.randrange(10)}"
+                    q = date(2020, 1, 1) + timedelta(days=rng.randint(0, 2000))
+                    expected = {o for (s, o, a, b) in truth if s == ent and a <= q <= b}
+                    assert self._objects(kg, ent, q.isoformat()) == expected, (seed, ent, q)
+
+
+# ---------------------------------------------------------------------------
+# Regression: notes become searchable without a manual rebuild
+# ---------------------------------------------------------------------------
+
+
+class _Vec(list):
+    """List with a numpy-style tolist(), so tests don't need numpy installed."""
+
+    def tolist(self):
+        return list(self)
+
+
+class _BagOfWordsBackend:
+    """Deterministic tiny embedding backend for tests (no model download, no numpy)."""
+
+    def encode(self, text):
+        v = _Vec([0.0] * 64)
+        for w in text.lower().split():
+            v[sum(map(ord, w)) % 64] += 1.0
+        return v
+
+
+class TestIndexFreshness:
+    @staticmethod
+    def _names(results):
+        from pathlib import Path
+
+        return [Path(r.path).name for r in results]
+
+    def test_write_is_searchable_without_rebuild(self):
+        from ompa import Ompa
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            ao = Ompa(vault_path=tmpdir, embedding_backend=_BagOfWordsBackend())
+            ao.write("Initial note about kubernetes cluster upgrades.", file_path="work/a.md")
+            assert "a.md" in self._names(ao.search("kubernetes", limit=3))  # loads index
+            ao.write(
+                "Zebra decision: we chose Postgres for the zebra service.",
+                file_path="work/zebra.md",
+            )
+            assert self._names(ao.search("zebra postgres", limit=3))[0] == "zebra.md"
+
+    def test_rewritten_note_reflects_new_content(self):
+        from ompa import Ompa
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            ao = Ompa(vault_path=tmpdir, embedding_backend=_BagOfWordsBackend())
+            ao.write("Billing runs on Braintree today.", file_path="work/billing.md")
+            ao.write("Unrelated filler note about lunch menus.", file_path="work/lunch.md")
+            ao.search("billing", limit=2)
+            ao.write("Billing migrated to Stripe checkout.", file_path="work/billing.md")
+            hits = ao.search("stripe checkout", limit=1)
+            assert self._names(hits) == ["billing.md"]
+            assert "Stripe" in hits[0].content_excerpt
+
+    def test_external_edits_and_deletes_picked_up_on_search(self):
+        import time
+        from pathlib import Path
+
+        from ompa import Ompa
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            ao = Ompa(
+                vault_path=tmpdir, embedding_backend=_BagOfWordsBackend(), index_refresh_interval=0
+            )
+            ao.write("Seed note about release trains.", file_path="work/seed.md")
+            ao.search("release", limit=3)
+            # Edited outside OMPA (e.g. in Obsidian)
+            ext = Path(tmpdir) / "work" / "ext.md"
+            ext.write_text("Quokka migration plan for the payments ledger.", encoding="utf-8")
+            assert self._names(ao.search("quokka ledger", limit=1)) == ["ext.md"]
+            time.sleep(0.01)
+            ext.unlink()
+            assert "ext.md" not in self._names(ao.search("quokka ledger", limit=3))
+
+    def test_fresh_process_catches_up_from_saved_index(self):
+        from ompa import Ompa
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            ao = Ompa(vault_path=tmpdir, embedding_backend=_BagOfWordsBackend())
+            ao.write("Seed note about release trains.", file_path="work/seed.md")
+            ao.search("release", limit=3)
+            ao.stop()  # flushes the index
+            # A writer without semantic enabled (like the MCP ao_write tool)
+            Ompa(vault_path=tmpdir, enable_semantic=False).write(
+                "Narwhal incident postmortem for the search cluster.", file_path="work/narwhal.md"
+            )
+            fresh = Ompa(vault_path=tmpdir, embedding_backend=_BagOfWordsBackend())
+            assert self._names(fresh.search("narwhal postmortem", limit=1)) == ["narwhal.md"]
+
+    def test_refresh_only_reembeds_changed_files(self):
+        from pathlib import Path
+
+        from ompa.semantic import SemanticIndex
+
+        calls = []
+
+        class Counting(_BagOfWordsBackend):
+            def encode(self, text):
+                calls.append(text)
+                return super().encode(text)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            vault = Path(tmpdir)
+            for i in range(5):
+                (vault / f"n{i}.md").write_text(
+                    f"note number {i} with enough words", encoding="utf-8"
+                )
+            idx = SemanticIndex(vault / ".palace" / "semantic_index", embedding_backend=Counting())
+            assert idx.refresh(vault) == {"added": 5, "updated": 0, "removed": 0}
+            calls.clear()
+            assert idx.refresh(vault) == {"added": 0, "updated": 0, "removed": 0}
+            assert calls == []
+            (vault / "n2.md").write_text(
+                "note number two rewritten with new words", encoding="utf-8"
+            )
+            assert idx.refresh(vault)["updated"] == 1
+            assert len(calls) == 1
+
+    def test_legacy_index_without_mtimes_still_refreshes(self):
+        import json
+        import os as _os
+        from pathlib import Path
+
+        from ompa.semantic import SemanticIndex
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            vault = Path(tmpdir)
+            (vault / "old.md").write_text("an old note about llamas and alpacas", encoding="utf-8")
+            idx = SemanticIndex(
+                vault / ".palace" / "semantic_index", embedding_backend=_BagOfWordsBackend()
+            )
+            idx.index_vault(vault)
+            idx.save_index()
+            f = idx.index_path / "semantic_index.json"
+            data = json.loads(f.read_text())
+            data.pop("files")  # simulate an index written by OMPA <= 1.0.8
+            f.write_text(json.dumps(data))
+            st = (vault / "old.md").stat()
+            _os.utime(f, ns=(st.st_atime_ns, st.st_mtime_ns + 10_000_000))
+            (vault / "new.md").write_text("a brand new note about capybaras", encoding="utf-8")
+
+            idx2 = SemanticIndex(idx.index_path, embedding_backend=_BagOfWordsBackend())
+            assert idx2.load_index()
+            assert idx2.refresh(vault) == {"added": 1, "updated": 0, "removed": 0}
