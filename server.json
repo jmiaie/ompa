@@ -1,0 +1,44 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-09-29/server.schema.json",
+  "name": "io.github.jmiaie/ompa",
+  "title": "OMPA",
+  "description": "Auditable agent memory: markdown vault, palace index, temporal SQLite knowledge graph. No GPU.",
+  "repository": {
+    "url": "https://github.com/jmiaie/ompa",
+    "source": "github"
+  },
+  "websiteUrl": "https://jmiaie.github.io/ompa",
+  "version": "1.0.8",
+  "packages": [
+    {
+      "registryType": "pypi",
+      "registryBaseUrl": "https://pypi.org",
+      "identifier": "ompa",
+      "version": "1.0.8",
+      "runtimeHint": "uvx",
+      "runtimeArguments": [
+        {
+          "type": "named",
+          "name": "--from",
+          "value": "ompa==1.0.8"
+        },
+        {
+          "type": "positional",
+          "value": "ao-mcp"
+        }
+      ],
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "OMPA_VAULT_PATH",
+          "description": "Vault directory used when a tool call does not pass vault_path. Defaults to the server's working directory.",
+          "isRequired": false,
+          "isSecret": false,
+          "format": "filepath"
+        }
+      ]
+    }
+  ]
+}

@@ -32,7 +32,7 @@ Vault (human markdown)  →  Palace (agent metadata)  →  Temporal KG (SQLite f
 - **15 MCP tools + CLI (`ao`)** — drop into Claude Desktop, Cursor, Windsurf, or any MCP host
 - **Dual-vault isolation** — shared team vault vs personal notes without leaking identifiers
 
-Benchmark signal: **96.6% R@5 on LongMemEval** with verbatim storage (no summarization loss, no per-query API cost for local search).
+Benchmark signal: MemPalace reports **96.6% R@5 on LongMemEval** for the verbatim-storage approach OMPA adopts. That is MemPalace's result, not OMPA's; OMPA's own `benchmarks/longmemeval.py` runs a 20-item synthetic sample by default and has not been run on the full LongMemEval set.
 
 ```bash
 pip install ompa

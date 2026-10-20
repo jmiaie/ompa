@@ -25,7 +25,13 @@ pip install ompa
 ao init && ao session-start
 ```
 
-**96.6% R@5 on LongMemEval** using verbatim storage — no summarization loss, no API cost for search.
+<!-- mcp-name: io.github.jmiaie/ompa -->
+
+Verbatim storage — no summarization loss, no API cost for local search. The verbatim approach comes from
+[MemPalace](https://github.com/corbt/mem_palace), which reports **96.6% R@5 on LongMemEval** for its own system;
+that number is MemPalace's, not an OMPA result. OMPA's `benchmarks/longmemeval.py` runs a 20-item synthetic
+sample of LongMemEval-style questions by default (or your own JSONL via `--data-path`) and reports Recall@k on that
+sample only. OMPA has not published a full LongMemEval run.
 
 ---
 
@@ -39,7 +45,7 @@ OMPA solves all three:
 |---|---|
 | Lost decisions | Vault — every significant event persisted as markdown |
 | Expensive context | 5 lifecycle hooks with token budgets (~2K at start, ~100 per message) |
-| Summarization loss | Verbatim storage — proven 96.6% R@5 on LongMemEval |
+| Summarization loss | Verbatim storage, the approach MemPalace reports at 96.6% R@5 on LongMemEval (their number; see above) |
 | Framework lock-in | Works with any Python agent, any LLM |
 | API cost for search | Local `sentence-transformers` — zero per-query cost |
 

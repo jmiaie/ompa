@@ -17,15 +17,109 @@ Usage:
 """
 
 import json
+import os
 import sys
+import threading
+from collections import OrderedDict
 from pathlib import Path
 
 from ompa import Ompa, __version__
 from ompa.config import make_ompa
 
+# ---------------------------------------------------------------------------
+# Instance cache
+# ---------------------------------------------------------------------------
+# The server used to build a fresh Ompa (vault scan, SQLite open, and for
+# ao_search a sentence-transformers model load) on every tool call. Instances
+# are now cached per (resolved vault path(s), enable_semantic) so the
+# embedding model is loaded once per vault for the life of the process.
+
+_CACHE_MAX_ENTRIES = 8
+_OMPA_CACHE: "OrderedDict[tuple, dict]" = OrderedDict()
+_CACHE_LOCK = threading.Lock()
+
+
+def _resolve(path) -> str | None:
+    if path is None:
+        return None
+    return str(Path(path).expanduser().resolve())
+
+
+def _semantic_index_mtime(ao: Ompa) -> tuple:
+    """mtime of each on-disk semantic index file, to detect external rebuilds."""
+    roots = [ao.vault_path]
+    if ao.dual_config.personal_path:
+        roots.append(ao.dual_config.personal_path)
+    out: list[int | None] = []
+    for root in roots:
+        f = Path(root) / ".palace" / "semantic_index" / "semantic_index.json"
+        try:
+            out.append(f.stat().st_mtime_ns)
+        except OSError:
+            out.append(None)
+    return tuple(out)
+
+
+def get_ompa(
+    vault_path: str | Path = ".",
+    enable_semantic: bool = False,
+    shared_vault_path: str | Path | None = None,
+    personal_vault_path: str | Path | None = None,
+) -> Ompa:
+    """Return a cached Ompa for these vault path(s), creating it on first use.
+
+    - The cache key uses resolved paths, so "." and its absolute form share one instance.
+    - Entries whose vault directory has disappeared are rebuilt.
+    - If the on-disk semantic index changed (e.g. `ao sync` run from the CLI),
+      the in-memory index is reloaded from disk; the embedding model is kept.
+    - The hook clock (session id / timestamp) is refreshed on every call, matching
+      the previous one-instance-per-call behaviour.
+    """
+    dual = bool(shared_vault_path and personal_vault_path)
+    if dual:
+        key = ("dual", _resolve(shared_vault_path), _resolve(personal_vault_path), enable_semantic)
+    else:
+        key = ("single", _resolve(vault_path or "."), None, enable_semantic)
+
+    with _CACHE_LOCK:
+        entry = _OMPA_CACHE.get(key)
+        if entry is not None and not all(Path(p).exists() for p in key[1:3] if p):
+            _OMPA_CACHE.pop(key, None)
+            entry = None
+
+        if entry is None:
+            ao = make_ompa(
+                vault_path=vault_path,
+                shared_vault_path=shared_vault_path if dual else None,
+                personal_vault_path=personal_vault_path if dual else None,
+                enable_semantic=enable_semantic,
+            )
+            entry = {"ompa": ao, "index_mtime": _semantic_index_mtime(ao)}
+            _OMPA_CACHE[key] = entry
+            while len(_OMPA_CACHE) > _CACHE_MAX_ENTRIES:
+                _OMPA_CACHE.popitem(last=False)
+        else:
+            _OMPA_CACHE.move_to_end(key)
+            ao = entry["ompa"]
+            mtime = _semantic_index_mtime(ao)
+            if mtime != entry["index_mtime"]:
+                for index in (ao._semantic, ao._personal_semantic):
+                    if index is not None:
+                        index.load_index()
+                entry["index_mtime"] = mtime
+
+        ao.hooks.new_session()
+        return ao
+
+
+def clear_ompa_cache() -> None:
+    """Drop all cached Ompa instances (used by tests and long-running hosts)."""
+    with _CACHE_LOCK:
+        _OMPA_CACHE.clear()
+
 
 def _make_ompa(arguments: dict, enable_semantic: bool = False) -> Ompa:
-    return make_ompa(
+    return get_ompa(
         vault_path=arguments.get("vault_path", "."),
         shared_vault_path=arguments.get("shared_vault_path"),
         personal_vault_path=arguments.get("personal_vault_path"),
@@ -43,7 +137,7 @@ def ao_session_start(vault_path: str = ".") -> dict:
     Start a session. Loads vault context: file listing, North Star,
     active work, palace wings, KG stats. ~2K tokens.
     """
-    ao = Ompa(vault_path=vault_path, enable_semantic=False)
+    ao = get_ompa(vault_path, enable_semantic=False)
     result = ao.session_start()
     return {
         "success": result.success,
@@ -54,7 +148,7 @@ def ao_session_start(vault_path: str = ".") -> dict:
 
 def ao_classify(message: str, vault_path: str = ".") -> dict:
     """Classify a user message into one of 15 types."""
-    ao = Ompa(vault_path=vault_path, enable_semantic=False)
+    ao = get_ompa(vault_path, enable_semantic=False)
     c = ao.classify(message)
     return {
         "message_type": c.message_type.value,
@@ -66,7 +160,7 @@ def ao_classify(message: str, vault_path: str = ".") -> dict:
 
 def ao_search(query: str, vault_path: str = ".", limit: int = 5) -> dict:
     """Search the vault with hybrid semantic + keyword search."""
-    ao = Ompa(vault_path=vault_path, enable_semantic=True)
+    ao = get_ompa(vault_path, enable_semantic=True)
     results = ao.search(query, limit=limit)
     return {
         "results": [
@@ -83,7 +177,7 @@ def ao_search(query: str, vault_path: str = ".", limit: int = 5) -> dict:
 
 def ao_kg_query(entity: str, vault_path: str = ".", as_of: str = None) -> dict:
     """Query the knowledge graph for an entity."""
-    ao = Ompa(vault_path=vault_path, enable_semantic=False)
+    ao = get_ompa(vault_path, enable_semantic=False)
     triples = ao.kg.query_entity(entity, as_of=as_of)
     return {
         "entity": entity,
@@ -111,7 +205,7 @@ def ao_kg_add(
     """
     Add a fact to the knowledge graph.
     """
-    ao = Ompa(vault_path=vault_path, enable_semantic=False)
+    ao = get_ompa(vault_path, enable_semantic=False)
     ao.kg.add_triple(
         subject,
         predicate,
@@ -124,46 +218,46 @@ def ao_kg_add(
 
 def ao_kg_stats(vault_path: str = ".") -> dict:
     """Get knowledge graph statistics."""
-    ao = Ompa(vault_path=vault_path, enable_semantic=False)
+    ao = get_ompa(vault_path, enable_semantic=False)
     return ao.kg.stats()
 
 
 def ao_palace_wings(vault_path: str = ".") -> dict:
     """List all palace wings."""
-    ao = Ompa(vault_path=vault_path, enable_semantic=False)
+    ao = get_ompa(vault_path, enable_semantic=False)
     return {"wings": ao.palace.list_wings()}
 
 
 def ao_palace_rooms(wing: str, vault_path: str = ".") -> dict:
     """List rooms in a wing."""
-    ao = Ompa(vault_path=vault_path, enable_semantic=False)
+    ao = get_ompa(vault_path, enable_semantic=False)
     rooms = ao.palace.list_rooms(wing)
     return {"wing": wing, "rooms": rooms}
 
 
 def ao_palace_tunnel(wing_a: str, wing_b: str, room: str, vault_path: str = ".") -> dict:
     """Create a tunnel between two wings."""
-    ao = Ompa(vault_path=vault_path, enable_semantic=False)
+    ao = get_ompa(vault_path, enable_semantic=False)
     ao.palace.create_tunnel(wing_a, wing_b, room)
     return {"success": True, "tunnel": f"{wing_a} <-> {wing_b} via {room}"}
 
 
 def ao_validate(file_path: str, vault_path: str = ".") -> dict:
     """Validate a markdown file."""
-    ao = Ompa(vault_path=vault_path, enable_semantic=False)
+    ao = get_ompa(vault_path, enable_semantic=False)
     return ao.validate_write(file_path)
 
 
 def ao_wrap_up(vault_path: str = ".") -> dict:
     """Run session wrap-up."""
-    ao = Ompa(vault_path=vault_path, enable_semantic=False)
+    ao = get_ompa(vault_path, enable_semantic=False)
     result = ao.stop()
     return {"success": result.success, "output": result.output}
 
 
 def ao_status(vault_path: str = ".") -> dict:
     """Get full status (vault + palace + KG)."""
-    ao = Ompa(vault_path=vault_path, enable_semantic=False)
+    ao = get_ompa(vault_path, enable_semantic=False)
     return {
         "vault": ao.get_stats(),
         "palace": ao.palace.stats(),
@@ -173,7 +267,7 @@ def ao_status(vault_path: str = ".") -> dict:
 
 def ao_orphans(vault_path: str = ".") -> dict:
     """Find orphan notes."""
-    ao = Ompa(vault_path=vault_path, enable_semantic=False)
+    ao = get_ompa(vault_path, enable_semantic=False)
     orphans = ao.find_orphans()
     return {
         "orphan_count": len(orphans),
@@ -186,7 +280,7 @@ def ao_kg_populate(vault_path: str = ".") -> dict:
     Populate the knowledge graph from all vault notes.
     Extracts wikilinks, tags, folder structure, and dates into triples.
     """
-    ao = Ompa(vault_path=vault_path, enable_semantic=False)
+    ao = get_ompa(vault_path, enable_semantic=False)
     count = ao.kg_populate()
     stats = ao.kg.stats()
     return {
@@ -201,7 +295,7 @@ def ao_sync(vault_path: str = ".") -> dict:
     """
     Full sync: rebuild KG, palace, and search index from vault.
     """
-    ao = Ompa(vault_path=vault_path, enable_semantic=True)
+    ao = get_ompa(vault_path, enable_semantic=True)
     result = ao.sync()
     return {"success": True, **result}
 
@@ -532,6 +626,15 @@ def handle_list_tools():
     return {"tools": tools}
 
 
+def default_vault_path() -> str:
+    """Vault used when a tool call omits vault_path: $OMPA_VAULT_PATH, else ".".
+
+    MCP clients launch the server from an arbitrary working directory, so a
+    registry install needs a way to point the server at a vault.
+    """
+    return os.environ.get("OMPA_VAULT_PATH") or "."
+
+
 def handle_call_tool(name: str, arguments: dict) -> dict:
     """Handle tool call request."""
     if name not in TOOLS:
@@ -539,7 +642,9 @@ def handle_call_tool(name: str, arguments: dict) -> dict:
 
     try:
         # Extract and validate vault_path
-        vault_path = str(arguments.get("vault_path", "."))
+        if "vault_path" not in arguments:
+            arguments = {**arguments, "vault_path": default_vault_path()}
+        vault_path = str(arguments["vault_path"])
         # Block obvious traversal attempts
         if ".." in vault_path or vault_path in ("/", "C:\\", "C:/"):
             return {"error": "Invalid vault_path"}

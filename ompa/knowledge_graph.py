@@ -24,6 +24,8 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
+from .kg_schema import KG_SCHEMA_VERSION
+
 logger = logging.getLogger(__name__)
 
 DEFAULT_KG_PATH = "~/.ompa/knowledge_graph.sqlite3"
@@ -120,6 +122,18 @@ class KnowledgeGraph:
                 CREATE INDEX IF NOT EXISTS idx_triples_validity
                     ON triples(valid_from, valid_to);
             """)
+            # Stamp the interchange-contract version (docs/kg-schema-v1.md).
+            # 0 = created before stamping; same shape as v1, so upgrade in place.
+            version = conn.execute("PRAGMA user_version").fetchone()[0]
+            if version == 0:
+                conn.execute(f"PRAGMA user_version = {int(KG_SCHEMA_VERSION)}")
+            elif version > KG_SCHEMA_VERSION:
+                logger.warning(
+                    "%s has kg-schema v%d; this OMPA understands v%d",
+                    self.db_path,
+                    version,
+                    KG_SCHEMA_VERSION,
+                )
 
     def _entity_id(self, name: str) -> str:
         """Generate a stable ID for an entity."""

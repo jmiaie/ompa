@@ -2,8 +2,10 @@
 OMPA LongMemEval Benchmark.
 
 Measures Recall@5 on a subset of LongMemEval-style questions using OMPA's
-verbatim storage + semantic search. Reports the headline metric that OMPA
-claims: 96.6% R@5 (established by MemPalace on the same storage approach).
+verbatim storage + semantic search. For reference, MemPalace reports 96.6% R@5
+on LongMemEval for the verbatim-storage approach; that is MemPalace's result,
+not something this script reproduces. With no --data-path, this script scores
+a 20-item synthetic sample, so its number is a smoke test, not a LongMemEval score.
 
 This script:
 1. Loads a set of (context, question, answer) triples

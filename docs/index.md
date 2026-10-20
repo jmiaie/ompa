@@ -21,7 +21,7 @@ OMPA gives any AI agent persistent memory in one `pip install`. It combines thre
 └──────────────────────────────────────────────────────┘
 ```
 
-**96.6% R@5 on LongMemEval** using verbatim storage — no summarization loss, no API cost for search.
+Verbatim storage — no summarization loss, no API cost for local search. The approach comes from MemPalace, which reports **96.6% R@5 on LongMemEval** for its own system; that is MemPalace's number, not an OMPA result. OMPA's `benchmarks/longmemeval.py` measures Recall@k on a 20-item synthetic sample by default.
 
 ## Install
 
