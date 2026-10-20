@@ -143,6 +143,8 @@ The following are internal implementation details and may change in minor versio
 - `ompa.semantic.EmbeddingBackend` protocol (stable in interface, not in module path)
 - `ompa.migration.CURRENT_SCHEMA_VERSION` (increases with migrations)
 - Internal vault file layout (`.palace/` structure) — do not parse directly
+  - Exception: `.palace/knowledge_graph.sqlite3` is a versioned read contract for other tools. See
+    [docs/kg-schema-v1.md](docs/kg-schema-v1.md).
 
 ---
 
