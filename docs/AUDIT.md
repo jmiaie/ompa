@@ -378,4 +378,78 @@ storage. Ship the evidence bundles and anchors to a compliant store.
 See `benchmarks/README.md` (section *Audit memory*) for the full method. The
 numbers below are copied from that run.
 
-MEASUREMENTS_PLACEHOLDER
+Measured 2026-10-21 (PT) on the shared 16 GB Linux box, Python 3.12, while another worker shared the CPU. Numbers vary run to run; compare within a table only.
+
+**Write latency** (`Ompa.write`, keyword-only vault, `enable_semantic=False`, n=900 writes per mode, rotated rounds):
+
+| mode | write p50 (ms) | p95 (ms) | overhead p50 | `kg_add` p50 (µs) |
+|---|---|---|---|---|
+| audit off | 0.92 | 5.20 | — | 42 |
+| audit on | 1.42 | 6.09 | +0.50 ms (54%) | 205 |
+| audit + hmac | 1.50 | 6.55 | +0.57 ms (62%) | 213 |
+| audit + ed25519 | 1.77 | 6.70 | +0.84 ms (91%) | 256 |
+
+Single `AuditLog.append` (own transaction + head update): p50 101 µs, 8131 appends/s.
+
+**Verify** (full chain + checkpoints + head, median of 3; log built in 1000-entry batches):
+
+| entries | mode | verify (s) | µs/entry | DB size | as_of full replay (s) |
+|---|---|---|---|---|---|
+| 10,000 | unsigned | 0.072 | 7.2 | 5.5 MB (551 B/entry) | 0.54 |
+| 10,000 | hmac | 0.090 | 9.0 | 6.3 MB (627 B/entry) | 0.53 |
+| 10,000 | ed25519 | 1.001 | 100.1 | 6.5 MB (647 B/entry) | 0.53 |
+| 100,000 | unsigned | 0.767 | 7.7 | 55.1 MB (551 B/entry) | 5.91 |
+| 100,000 | hmac | 0.923 | 9.2 | 62.6 MB (626 B/entry) | 6.21 |
+| 100,000 | ed25519 | 10.067 | 100.7 | 64.8 MB (648 B/entry) | 6.32 |
+
+**Citations on search** (keyword search, p50, n=200 queries):
+
+| notes | without (ms) | with (ms) | overhead |
+|---|---|---|---|
+| 1,000 | 0.247 | 0.423 | +0.176 ms |
+| 10,000 | 0.781 | 0.987 | +0.206 ms |
+
+**Tamper Monte Carlo** (`benchmarks/audit_tamper_mc.py`; one random tamper per trial, every 5th trial also verifies the untouched log as a false-positive control):
+
+| mode | seeds | trials | effective tampers | detected | rate | false positives |
+|---|---|---|---|---|---|---|
+| unsigned | 20261021, 7, 1337, 42, 99 | 25,000 | 24,998 | 24,998 | 1.0000 | 0/5,000 |
+| hmac | 20261021, 7, 1337, 42, 99 | 25,000 | 25,000 | 25,000 | 1.0000 | 0/5,000 |
+| unsigned_rehash | 20261021, 7, 1337 | 1,500 | 1,500 | 0 | 0.0000 | 0/300 |
+| unsigned_rehash + external anchor | 20261021, 7, 1337 | 1,500 | 1,500 | 1,500 | 1.0000 | — |
+
+
+Interpretation:
+
+* Audit adds about **0.5 ms per keyword-only write** (unsigned), 0.6 ms with HMAC and 0.8 ms with Ed25519. Most of this is the atomic head-file replace plus ~7 chain entries per write (the note and every fact derived from it). With semantic indexing on, writes are dominated by embedding.
+* A standalone `kg_add` goes from ~40 µs to ~200 µs because each call is its own audited transaction. Batch with `ao.gov.txn()` (one head update per batch) when bulk loading.
+* Verify is linear: ~7–9 µs/entry unsigned/HMAC (0.77 s / 0.92 s at 100k) and ~100 µs/entry with Ed25519 (~10 s at 100k). Storage is ~550–650 B/entry.
+* Citations add ~0.2 ms per search. Pass `citations=False` to skip them.
+
+**Regression check vs main** (default config, audit off; harness in `results/audit_20261021/harness`):
+
+**fix_eval** (temporal MC 20 seeds, freshness, write latency, KG throughput, concurrency; rounds alternate main/branch):
+
+| metric | main 2229175 (r0, r1) | branch, audit off (r0, r1) |
+|---|---|---|
+| temporal MC mean accuracy | 1.000, 1.000 | 1.000, 1.000 |
+| temporal rows stored / true facts | 2114/2114, 2114/2114 | 2114/2114, 2114/2114 |
+| freshness checks passed | 4/4, 4/4 | 4/4, 4/4 |
+| write p50 (ms, semantic on, local model) | 6.03, 6.03 | 6.28, 5.82 |
+| `Ompa.search` p50 (ms, semantic on) | 3.89, 3.68 | 4.80, 4.05 |
+| KG writes/s | 28154, 29676 | 26219, 28481 |
+| concurrency rows/attempted, errors (8 + 16 procs) | 4000/4000 e=0; 8000/8000 e=0, 4000/4000 e=0; 8000/8000 e=0 | 4000/4000 e=0; 8000/8000 e=0, 4000/4000 e=0; 8000/8000 e=0 |
+
+**search_bench** (synthetic, stub embedder; p50 ms, median over rounds; hit@5 = content findability):
+
+| N | rounds | default hybrid main → branch | keyword-only | semantic-only | `Ompa.search` (no semantic extra; branch adds citations) | hit@5 main/branch |
+|---|---|---|---|---|---|---|
+| 1,000 | 2 | 2.27 → 2.08 (-9%) | 1.10 → 1.04 (-6%) | 0.12 → 0.11 (-7%) | 1.12 → 1.21 (+8%) | 1.0/1.0 |
+| 10,000 | 2 | 9.40 → 8.80 (-6%) | 7.09 → 6.88 (-3%) | 0.68 → 0.66 (-3%) | 7.05 → 7.55 (+7%) | 1.0/1.0 |
+| 50,000 | 2 | 39.33 → 37.57 (-4%) | 31.75 → 31.28 (-1%) | 2.85 → 2.80 (-2%) | 33.92 → 33.98 (+0%) | 1.0/1.0 |
+
+
+Within run-to-run noise except `Ompa.search`, which computes citations by default: +7–8% at 1k/10k notes and +17% in the fix_eval search loop (~+0.5 ms). Temporal accuracy, freshness, concurrency and findability are unchanged. One 50k round showed +24 MB cold-start RSS for the branch. It did not reproduce in five follow-up runs (crossed build/load trees: 419.4–419.7 MB for all four combinations; rerun: 419.0 vs 419.1 MB).
+
+**Tests**: `tests/test_audit.py` and `tests/test_audit_property.py` (Hypothesis, derandomized, 150 examples each: any single-character edit of any column of any entry, any non-empty set of deleted rows, any non-identity reorder of any window, any file truncation; all detected).
+
