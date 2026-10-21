@@ -5,6 +5,7 @@ Supports single-vault (legacy) and dual-vault (shared + personal) architecture.
 """
 
 import logging
+import os
 import re
 import shutil
 import time
@@ -13,10 +14,19 @@ from typing import Any
 
 from .classifier import Classification, MessageClassifier
 from .config import DualVaultConfig, IsolationMode, VaultTarget
+from .governance import (
+    AccessPolicy,
+    PointInTimeView,
+    VaultGovernance,
+    apply_retention_vault,
+    forget_vault,
+    purge_index_paths,
+)
 from .hooks import HookManager, HookResult
 from .keyword import KeywordIndex
 from .knowledge_graph import KnowledgeGraph
 from .palace import Palace
+from .provenance import cite
 from .semantic import SearchResult, SemanticIndex, scan_vault
 from .vault import Note, Vault, _safe_resolve
 
@@ -66,7 +76,23 @@ class Ompa:
         personal_vault_path: str | Path = None,
         isolation_mode: str = "strict",
         index_refresh_interval: float = 1.0,
+        # Audit memory (see docs/AUDIT.md)
+        principal: str | None = None,
+        audit: bool | None = None,
+        audit_key=None,
     ):
+        """
+        Audit-memory args:
+            principal: user/agent/team id this instance acts as (ACL checks,
+                audit actor, fact provenance).  Default: $OMPA_PRINCIPAL, else
+                ``agent_name``.  Self-asserted: see docs/AUDIT.md threat model.
+            audit: True = enable the hash-chained audit log (created + baseline
+                on first use); False = off; None (default) = on iff the vault
+                already has ``.palace/audit.sqlite3`` or ``.palace/acl.json``.
+            audit_key: signer for entries/checkpoints: a key-file path
+                (Ed25519 PEM needs the ``audit`` extra; otherwise an HMAC key)
+                or a signer object.  Default: $OMPA_AUDIT_KEY_FILE if set.
+        """
         self.agent_name = agent_name
         self._enable_semantic = enable_semantic
         # Seconds between automatic staleness checks of the semantic index on
@@ -114,6 +140,23 @@ class Ompa:
             self.personal_palace = None
             self.personal_kg = None
 
+        # Governance: audit chain + ACL + data policies, one context per vault
+        self.principal = principal or os.environ.get("OMPA_PRINCIPAL") or agent_name
+        signer = self._resolve_signer(audit_key)
+        self._signer = signer
+        self.gov = VaultGovernance(self.vault_path, self.principal, audit, signer, "shared")
+        self.personal_gov: VaultGovernance | None = None
+        if self.personal_kg is not None:
+            self.personal_gov = VaultGovernance(
+                self.dual_config.personal_path, self.principal, audit, signer, "personal"
+            )
+        for gov, kg in ((self.gov, self.kg), (self.personal_gov, self.personal_kg)):
+            if gov is None:
+                continue
+            self._wire_kg(kg, gov)
+            if gov.created:
+                gov.baseline(kg)
+
         self.classifier = MessageClassifier()
         self.hooks = HookManager(self.vault_path, agent_name=self.agent_name)
 
@@ -123,6 +166,48 @@ class Ompa:
         # BM25 keyword index over note content (stdlib SQLite FTS5; always on)
         self._keyword: KeywordIndex | None = None
         self._personal_keyword: KeywordIndex | None = None
+
+    # -------------------------------------------------------------------------
+    # Governance plumbing
+    # -------------------------------------------------------------------------
+
+    @staticmethod
+    def _resolve_signer(audit_key):
+        if audit_key is None:
+            env = os.environ.get("OMPA_AUDIT_KEY_FILE")
+            audit_key = env or None
+        if audit_key is None:
+            return None
+        if isinstance(audit_key, str | Path):
+            from .audit import load_key
+
+            return load_key(audit_key)
+        return audit_key
+
+    def _wire_kg(self, kg: KnowledgeGraph, gov: VaultGovernance) -> None:
+        kg.audit = gov.audit
+        kg.guard = gov.kg_guard if gov.acl is not None else None
+        kg.agent = self.principal
+
+    def _ctx(self, vault: str = "shared"):
+        """(gov, kg, keyword, semantic attribute name, vault path) for a vault name."""
+        if vault == "personal":
+            if self.personal_gov is None:
+                raise ValueError("no personal vault (not in dual-vault mode)")
+            return (
+                self.personal_gov,
+                self.personal_kg,
+                self.personal_keyword,
+                "_personal_semantic",
+                self.dual_config.personal_path,
+            )
+        if vault != "shared":
+            raise ValueError(f"unknown vault {vault!r}")
+        return self.gov, self.kg, self.keyword, "_semantic", self.vault_path
+
+    def _govs(self, vaults: list[str] | None = None) -> list[str]:
+        names = vaults or (["shared", "personal"] if self.personal_gov else ["shared"])
+        return [n for n in names if n == "shared" or self.personal_gov is not None]
 
     @property
     def is_dual_vault(self) -> bool:
@@ -193,7 +278,8 @@ class Ompa:
         try:
             kg_stats = self.kg.stats()
             if kg_stats["triple_count"] == 0:
-                count = self.kg.populate_from_vault(self.vault_path)
+                with self.gov.txn():
+                    count = self.kg.populate_from_vault(self.vault_path)
                 logger.info("Auto-populated KG with %d triples on session start", count)
         except Exception as e:
             logger.debug("KG auto-population skipped: %s", e)
@@ -231,8 +317,13 @@ class Ompa:
             file_path = tool_input.get("file_path") or tool_input.get("path")
             if file_path:
                 path = Path(file_path)
+                # Raises AccessDeniedError (logged) if this principal may not write here
+                self.gov.require("write", "post_tool:" + tool_name, self.gov.rel(path))
                 self._auto_add_to_palace(file_path)
-                self._auto_update_kg(path)
+                with self.gov.txn():
+                    self._auto_update_kg(path)
+                    if self.gov.audit is not None and path.suffix == ".md" and path.exists():
+                        self.gov.log_note("note.observed", path, {"tool": tool_name})
                 self._auto_update_index(path)
 
         return result
@@ -348,6 +439,7 @@ class Ompa:
         wing: str = None,
         room: str = None,
         vaults: list[str] = None,
+        citations: bool = True,
     ) -> list[SearchResult]:
         """
         Search the vault(s) semantically.
@@ -361,12 +453,23 @@ class Ompa:
             vaults: Which vaults to search. Options: ["shared"], ["personal"],
                     ["shared", "personal"]. Default: ["shared"] in dual mode,
                     or the single vault in legacy mode.
+            citations: attach a provenance ``citation`` to each result (path,
+                    line/byte span, content_sha256, author, recorded_at,
+                    valid_from/valid_to; see ompa.provenance).
+
+        Raises AccessDeniedError (logged to the audit chain) if the principal
+        may not read a requested vault.
         """
         # Determine which vaults to search
         if not self.is_dual_vault:
             vaults = ["shared"]  # single vault acts as shared
         elif vaults is None:
             vaults = ["shared"]
+        for name in vaults:
+            if name == "shared":
+                self.gov.require("read", "search")
+            elif name == "personal" and self.personal_gov is not None:
+                self.personal_gov.require("read", "search")
 
         all_results = []
 
@@ -397,7 +500,30 @@ class Ompa:
 
         # Sort by score and limit
         all_results.sort(key=lambda r: r.score, reverse=True)
-        return all_results[:limit]
+        results = all_results[:limit]
+        if citations:
+            for r in results:
+                self._attach_citation(r, query)
+        return results
+
+    def _attach_citation(self, r: SearchResult, query: str) -> None:
+        personal = r.match_type.startswith("personal:")
+        gov = self.personal_gov if personal else self.gov
+        sem = self._personal_semantic if personal else self._semantic
+        recorded = None
+        if gov is not None and gov.audit is not None:
+            recorded = gov.audit.index_get("note", gov.rel(r.path))
+        try:
+            r.citation = cite(
+                r.path,
+                chunk_index=r.chunk_index,
+                excerpt=r.content_excerpt,
+                query=query,
+                indexed_sig=sem.file_mtimes.get(r.path) if sem is not None else None,
+                recorded=recorded,
+            )
+        except Exception as e:  # provenance must never break retrieval
+            logger.debug("Citation failed for %s: %s", r.path, e)
 
     def _search_vault(
         self,
@@ -487,6 +613,7 @@ class Ompa:
 
         Returns the number of notes indexed.
         """
+        self.gov.require("write", "rebuild_index")
         keyword_count = self.keyword.index_vault(self.vault_path)
         semantic = self.semantic  # access property once; narrows Optional
         if semantic is None:
@@ -518,17 +645,25 @@ class Ompa:
 
     def update_brain(self, note_name: str, content: str, append: bool = False) -> None:
         """Update a brain note and sync to KG + search index."""
-        self.vault.update_brain_note(note_name, content, append)
-
-        # Sync brain note to KG and search index
         brain_path = self.vault.config.brain_folder / f"{note_name}.md"
+        self.gov.require("write", "update_brain", f"brain/{note_name}")
+        existed = brain_path.exists()
+        if existed and not append:
+            self.gov.check_hold_note(brain_path, "overwrite")
+        with self.gov.txn():
+            self.vault.update_brain_note(note_name, content, append)
+
+            # Sync brain note to KG and search index
+            if brain_path.exists():
+                self._auto_update_kg(brain_path)
+                self.gov.log_note("note.edit" if existed else "note.write", brain_path)
         if brain_path.exists():
-            self._auto_update_kg(brain_path)
             self._auto_update_index(brain_path)
             self._auto_add_to_palace(str(brain_path))
 
     def get_brain_note(self, name: str) -> object | None:
         """Get a brain note by name."""
+        self.gov.require("read", "get_brain_note", f"brain/{name}")
         return self.vault.get_brain_note(name)
 
     # -------------------------------------------------------------------------
@@ -564,7 +699,9 @@ class Ompa:
 
     def kg_populate(self) -> int:
         """Populate KG from all vault notes (wikilinks, tags, folders)."""
-        return self.kg.populate_from_vault(self.vault_path)
+        self.gov.require("write", "kg_populate")
+        with self.gov.txn():
+            return self.kg.populate_from_vault(self.vault_path)
 
     def sync(self) -> dict:
         """
@@ -572,7 +709,9 @@ class Ompa:
 
         Returns dict with counts for each system.
         """
-        kg_count = self.kg.populate_from_vault(self.vault_path)
+        self.gov.require("write", "sync")
+        with self.gov.txn():
+            kg_count = self.kg.populate_from_vault(self.vault_path)
         palace_count = self.palace.auto_build_from_vault(self.vault_path)
         index_count = self.rebuild_index() if self._enable_semantic else 0
 
@@ -584,7 +723,9 @@ class Ompa:
 
         # Sync personal vault too if in dual mode
         if self.is_dual_vault:
-            p_kg = self.personal_kg.populate_from_vault(self.dual_config.personal_path)
+            self.personal_gov.require("write", "sync")
+            with self.personal_gov.txn():
+                p_kg = self.personal_kg.populate_from_vault(self.dual_config.personal_path)
             p_palace = self.personal_palace.auto_build_from_vault(self.dual_config.personal_path)
             result["personal_kg_triples"] = p_kg
             result["personal_palace_wings"] = p_palace
@@ -656,13 +797,21 @@ class Ompa:
         }
 
         full_path = _safe_resolve(target_vault.vault_path, file_path)
+        gov = self.gov if target == VaultTarget.SHARED else self.personal_gov
+        # ACL + legal hold checks happen before any change (denials are logged)
+        gov.require("write", "write", gov.rel(full_path))
+        existed = full_path.exists()
+        if existed:
+            gov.check_hold_note(full_path, "overwrite")
         note = Note(path=full_path, frontmatter=frontmatter, content=content)
-        note.save()
-
-        # Update KG + index
         target_kg = self.kg if target == VaultTarget.SHARED else self.personal_kg
-        if target_kg:
-            target_kg.populate_from_note(full_path, target_vault.vault_path)
+        # One audit transaction: the note write and every fact derived from it
+        with gov.txn():
+            note.save()
+            # Update KG + index
+            if target_kg:
+                target_kg.populate_from_note(full_path, target_vault.vault_path)
+            gov.log_note("note.edit" if existed else "note.write", full_path, {"tags": tags})
 
         # Make the note searchable now (no manual rebuild).  Only touches an index
         # that is already loaded; an index loaded later catches up via refresh().
@@ -738,6 +887,10 @@ class Ompa:
         # Perform the export
         if not source.exists():
             return {"success": False, "error": f"Note not found: {note_path}"}
+        self.personal_gov.require("read", "export_to_shared", note_path)
+        self.gov.require("write", "export_to_shared", note_path)
+        if target.exists():
+            self.gov.check_hold_note(target, "overwrite")
 
         note = Note.from_file(source)
         if sanitize:
@@ -748,10 +901,15 @@ class Ompa:
         note.frontmatter.pop("@private", None)
 
         note.path = target
-        note.save()
+        existed = target.exists()
+        with self.gov.txn():
+            note.save()
 
-        # Update shared KG
-        self.kg.populate_from_note(target, self.dual_config.shared_path)
+            # Update shared KG
+            self.kg.populate_from_note(target, self.dual_config.shared_path)
+            self.gov.log_note(
+                "note.edit" if existed else "note.write", target, {"exported_from": "personal"}
+            )
 
         logger.info("Exported %s to shared vault", note_path)
         return {
@@ -788,6 +946,10 @@ class Ompa:
 
         if not source.exists():
             return {"success": False, "error": f"Note not found: {note_path}"}
+        self.gov.require("read", "import_to_personal", note_path)
+        self.personal_gov.require("write", "import_to_personal", note_path)
+        if target.exists():
+            self.personal_gov.check_hold_note(target, "overwrite")
 
         note = Note.from_file(source)
         note.frontmatter["vault"] = "personal"
@@ -797,11 +959,16 @@ class Ompa:
             note.content += f"\n\n---\n*Imported from shared: [[{note_path}]]*"
 
         note.path = target
-        note.save()
+        existed = target.exists()
+        with self.personal_gov.txn():
+            note.save()
 
-        # Update personal KG
-        if self.personal_kg:
-            self.personal_kg.populate_from_note(target, self.dual_config.personal_path)
+            # Update personal KG
+            if self.personal_kg:
+                self.personal_kg.populate_from_note(target, self.dual_config.personal_path)
+            self.personal_gov.log_note(
+                "note.edit" if existed else "note.write", target, {"imported_from": "shared"}
+            )
 
         logger.info("Imported %s to personal vault", note_path)
         return {
@@ -809,6 +976,184 @@ class Ompa:
             "source": str(source),
             "target": str(target),
         }
+
+    # -------------------------------------------------------------------------
+    # Audit memory: deletion, erasure, policies, ACL, verification, as_of
+    # -------------------------------------------------------------------------
+
+    def delete_note(self, file_path: str, vault: str = "shared") -> dict:
+        """Delete a note (and the facts derived from it), recorded in the audit chain.
+
+        Blocked (LegalHoldError) if the note is under legal hold.
+        """
+        gov, kg, keyword, sem_attr, root = self._ctx(vault)
+        full = _safe_resolve(root, file_path)
+        gov.require("write", "delete_note", gov.rel(full))
+        if not full.exists():
+            return {"success": False, "error": f"Note not found: {file_path}"}
+        gov.check_hold_note(full, "delete")
+        target = str(full.resolve())
+        with gov.txn():
+            full.unlink()
+            ids = []
+            if kg is not None:
+                with kg._conn() as conn:
+                    rows = conn.execute(
+                        "SELECT id, source_file FROM triples WHERE source_file IS NOT NULL"
+                    ).fetchall()
+                ids = [r[0] for r in rows if str(Path(r[1]).resolve()) == target]
+            n = kg.delete_ids(ids) if kg is not None else 0
+            if n:
+                gov.log("fact.delete", {"ids": ids, "source": gov.rel(full), "count": n})
+            gov.log_note("note.delete", full)
+        sem = getattr(self, sem_attr)
+        purge_index_paths(keyword, sem, {target})
+        if sem is not None:
+            sem.save_index()
+        return {"success": True, "path": str(full), "facts_deleted": n}
+
+    def forget(
+        self, subject: str, vaults: list[str] | None = None, dry_run: bool = False
+    ) -> list[dict]:
+        """Right to erasure: remove every trace of ``subject`` from the vault(s).
+
+        Deletes notes named ``subject``; redacts whole-word, case-insensitive
+        mentions in other notes, palace metadata and session logs; renames
+        paths containing it; deletes matching KG facts/entities; drops the
+        affected search-index entries; redacts matching audit-entry bodies
+        while keeping their hashes, and appends a ``forget`` tombstone (proof
+        of deletion without the data); then VACUUMs every SQLite file.
+        Requires ``admin``; blocked by a covering legal hold.
+
+        Returns one receipt per vault.  ``nonce`` in a receipt is stored
+        nowhere else: ``sha256(nonce + "\\0" + subject.casefold())`` equals
+        the tombstone's ``subject_commitment``.
+        """
+        out = []
+        for name in self._govs(vaults):
+            gov, kg, keyword, sem_attr, _root = self._ctx(name)
+            out.append(forget_vault(self, gov, kg, keyword, sem_attr, subject, dry_run))
+        return out
+
+    def apply_retention(
+        self, vaults: list[str] | None = None, dry_run: bool = False, now=None
+    ) -> list[dict]:
+        """Delete notes/facts older than their retention rule (skipping legal holds)."""
+        out = []
+        for name in self._govs(vaults):
+            gov, kg, keyword, sem_attr, _root = self._ctx(name)
+            out.append(apply_retention_vault(self, gov, kg, keyword, sem_attr, now, dry_run))
+        return out
+
+    def _policy_change(self, gov: VaultGovernance, op: str, item: dict) -> None:
+        gov.require("admin", op)
+        gov.policies.save()
+        gov.log("policy.change", {"op": op, "item": item})
+
+    def add_retention_rule(self, ttl_days: float, vault: str = "shared", **scope) -> dict:
+        """Add a retention rule: ``tag=``, ``folder=``, ``predicate=`` or ``all=True``."""
+        gov = self._ctx(vault)[0]
+        gov.require("admin", "retention.add")
+        rule = gov.policies.add_retention(ttl_days, **scope)
+        self._policy_change(gov, "retention.add", rule)
+        return rule
+
+    def add_legal_hold(
+        self, value: str, kind: str = "subject", reason: str = "", vault: str = "shared"
+    ) -> dict:
+        """Place a legal hold (``kind`` = subject | path | tag); blocks deletion."""
+        gov = self._ctx(vault)[0]
+        gov.require("admin", "hold.add")
+        hold = gov.policies.add_hold(kind, value, reason)
+        self._policy_change(gov, "hold.add", hold)
+        return hold
+
+    def remove_policy(self, policy_id: str, vault: str = "shared") -> dict | None:
+        """Remove a retention rule or release a legal hold by id."""
+        gov = self._ctx(vault)[0]
+        gov.require("admin", "policy.remove")
+        item = gov.policies.remove(policy_id)
+        if item is not None:
+            self._policy_change(gov, "policy.remove", item)
+        return item
+
+    def policies(self, vault: str = "shared") -> dict:
+        gov = self._ctx(vault)[0]
+        gov.require("read", "policies")
+        return gov.policies.data
+
+    def set_acl(self, acl: dict, vault: str = "shared") -> dict:
+        """Install/replace a vault's ACL (``admin`` required once one exists)."""
+        gov, kg, *_ = self._ctx(vault)
+        gov.require("admin", "acl.set")
+        policy = AccessPolicy(acl, gov.palace / "acl.json")
+        if gov.audit is None:  # ACL implies audit (denials must be recorded)
+            gov.audit = VaultGovernance(
+                gov.vault_path, gov.principal, True, self._signer, gov.name
+            ).audit
+            gov.baseline(kg)
+        policy.save()
+        gov.acl = policy
+        gov.log("acl.change", {"acl": acl})
+        self._wire_kg(kg, gov)
+        return acl
+
+    def enable_audit(self, vault: str = "shared", baseline: bool = True) -> dict:
+        """Turn on the audit chain for an existing vault (migration).  Idempotent."""
+        gov, kg, *_ = self._ctx(vault)
+        gov.require("admin", "audit.enable")
+        if gov.audit is not None:
+            return {"enabled": True, "created": False, "entries": len(gov.audit)}
+        gov.audit = VaultGovernance(
+            gov.vault_path, gov.principal, True, self._signer, gov.name
+        ).audit
+        self._wire_kg(kg, gov)
+        counts = gov.baseline(kg) if baseline else {}
+        return {"enabled": True, "created": True, "baseline": counts, "head": gov.audit.head()}
+
+    def audit_verify(
+        self, vaults: list[str] | None = None, verifier=None, anchors=None, drift: bool = True
+    ) -> dict:
+        """Verify each vault's audit chain (+ note drift); ``{"ok": bool, vault: report}``."""
+        out: dict = {"ok": True}
+        for name in self._govs(vaults):
+            gov = self._ctx(name)[0]
+            gov.require("read", "audit.verify")
+            if gov.audit is None:
+                out[name] = {"enabled": False}
+                continue
+            rep = gov.audit.verify(verifier=verifier, anchors=anchors).to_dict()
+            if drift:
+                rep["drift"] = gov.drift()
+            out[name] = rep
+            out["ok"] = out["ok"] and rep["ok"]
+        return out
+
+    def audit_head(self, vault: str = "shared") -> dict:
+        """Latest chain head -- store it outside the vault to anchor the log."""
+        gov = self._ctx(vault)[0]
+        gov.require("read", "audit.head")
+        return gov.audit.head() if gov.audit is not None else {}
+
+    def audit_export(
+        self, vault: str = "shared", start: int = 1, end: int | None = None, proofs_for=None
+    ) -> dict:
+        """Evidence bundle (JSON-serialisable) for entries ``start..end``."""
+        gov = self._ctx(vault)[0]
+        gov.require("read", "audit.export")
+        if gov.audit is None:
+            raise RuntimeError("audit is not enabled for this vault")
+        bundle = gov.audit.export_bundle(start, end, proofs_for)
+        gov.log("audit.export", {"start": start, "end": end, "entries": len(bundle["entries"])})
+        return bundle
+
+    def as_of(self, t, vault: str = "shared") -> PointInTimeView:
+        """What did the agent know at transaction time ``t``?  (replays the chain)"""
+        gov = self._ctx(vault)[0]
+        gov.require("read", "as_of")
+        if gov.audit is None:
+            raise RuntimeError("as_of() needs the audit log (Ompa(audit=True))")
+        return PointInTimeView(gov.audit, t)
 
     def _sanitize_content(self, content: str) -> str:
         """Remove sensitive markers and credentials from content."""

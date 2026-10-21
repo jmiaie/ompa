@@ -597,8 +597,330 @@ def migrate_vault(
         console.print(f"[red]✗ {len(result.errors)} migration error(s)[/red]")
 
 
+# ---------------------------------------------------------------------------
+# Audit memory: audit chain, erasure, retention, legal holds, ACL
+# ---------------------------------------------------------------------------
+
+audit_app = typer.Typer(help="Tamper-evident audit log (hash chain + Merkle checkpoints)")
+app.add_typer(audit_app, name="audit")
+
+_PRINCIPAL_HELP = "Principal (user/agent id) to act as; default $OMPA_PRINCIPAL"
+
+
+def _gov_ompa(vault_path: Path, principal: str | None, key: Path | None = None, **kw) -> Ompa:
+    return make_ompa(vault_path, enable_semantic=False, principal=principal, audit_key=key, **kw)
+
+
+def _load_verifier(key: Path | None):
+    if key is None:
+        return None
+    from ompa.audit import load_key
+
+    return load_key(key)
+
+
+def _dump(obj) -> None:
+    import json
+
+    console.print_json(json.dumps(obj, default=str))
+
+
+@audit_app.command("enable")
+def audit_enable(
+    vault_path: Path = Path("."),
+    principal: str | None = typer.Option(None, help=_PRINCIPAL_HELP),
+    key: Path | None = typer.Option(None, help="Signing key file (see `ao audit keygen`)"),
+):
+    """Enable the audit log on an existing vault and record a baseline snapshot."""
+    ao = make_ompa(
+        vault_path, enable_semantic=False, principal=principal, audit=False, audit_key=key
+    )
+    _dump(ao.enable_audit())
+
+
+@audit_app.command("verify")
+def audit_verify(
+    vault_path: Path = Path("."),
+    key: Path | None = typer.Option(None, help="Public key (Ed25519 PEM) or HMAC key file"),
+    anchor: list[Path] = typer.Option(None, help="Head JSON saved earlier by `ao audit head`"),
+    principal: str | None = typer.Option(None, help=_PRINCIPAL_HELP),
+    as_json: bool = typer.Option(False, "--json", help="Print the full report as JSON"),
+):
+    """Verify the chain, checkpoints, head, signatures and note drift (exit 1 on failure)."""
+    import json
+
+    ao = _gov_ompa(vault_path, principal)
+    anchors = [json.loads(p.read_text()) for p in anchor or []]
+    rep = ao.audit_verify(verifier=_load_verifier(key), anchors=anchors or None)
+    if as_json:
+        _dump(rep)
+    else:
+        for name, r in rep.items():
+            if name == "ok":
+                continue
+            if not r.get("enabled", True):
+                console.print(f"[yellow]{name}: audit not enabled[/yellow]")
+                continue
+            mark = "[green]OK[/green]" if r["ok"] else "[red]FAILED[/red]"
+            console.print(
+                f"{name}: {mark}  entries={r['entries']} checkpoints={r['checkpoints']} "
+                f"signatures={r['signatures_checked']} redacted={r['redacted_entries']} "
+                f"({r['seconds']:.3f}s)"
+            )
+            for i in r["issues"][:20]:
+                console.print(f"  [red]{i['kind']}[/red] seq={i['seq']} {i['detail']}")
+            for w in r["warnings"][:5]:
+                console.print(f"  [yellow]warning[/yellow] {w}")
+            d = r.get("drift") or {}
+            if any(d.values()):
+                console.print(f"  [yellow]drift[/yellow] {d}")
+    raise typer.Exit(0 if rep["ok"] else 1)
+
+
+@audit_app.command("head")
+def audit_head(
+    vault_path: Path = Path("."),
+    principal: str | None = typer.Option(None, help=_PRINCIPAL_HELP),
+):
+    """Print the chain head; store it outside the vault to anchor later verification."""
+    _dump(_gov_ompa(vault_path, principal).audit_head())
+
+
+@audit_app.command("log")
+def audit_log(
+    vault_path: Path = Path("."),
+    last: int = typer.Option(20, help="Show the last N entries"),
+    principal: str | None = typer.Option(None, help=_PRINCIPAL_HELP),
+):
+    """Show recent audit entries."""
+    ao = _gov_ompa(vault_path, principal)
+    ao.gov.require("read", "audit.log")
+    log = ao.gov.audit
+    if log is None:
+        console.print("[yellow]audit not enabled[/yellow]")
+        raise typer.Exit(1)
+    start = max(1, log.head().get("seq", 0) - last + 1)
+    table = Table(title="Audit log")
+    for col in ("seq", "ts (UTC)", "actor", "action", "body"):
+        table.add_column(col)
+    for e in log.entries(start):
+        body = (
+            "[redacted]"
+            if e.redacted
+            else str({k: v for k, v in (e.body or {}).items() if k != "_salt"})
+        )
+        table.add_row(str(e.seq), e.ts, e.actor, e.action, body[:80])
+    console.print(table)
+
+
+@audit_app.command("export")
+def audit_export(
+    out: Path,
+    vault_path: Path = Path("."),
+    start: int = 1,
+    end: int | None = None,
+    proof: list[int] = typer.Option(None, help="Include Merkle inclusion proofs for these seqs"),
+    principal: str | None = typer.Option(None, help=_PRINCIPAL_HELP),
+):
+    """Write an evidence bundle (JSON) for entries START..END."""
+    import json
+
+    bundle = _gov_ompa(vault_path, principal).audit_export(
+        start=start, end=end, proofs_for=proof or None
+    )
+    out.write_text(json.dumps(bundle, indent=1, sort_keys=True), encoding="utf-8")
+    console.print(f"[green]wrote {out}[/green] ({len(bundle['entries'])} entries)")
+
+
+@audit_app.command("verify-bundle")
+def audit_verify_bundle(
+    bundle: Path,
+    key: Path | None = typer.Option(None, help="Public key / HMAC key to check signatures"),
+):
+    """Verify an exported evidence bundle offline (exit 1 on failure)."""
+    import json
+
+    from ompa.audit import verify_bundle
+
+    rep = verify_bundle(json.loads(bundle.read_text(encoding="utf-8")), _load_verifier(key))
+    _dump(rep.to_dict())
+    raise typer.Exit(0 if rep.ok else 1)
+
+
+@audit_app.command("keygen")
+def audit_keygen(
+    path: Path,
+    alg: str = typer.Option("ed25519", help="ed25519 (needs ompa[audit]) or hmac"),
+):
+    """Generate a signing key (file mode 0600; never overwrites)."""
+    from ompa.audit import generate_key
+
+    out = generate_key(path, alg=alg)
+    console.print(f"[green]key written: {out}[/green]")
+    if alg == "ed25519":
+        console.print(f"public key: {out.with_suffix(out.suffix + '.pub')}")
+
+
+@audit_app.command("as-of")
+def audit_as_of(
+    when: str,
+    entity: str,
+    vault_path: Path = Path("."),
+    valid_at: str | None = typer.Option(None, help="Valid-time date (default: date of WHEN)"),
+    principal: str | None = typer.Option(None, help=_PRINCIPAL_HELP),
+):
+    """What did the agent know about ENTITY at time WHEN (ISO, UTC if no offset)?"""
+    with _gov_ompa(vault_path, principal).as_of(when) as view:
+        facts = view.facts(entity, valid_at=valid_at)
+        _dump(
+            {
+                "stats": view.stats(),
+                "facts": [
+                    {"s": f.subject, "p": f.predicate, "o": f.object, "citation": f.citation}
+                    for f in facts
+                ],
+            }
+        )
+
+
+@app.command()
+def forget(
+    subject: str,
+    alias: list[str] = typer.Option(None, help="Additional names for the same subject"),
+    vault_path: Path = Path("."),
+    dry_run: bool = typer.Option(False, help="Only report what would be erased"),
+    yes: bool = typer.Option(False, "--yes", help="Skip the confirmation prompt"),
+    principal: str | None = typer.Option(None, help=_PRINCIPAL_HELP),
+):
+    """Right to erasure: delete/redact SUBJECT everywhere, keep a tombstone in the chain."""
+    ao = _gov_ompa(vault_path, principal)
+    subjects = [subject, *(alias or [])]
+    if not dry_run and not yes:
+        plan = ao.forget(subjects, dry_run=True)
+        _dump(plan)
+        typer.confirm("Erase permanently?", abort=True)
+    _dump(ao.forget(subjects, dry_run=dry_run))
+
+
+retention_app = typer.Typer(help="Retention rules (TTL per vault, tag, folder or predicate)")
+app.add_typer(retention_app, name="retention")
+
+
+@retention_app.command("add")
+def retention_add(
+    ttl_days: float,
+    vault_path: Path = Path("."),
+    tag: str | None = None,
+    folder: str | None = None,
+    predicate: str | None = None,
+    all_notes: bool = typer.Option(False, "--all", help="Apply to every note in the vault"),
+    principal: str | None = typer.Option(None, help=_PRINCIPAL_HELP),
+):
+    """Add a retention rule (exactly one of --tag/--folder/--predicate/--all)."""
+    scope = {k: v for k, v in (("tag", tag), ("folder", folder), ("predicate", predicate)) if v}
+    if all_notes:
+        scope["all"] = True
+    _dump(_gov_ompa(vault_path, principal).add_retention_rule(ttl_days, **scope))
+
+
+@retention_app.command("list")
+def retention_list(
+    vault_path: Path = Path("."),
+    principal: str | None = typer.Option(None, help=_PRINCIPAL_HELP),
+):
+    """Show retention rules and legal holds."""
+    _dump(_gov_ompa(vault_path, principal).policies())
+
+
+@retention_app.command("apply")
+def retention_apply(
+    vault_path: Path = Path("."),
+    dry_run: bool = typer.Option(False, help="Only report what would expire"),
+    principal: str | None = typer.Option(None, help=_PRINCIPAL_HELP),
+):
+    """Delete expired notes/facts (legal holds are skipped)."""
+    _dump(_gov_ompa(vault_path, principal).apply_retention(dry_run=dry_run))
+
+
+@retention_app.command("remove")
+def retention_remove(
+    policy_id: str,
+    vault_path: Path = Path("."),
+    principal: str | None = typer.Option(None, help=_PRINCIPAL_HELP),
+):
+    """Remove a retention rule (or release a hold) by id."""
+    _dump(_gov_ompa(vault_path, principal).remove_policy(policy_id))
+
+
+hold_app = typer.Typer(help="Legal holds (block deletion, overwrite, expiry and erasure)")
+app.add_typer(hold_app, name="hold")
+
+
+@hold_app.command("add")
+def hold_add(
+    value: str,
+    kind: str = typer.Option("subject", help="subject | path | tag"),
+    reason: str = "",
+    vault_path: Path = Path("."),
+    principal: str | None = typer.Option(None, help=_PRINCIPAL_HELP),
+):
+    """Place a legal hold."""
+    _dump(_gov_ompa(vault_path, principal).add_legal_hold(value, kind=kind, reason=reason))
+
+
+@hold_app.command("release")
+def hold_release(
+    hold_id: str,
+    vault_path: Path = Path("."),
+    principal: str | None = typer.Option(None, help=_PRINCIPAL_HELP),
+):
+    """Release a legal hold by id."""
+    _dump(_gov_ompa(vault_path, principal).remove_policy(hold_id))
+
+
+acl_app = typer.Typer(help="Vault access control (read / write / admin)")
+app.add_typer(acl_app, name="acl")
+
+
+@acl_app.command("init")
+def acl_init(
+    owner: str,
+    vault_path: Path = Path("."),
+    reader: list[str] = typer.Option(None, help="Grant read (principal, team:<name> or *)"),
+    writer: list[str] = typer.Option(None, help="Grant write"),
+    team: list[str] = typer.Option(None, help="Define a team: name=alice,bob"),
+    principal: str | None = typer.Option(None, help=_PRINCIPAL_HELP),
+):
+    """Make the vault private to OWNER (plus explicit grants).  Enables audit."""
+    from ompa.governance import AccessPolicy
+
+    teams = {}
+    for t in team or []:
+        name, _, members = t.partition("=")
+        teams[name] = [m for m in members.split(",") if m]
+    acl = AccessPolicy.template(owner, readers=reader, writers=writer, teams=teams)
+    _dump(_gov_ompa(vault_path, principal or owner).set_acl(acl))
+
+
+@acl_app.command("show")
+def acl_show(
+    vault_path: Path = Path("."),
+    principal: str | None = typer.Option(None, help=_PRINCIPAL_HELP),
+):
+    """Print the vault ACL."""
+    ao = _gov_ompa(vault_path, principal)
+    ao.gov.require("read", "acl.show")
+    _dump(ao.gov.acl.data if ao.gov.acl else {"acl": None, "note": "open vault"})
+
+
 def main():
-    app()
+    from ompa.governance import AccessDeniedError, LegalHoldError
+
+    try:
+        app()
+    except (AccessDeniedError, LegalHoldError) as e:
+        console.print(f"[red]{type(e).__name__}: {e}[/red]")
+        raise SystemExit(3) from None
 
 
 if __name__ == "__main__":

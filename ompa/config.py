@@ -210,6 +210,7 @@ def make_ompa(
     personal_vault_path: str | Path | None = None,
     isolation_mode: str = "strict",
     enable_semantic: bool = False,
+    **kwargs,
 ) -> Ompa:
     """
     Create an Ompa instance, supporting both single and dual vault modes.
@@ -223,6 +224,7 @@ def make_ompa(
         personal_vault_path: Path to personal vault (activates dual-vault mode)
         isolation_mode: "strict", "permissive", or "manual"
         enable_semantic: Whether to enable semantic search on initialization
+        **kwargs: forwarded to :class:`Ompa` (e.g. ``principal``, ``audit``, ``audit_key``)
 
     Returns:
         Ompa instance configured for the selected mode
@@ -236,9 +238,11 @@ def make_ompa(
             personal_vault_path=personal_vault_path,
             isolation_mode=isolation_mode,
             enable_semantic=enable_semantic,
+            **kwargs,
         )
     # Single-vault mode (legacy / backward compatible)
     return Ompa(
         vault_path=vault_path or Path("."),
         enable_semantic=enable_semantic,
+        **kwargs,
     )

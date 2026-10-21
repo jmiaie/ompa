@@ -39,10 +39,37 @@ class Triple:
     valid_to: str | None = None
     confidence: float = 1.0
     source_file: str | None = None
+    # Provenance (audit-memory).  ``recorded_at`` is transaction time (when the
+    # fact was written); valid_from/valid_to are valid time.
+    recorded_at: str | None = None
+    agent: str | None = None
+    source_line: int | None = None
+    source_sha256: str | None = None
+
+    @property
+    def citation(self) -> dict:
+        """Where this fact came from: note path, line, content hash, author, times."""
+        return {
+            "path": self.source_file,
+            "line": self.source_line,
+            "content_sha256": self.source_sha256,
+            "author": self.agent,
+            "recorded_at": self.recorded_at,
+            "valid_from": self.valid_from,
+            "valid_to": self.valid_to,
+        }
+
+
+# Column list used by every read query (keeps Triple construction uniform).
+_TRIPLE_COLS = (
+    "subject, predicate, object, valid_from, valid_to, confidence, source_file, "
+    "extracted_at, agent, source_line, source_sha256"
+)
 
 
 def _row_to_triple(row: sqlite3.Row) -> Triple:
     """Convert a SQLite Row to a Triple dataclass."""
+    keys = row.keys()
     return Triple(
         subject=row["subject"],
         predicate=row["predicate"],
@@ -51,7 +78,15 @@ def _row_to_triple(row: sqlite3.Row) -> Triple:
         valid_to=row["valid_to"],
         confidence=row["confidence"],
         source_file=row["source_file"],
+        recorded_at=row["extracted_at"] if "extracted_at" in keys else None,
+        agent=row["agent"] if "agent" in keys else None,
+        source_line=row["source_line"] if "source_line" in keys else None,
+        source_sha256=row["source_sha256"] if "source_sha256" in keys else None,
     )
+
+
+class AccessDeniedError(PermissionError):
+    """Raised when an access-control guard rejects an operation."""
 
 
 @lru_cache(maxsize=65536)
@@ -65,6 +100,13 @@ class KnowledgeGraph:
         self.db_path = Path(db_path or DEFAULT_KG_PATH).expanduser()
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._local = threading.local()  # per-thread connection cache
+        # Optional governance hooks, wired by Ompa when audit/ACL are enabled:
+        #   audit: ompa.audit.AuditLog -- every mutation is appended to the chain
+        #   guard: callable(op: "read"|"write") raising AccessDeniedError
+        #   agent: author/agent id stamped on new facts (provenance)
+        self.audit = None
+        self.guard = None
+        self.agent: str | None = None
         self._init_db()
 
     def _get_connection(self) -> sqlite3.Connection:
@@ -133,6 +175,15 @@ class KnowledgeGraph:
                 CREATE INDEX IF NOT EXISTS idx_triples_spo
                     ON triples(subject, predicate, object);
             """)
+            # Provenance columns (added in place on pre-existing databases).
+            have = {r[1] for r in conn.execute("PRAGMA table_info(triples)")}
+            for col, decl in (
+                ("agent", "TEXT"),
+                ("source_line", "INTEGER"),
+                ("source_sha256", "TEXT"),
+            ):
+                if col not in have:
+                    conn.execute(f"ALTER TABLE triples ADD COLUMN {col} {decl}")  # nosec B608
 
     def _entity_id(self, name: str) -> str:
         """Generate a stable ID for an entity."""
@@ -145,6 +196,14 @@ class KnowledgeGraph:
 
     def _now(self) -> str:
         return datetime.now().strftime("%Y-%m-%d")
+
+    def _check(self, op: str) -> None:
+        if self.guard is not None:
+            self.guard(op)
+
+    def _log(self, action: str, body: dict) -> None:
+        if self.audit is not None:
+            self.audit.append(action, body, actor=self.agent)
 
     # -------------------------------------------------------------------------
     # Entity operations
@@ -170,14 +229,14 @@ class KnowledgeGraph:
         as_of = as_of or self._now()
 
         # Filter in SQL for performance
-        query = """
-            SELECT subject, predicate, object, valid_from, valid_to, confidence, source_file
-            FROM triples
-            WHERE (subject = ? OR object = ?)
-              AND (valid_from IS NULL OR valid_from <= ?)
-              AND (valid_to IS NULL OR valid_to >= ?)
-            ORDER BY valid_from DESC
-        """
+        query = (
+            f"SELECT {_TRIPLE_COLS} FROM triples "  # nosec B608 - constant column list
+            "WHERE (subject = ? OR object = ?)"
+            " AND (valid_from IS NULL OR valid_from <= ?)"
+            " AND (valid_to IS NULL OR valid_to >= ?)"
+            " ORDER BY valid_from DESC"
+        )
+        self._check("read")
         with self._conn() as conn:
             rows = conn.execute(query, (name, name, as_of, as_of)).fetchall()
 
@@ -185,11 +244,10 @@ class KnowledgeGraph:
 
     def query_relation(self, subject: str, predicate: str) -> list[Triple]:
         """Query all triples matching a specific subject+predicate."""
+        self._check("read")
         with self._conn() as conn:
             rows = conn.execute(
-                """SELECT subject, predicate, object, valid_from, valid_to, confidence, source_file
-                   FROM triples
-                   WHERE subject = ? AND predicate = ?""",
+                f"SELECT {_TRIPLE_COLS} FROM triples WHERE subject = ? AND predicate = ?",  # nosec B608
                 (subject, predicate),
             ).fetchall()
         return [_row_to_triple(r) for r in rows]
@@ -207,7 +265,11 @@ class KnowledgeGraph:
         valid_to: str = None,
         confidence: float = 1.0,
         source: str = None,
-    ) -> None:
+        source_line: int | None = None,
+        source_sha256: str | None = None,
+        agent: str | None = None,
+        recorded_at: str | None = None,
+    ) -> str:
         """
         Add a fact triple to the knowledge graph.
 
@@ -219,8 +281,19 @@ class KnowledgeGraph:
             valid_to: End date (YYYY-MM-DD). None = still true.
             confidence: Confidence 0-1. Default 1.0.
             source: Source file or drawer reference.
+            source_line: 1-based line in ``source`` the fact was extracted from.
+            source_sha256: SHA-256 of the source content at extraction time.
+            agent: Author/agent id (defaults to ``self.agent``).
+            recorded_at: Override the recorded (transaction) time; used by
+                point-in-time replay.  Defaults to now.
+
+        Returns ``"add"`` (new interval) or ``"merge"`` (merged into an
+        overlapping interval).  With auditing enabled the mutation is appended
+        to the audit chain as ``fact.add`` / ``fact.merge``.
         """
+        self._check("write")
         valid_from = valid_from or self._now()
+        agent = agent or self.agent
         subject_id = self._entity_id(subject)
         object_id = self._entity_id(object)
         interval_id = self._interval_id(subject, predicate, object, valid_from)
@@ -246,8 +319,10 @@ class KnowledgeGraph:
             if overlap is None:
                 conn.execute(
                     """INSERT OR REPLACE INTO triples
-                       (id, subject, predicate, object, valid_from, valid_to, confidence, source_file)
-                       VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                       (id, subject, predicate, object, valid_from, valid_to, confidence,
+                        source_file, agent, source_line, source_sha256, extracted_at)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                               COALESCE(?, CURRENT_TIMESTAMP))""",
                     (
                         interval_id,
                         subject,
@@ -257,13 +332,54 @@ class KnowledgeGraph:
                         valid_to,
                         confidence,
                         source,
+                        agent,
+                        source_line,
+                        source_sha256,
+                        recorded_at,
                     ),
                 )
-                return
-            # Slow path: overlaps an existing interval (re-assertion) -> merge.
-            self._upsert_interval(
-                conn, subject, predicate, object, valid_from, valid_to, confidence, source
+                outcome = "add"
+            else:
+                # Slow path: overlaps an existing interval (re-assertion) -> merge.
+                self._upsert_interval(
+                    conn, subject, predicate, object, valid_from, valid_to, confidence, source
+                )
+                if source_line is not None or source_sha256 is not None or agent:
+                    conn.execute(
+                        """UPDATE triples SET agent = COALESCE(?, agent),
+                               source_line = COALESCE(?, source_line),
+                               source_sha256 = COALESCE(?, source_sha256)
+                           WHERE subject = ? AND predicate = ? AND object = ?
+                             AND (valid_to IS NULL OR valid_to >= ?)
+                             AND (valid_from IS NULL OR valid_from <= COALESCE(?, valid_from))""",
+                        (
+                            agent,
+                            source_line,
+                            source_sha256,
+                            subject,
+                            predicate,
+                            object,
+                            valid_from,
+                            valid_to,
+                        ),
+                    )
+                outcome = "merge"
+        if self.audit is not None:
+            self._log(
+                "fact." + outcome,
+                {
+                    "s": subject,
+                    "p": predicate,
+                    "o": object,
+                    "valid_from": valid_from,
+                    "valid_to": valid_to,
+                    "confidence": confidence,
+                    "source": source,
+                    "source_line": source_line,
+                    "source_sha256": source_sha256,
+                },
             )
+        return outcome
 
     def _upsert_interval(
         self,
@@ -330,18 +446,79 @@ class KnowledgeGraph:
             (merged_from, merged_to, confidence, source, keep_id),
         )
 
-    def invalidate(self, subject: str, predicate: str, obj: str, ended: str = None) -> None:
+    def invalidate(self, subject: str, predicate: str, obj: str, ended: str = None) -> int:
         """
         Invalidate a triple by setting its valid_to date.
         The fact is no longer current but remains queryable historically.
+        Returns the number of open intervals closed.
         """
+        self._check("write")
         ended = ended or self._now()
         with self._conn() as conn:
-            conn.execute(
+            n = conn.execute(
                 """UPDATE triples SET valid_to = ?
                    WHERE subject = ? AND predicate = ? AND object = ? AND valid_to IS NULL""",
                 (ended, subject, predicate, obj),
+            ).rowcount
+        if self.audit is not None:
+            self._log(
+                "fact.invalidate",
+                {"s": subject, "p": predicate, "o": obj, "ended": ended, "rows": n},
             )
+        return n
+
+    # -------------------------------------------------------------------------
+    # Deletion (used by retention / erasure / note deletion; callers audit)
+    # -------------------------------------------------------------------------
+
+    def find_ids(self, where: str, args: tuple = ()) -> list[str]:
+        """Ids of triples matching a trusted SQL ``where`` fragment (internal use)."""
+        with self._conn() as conn:
+            return [
+                r[0]
+                for r in conn.execute(f"SELECT id FROM triples WHERE {where}", args)  # nosec B608
+            ]
+
+    def delete_ids(self, ids: list[str]) -> int:
+        """Hard-delete triples by id.  Caller is responsible for auditing."""
+        if not ids:
+            return 0
+        n = 0
+        with self._conn() as conn:
+            for i in range(0, len(ids), 500):
+                chunk = ids[i : i + 500]
+                marks = ",".join("?" * len(chunk))
+                n += conn.execute(
+                    f"DELETE FROM triples WHERE id IN ({marks})",  # nosec B608
+                    chunk,
+                ).rowcount
+        return n
+
+    def delete_entities(self, names: list[str]) -> int:
+        """Remove entity rows (no longer referenced by any triple)."""
+        n = 0
+        with self._conn() as conn:
+            for name in names:
+                n += conn.execute(
+                    """DELETE FROM entities WHERE name = ? AND NOT EXISTS
+                       (SELECT 1 FROM triples WHERE subject = ? OR object = ?)""",
+                    (name, name, name),
+                ).rowcount
+        return n
+
+    def compact(self) -> None:
+        """VACUUM + truncate the WAL so deleted rows leave no recoverable bytes."""
+        conn = self._get_connection()
+        conn.commit()
+        conn.execute("PRAGMA secure_delete=ON")
+        conn.execute("VACUUM")
+        conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+
+    def close(self) -> None:
+        conn = getattr(self._local, "conn", None)
+        if conn is not None:
+            conn.close()
+            self._local.conn = None
 
     # -------------------------------------------------------------------------
     # Timeline
@@ -352,9 +529,11 @@ class KnowledgeGraph:
         Get the chronological story of an entity.
         Returns all triples ordered by valid_from with direction indicators.
         """
+        self._check("read")
         with self._conn() as conn:
             rows = conn.execute(
-                """SELECT subject, predicate, object, valid_from, valid_to, source_file
+                """SELECT subject, predicate, object, valid_from, valid_to, source_file,
+                          source_line, source_sha256, agent, extracted_at
                    FROM triples
                    WHERE subject = ? OR object = ?
                    ORDER BY valid_from ASC NULLS FIRST""",
@@ -381,6 +560,15 @@ class KnowledgeGraph:
                     "object": row["object"],
                     "label": label,
                     "source": row["source_file"],
+                    "citation": {
+                        "path": row["source_file"],
+                        "line": row["source_line"],
+                        "content_sha256": row["source_sha256"],
+                        "author": row["agent"],
+                        "recorded_at": row["extracted_at"],
+                        "valid_from": row["valid_from"],
+                        "valid_to": row["valid_to"],
+                    },
                 }
             )
         return timeline
@@ -409,26 +597,44 @@ class KnowledgeGraph:
         source = str(note_path)
 
         try:
+            raw_bytes = note_path.read_bytes()
+        except OSError as e:
+            logger.debug("Could not read %s: %s", note_path, e)
+            return 0
+        sha = hashlib.sha256(raw_bytes).hexdigest()
+        raw = raw_bytes.decode("utf-8", errors="replace")
+        try:
             import frontmatter as fm
 
-            post = fm.load(note_path)
+            post = fm.loads(raw)
             content = post.content
             metadata = dict(post.metadata)
         except Exception:
-            try:
-                content = note_path.read_text(encoding="utf-8")
-                metadata = {}
-            except Exception as e:
-                logger.debug("Could not read %s: %s", note_path, e)
-                return 0
+            content = raw
+            metadata = {}
+        body_off = max(raw.find(content), 0) if content else 0
+
+        def line_at(offset: int) -> int:
+            return raw.count("\n", 0, offset) + 1
+
+        def fm_line(key: str) -> int | None:
+            m = re.search(rf"^{key}\s*:", raw[:body_off], re.MULTILINE)
+            return line_at(m.start()) if m else None
+
+        prov = {"source": source, "source_sha256": sha}
 
         # 1. Wikilinks → links_to triples
-        wikilinks = re.findall(r"\[\[([^\]]+)\]\]", content)
-        for link in wikilinks:
+        for m in re.finditer(r"\[\[([^\]]+)\]\]", content):
             # Strip display text from piped links: [[target|display]]
-            target = link.split("|")[0].strip()
+            target = m.group(1).split("|")[0].strip()
             if target:
-                self.add_triple(note_name, "links_to", target, source=source)
+                self.add_triple(
+                    note_name,
+                    "links_to",
+                    target,
+                    source_line=line_at(body_off + m.start()),
+                    **prov,
+                )
                 count += 1
 
         # 2. Frontmatter tags → has_tag triples
@@ -436,9 +642,12 @@ class KnowledgeGraph:
         if isinstance(tags, str):
             tags = [t.strip() for t in tags.split(",") if t.strip()]
         if isinstance(tags, list):
+            tags_line = fm_line("tags")
             for tag in tags:
                 if isinstance(tag, str) and tag.strip():
-                    self.add_triple(note_name, "has_tag", tag.strip(), source=source)
+                    self.add_triple(
+                        note_name, "has_tag", tag.strip(), source_line=tags_line, **prov
+                    )
                     count += 1
 
         # 3. Folder membership
@@ -448,12 +657,12 @@ class KnowledgeGraph:
                 parts = rel.parts
                 if len(parts) > 1:
                     folder = parts[0]  # top-level: brain, work, org, perf
-                    self.add_triple(note_name, "in_folder", folder, source=source)
+                    self.add_triple(note_name, "in_folder", folder, **prov)
                     count += 1
                     # Sub-folder (e.g., work/active, org/people)
                     if len(parts) > 2:
                         subfolder = f"{parts[0]}/{parts[1]}"
-                        self.add_triple(note_name, "in_subfolder", subfolder, source=source)
+                        self.add_triple(note_name, "in_subfolder", subfolder, **prov)
                         count += 1
             except ValueError:
                 pass
@@ -467,7 +676,8 @@ class KnowledgeGraph:
                 "created_on",
                 date_str,
                 valid_from=date_str,
-                source=source,
+                source_line=fm_line("date"),
+                **prov,
             )
             count += 1
 

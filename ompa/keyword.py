@@ -179,6 +179,17 @@ class KeywordIndex:
             self._conn.execute("DELETE FROM files")
             self._conn.commit()
 
+    def compact(self) -> None:
+        """Merge FTS segments, VACUUM and truncate the WAL so deleted text is unrecoverable."""
+        if self._conn is None:
+            return
+        with self._lock:
+            self._conn.execute("INSERT INTO notes_fts(notes_fts) VALUES('optimize')")
+            self._conn.commit()
+            self._conn.execute("PRAGMA secure_delete=ON")
+            self._conn.execute("VACUUM")
+            self._conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+
     def __len__(self) -> int:
         if self._conn is None:
             return 0
