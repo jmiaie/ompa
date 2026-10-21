@@ -21,6 +21,7 @@ _DEFAULT_EXCLUDES = [
     ".agent-memory/",
     ".internal/",
     "semantic_index/",  # large model cache — rebuild on remote
+    "keyword_index.sqlite3*",  # derived search index (+ WAL files) — rebuilt on remote
 ]
 
 

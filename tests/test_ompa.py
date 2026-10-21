@@ -1495,11 +1495,13 @@ class TestIndexFreshness:
             idx = SemanticIndex(
                 vault / ".palace" / "semantic_index", embedding_backend=_BagOfWordsBackend()
             )
-            idx.index_vault(vault)
-            idx.save_index()
+            # simulate a v1 JSON index written by OMPA <= 1.0.8 (no "files" mtimes)
+            idx.index_path.mkdir(parents=True, exist_ok=True)
             f = idx.index_path / "semantic_index.json"
-            data = json.loads(f.read_text())
-            data.pop("files")  # simulate an index written by OMPA <= 1.0.8
+            text = (vault / "old.md").read_text()
+            emb = list(_BagOfWordsBackend().encode(text))
+            chunk = {"hash": "h", "path": str(vault / "old.md"), "chunk_index": 0}
+            data = {"model": "m", "chunks": [{**chunk, "text": text, "embedding": emb}]}
             f.write_text(json.dumps(data))
             st = (vault / "old.md").stat()
             _os.utime(f, ns=(st.st_atime_ns, st.st_mtime_ns + 10_000_000))
@@ -1586,3 +1588,232 @@ class TestConcurrentFactWrites:
                 ("Kai", "works_on", "Orion", "2024-01-01", None, None),
             ).fetchall()
             assert any("idx_triples_spo" in row[3] for row in plan)
+
+
+# ---------------------------------------------------------------------------
+# Search: resident compact index, FTS5 keyword search, hybrid fusion
+# ---------------------------------------------------------------------------
+
+
+class TestKeywordSearch:
+    """Without the semantic extra, search must match note *content* (BM25 / FTS5)."""
+
+    @staticmethod
+    def _names(results):
+        from pathlib import Path
+
+        return [Path(r.path).name for r in results]
+
+    def test_content_match_without_semantic(self):
+        from ompa import Ompa
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            ao = Ompa(vault_path=tmpdir, enable_semantic=False)
+            ao.write("We chose Postgres for the billing service.", file_path="work/db.md")
+            ao.write("Lunch options near the office.", file_path="work/lunch.md")
+            res = ao.search("postgres billing", limit=5)
+            assert self._names(res)[:1] == ["db.md"]
+            assert res[0].match_type == "keyword"
+
+    def test_external_edit_and_delete_picked_up(self):
+        from pathlib import Path
+
+        from ompa import Ompa
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            ao = Ompa(vault_path=tmpdir, enable_semantic=False, index_refresh_interval=0)
+            note = Path(tmpdir) / "brain" / "ext.md"
+            note.parent.mkdir(parents=True, exist_ok=True)
+            note.write_text("the quokka migration plan", encoding="utf-8")
+            assert "ext.md" in self._names(ao.search("quokka"))
+            note.write_text("the wombat migration plan, longer now", encoding="utf-8")
+            assert "ext.md" in self._names(ao.search("wombat"))
+            assert "ext.md" not in self._names(ao.search("quokka"))
+            note.unlink()
+            assert "ext.md" not in self._names(ao.search("wombat"))
+
+    def test_fts_syntax_in_query_is_safe(self):
+        from ompa.keyword import KeywordIndex, _fts_query
+
+        assert _fts_query('NEAR(a b) "x AND y* :col') == '"near" OR "a" OR "b" OR "x" OR "and" OR "y" OR "col"'
+        assert _fts_query("!!! ???") == ""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            from pathlib import Path
+
+            idx = KeywordIndex(Path(tmpdir) / "k.sqlite3")
+            (Path(tmpdir) / "a.md").write_text("alpha AND beta", encoding="utf-8")
+            assert idx.update_file(Path(tmpdir) / "a.md")
+            assert [Path(r.path).name for r in idx.search('alpha" OR NOT *')] == ["a.md"]
+            assert idx.search("!!!") == []
+
+    def test_bm25_prefers_rarer_terms(self):
+        from pathlib import Path
+
+        from ompa.keyword import KeywordIndex
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            d = Path(tmpdir)
+            for i in range(5):
+                (d / f"common{i}.md").write_text(f"meeting notes number {i}", encoding="utf-8")
+            (d / "rare.md").write_text("meeting about the flamingo budget", encoding="utf-8")
+            idx = KeywordIndex(d / ".palace" / "k.sqlite3")
+            assert idx.refresh(d) == {"added": 6, "updated": 0, "removed": 0}
+            assert idx.refresh(d) == {"added": 0, "updated": 0, "removed": 0}
+            assert Path(idx.search("meeting flamingo", 3)[0].path).name == "rare.md"
+
+
+class TestResidentSemanticIndex:
+    def test_compact_float16_format_roundtrip(self):
+        import json
+        from pathlib import Path
+
+        from ompa.semantic import META_FILE, VECTORS_FILE, SemanticIndex
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            vault = Path(tmpdir)
+            for i, w in enumerate(["llama", "alpaca", "capybara"]):
+                (vault / f"n{i}.md").write_text(f"a note about the {w} {w} herd", encoding="utf-8")
+            idx = SemanticIndex(vault / ".palace" / "si", embedding_backend=_BagOfWordsBackend())
+            idx.index_vault(vault)
+            idx.save_index()
+            meta = json.loads((idx.index_path / META_FILE).read_text())
+            assert meta["version"] == 2 and meta["count"] == 3 and meta["dim"] == 64
+            assert (idx.index_path / VECTORS_FILE).stat().st_size == 3 * 64 * 2
+            before = [(r.path, round(r.score, 3)) for r in idx.search("capybara herd", 3)]
+
+            idx2 = SemanticIndex(idx.index_path, embedding_backend=_BagOfWordsBackend())
+            assert idx2.load_index()
+            # resident: queries never touch the index files again
+            for f in idx.index_path.iterdir():
+                f.unlink()
+            after = [(r.path, round(r.score, 3)) for r in idx2.search("capybara herd", 3)]
+            assert after == before
+            assert Path(after[0][0]).name == "n2.md"
+
+    def test_truncated_vector_file_is_rejected(self):
+        from pathlib import Path
+
+        from ompa.semantic import VECTORS_FILE, SemanticIndex
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            vault = Path(tmpdir)
+            (vault / "a.md").write_text("some reasonably long note text here", encoding="utf-8")
+            idx = SemanticIndex(vault / ".palace" / "si", embedding_backend=_BagOfWordsBackend())
+            idx.index_vault(vault)
+            idx.save_index()
+            vf = idx.index_path / VECTORS_FILE
+            vf.write_bytes(vf.read_bytes()[:-2])
+            idx2 = SemanticIndex(idx.index_path, embedding_backend=_BagOfWordsBackend())
+            assert idx2.load_index() is False
+            assert idx2.chunks == []
+
+    def test_legacy_json_index_is_migrated(self):
+        import json
+        from pathlib import Path
+
+        from ompa.semantic import LEGACY_FILE, META_FILE, SemanticIndex
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            vault = Path(tmpdir)
+            note = vault / "a.md"
+            note.write_text("legacy note about otters and rivers", encoding="utf-8")
+            si = vault / ".palace" / "si"
+            si.mkdir(parents=True)
+            emb = list(_BagOfWordsBackend().encode(note.read_text()))
+            st = note.stat()
+            (si / LEGACY_FILE).write_text(
+                json.dumps(
+                    {
+                        "model": "m",
+                        "chunks": [
+                            {"hash": "h", "path": str(note), "chunk_index": 0,
+                             "text": note.read_text(), "embedding": emb}
+                        ],
+                        "files": {str(note): [st.st_mtime_ns, st.st_size]},
+                    }
+                )
+            )
+            idx = SemanticIndex(si, embedding_backend=_BagOfWordsBackend())
+            assert idx.load_index()
+            assert idx.refresh(vault) == {"added": 0, "updated": 0, "removed": 0}
+            assert Path(idx.search("otters", 1)[0].path).name == "a.md"
+            idx.flush()
+            assert (si / META_FILE).exists() and not (si / LEGACY_FILE).exists()
+
+    def test_incremental_updates_match_full_rebuild(self):
+        """Random add/edit/delete sequences: incremental index == fresh rebuild."""
+        import random
+        from pathlib import Path
+
+        from ompa.semantic import SemanticIndex
+
+        words = "red green blue cyan magenta yellow black white orange purple".split()
+        rng = random.Random(20261020)
+        with tempfile.TemporaryDirectory() as tmpdir:
+            vault = Path(tmpdir) / "v"
+            vault.mkdir()
+            idx = SemanticIndex(Path(tmpdir) / "si", embedding_backend=_BagOfWordsBackend())
+            for step in range(120):
+                name = vault / f"n{rng.randrange(15)}.md"
+                if name.exists() and rng.random() < 0.3:
+                    name.unlink()
+                    idx.remove_file(name)
+                else:
+                    n_words = rng.choice([5, 30, 700, 1200])  # 1-3 chunks
+                    name.write_text(" ".join(rng.choice(words) for _ in range(n_words)))
+                    idx.update_file(name, save=False)
+            fresh = SemanticIndex(Path(tmpdir) / "si2", embedding_backend=_BagOfWordsBackend())
+            fresh.index_vault(vault)
+            key = lambda ix: sorted((c["path"], c["chunk_index"]) for c in ix.chunks)  # noqa: E731
+            assert key(idx) == key(fresh)
+            for q in ["red blue", "orange purple black", "cyan"]:
+                got = [(r.path, round(r.score, 4)) for r in idx.search(q, 10, hybrid=False)]
+                exp = [(r.path, round(r.score, 4)) for r in fresh.search(q, 10, hybrid=False)]
+                assert sorted(got) == sorted(exp)
+
+    def test_hybrid_fuses_keyword_and_semantic(self):
+        from pathlib import Path
+
+        from ompa import Ompa
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            ao = Ompa(vault_path=tmpdir, embedding_backend=_BagOfWordsBackend())
+            ao.write("Release checklist for the aardvark project launch.", file_path="work/a.md")
+            ao.write("Unrelated note on gardening and tomatoes.", file_path="work/b.md")
+            res = ao.search("aardvark launch", limit=2)
+            assert Path(res[0].path).name == "a.md"
+            assert res[0].match_type == "hybrid"
+            sem = ao.search("aardvark launch", limit=2, hybrid=False)
+            assert all(r.match_type == "semantic" for r in sem)
+
+    def test_rrf(self):
+        from ompa.semantic import SearchResult, fuse_rrf
+
+        s = [SearchResult("a", "", 0.9, "semantic"), SearchResult("b", "", 0.5, "semantic")]
+        k = [SearchResult("b", "", 7.0, "keyword"), SearchResult("c", "", 3.0, "keyword")]
+        out = fuse_rrf(s, k, 3)
+        assert [r.path for r in out] == ["b", "a", "c"]
+        assert [r.match_type for r in out] == ["hybrid", "semantic", "keyword"]
+
+    def test_sentence_transformer_loaded_once_per_process(self, monkeypatch):
+        import sys
+        import types
+        from pathlib import Path
+
+        from ompa import semantic
+
+        loads = []
+
+        class FakeST:
+            def __init__(self, name):
+                loads.append(name)
+
+        fake = types.ModuleType("sentence_transformers")
+        fake.SentenceTransformer = FakeST
+        monkeypatch.setitem(sys.modules, "sentence_transformers", fake)
+        monkeypatch.setattr(semantic, "_MODEL_CACHE", {})
+        with tempfile.TemporaryDirectory() as tmpdir:
+            a = semantic.SemanticIndex(Path(tmpdir) / "a", model_name="fake-model")
+            b = semantic.SemanticIndex(Path(tmpdir) / "b", model_name="fake-model")
+            assert a.model is b.model
+        assert loads == ["fake-model"]
