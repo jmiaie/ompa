@@ -1,25 +1,18 @@
 """
-OMPA LongMemEval Benchmark.
+OMPA search SMOKE TEST (20 hand-written items) — NOT a LongMemEval result.
 
-Measures Recall@5 on a subset of LongMemEval-style questions using OMPA's
-verbatim storage + semantic search. Reports the headline metric that OMPA
-claims: 96.6% R@5 (established by MemPalace on the same storage approach).
-
-This script:
-1. Loads a set of (context, question, answer) triples
-2. Stores each context chunk in OMPA via ao.write()
-3. Queries ao.search() for each question
-4. Checks if the correct answer appears in the top-5 results
-5. Reports Recall@5, mean rank of correct answer, and latency
+This checks that write -> rebuild_index -> search works end to end and that
+obviously-matching notes come back.  Its 20 items were written for this repo;
+they are not drawn from LongMemEval and the score says nothing about
+LongMemEval performance.  For the real benchmark see ``longmemeval_s.py`` and
+``benchmarks/README.md``.
 
 Usage:
-    pip install ompa[all]          # Requires semantic search
-    python benchmarks/longmemeval.py
-    python benchmarks/longmemeval.py --k 5 --limit 50
+    pip install ompa[semantic]   # optional; keyword (FTS5) search works without it
+    python benchmarks/smoke_sample.py
+    python benchmarks/smoke_sample.py --k 5 --limit 10 --verbose
 
-The built-in dataset is a 20-item sample representative of LongMemEval's
-question types. For the full evaluation, point --data-path at your own
-LongMemEval JSONL file with {"context": str, "question": str, "answer": str}.
+``--data-path`` accepts a JSONL file of {"context", "question", "answer"} rows.
 """
 
 from __future__ import annotations
@@ -33,7 +26,7 @@ from pathlib import Path
 from ompa import Ompa
 
 # ---------------------------------------------------------------------------
-# Built-in sample dataset (representative LongMemEval question types)
+# Built-in smoke-test items (hand-written; not from LongMemEval)
 # ---------------------------------------------------------------------------
 
 SAMPLE_DATA = [
@@ -144,6 +137,7 @@ SAMPLE_DATA = [
 # Benchmark runner
 # ---------------------------------------------------------------------------
 
+
 def recall_at_k(results: list, answer: str, k: int) -> tuple[bool, int]:
     """Check if answer appears in top-k results. Returns (hit, rank)."""
     answer_lower = answer.lower()
@@ -217,7 +211,7 @@ def run_benchmark(
 
 
 def main():
-    parser = argparse.ArgumentParser(description="OMPA LongMemEval benchmark")
+    parser = argparse.ArgumentParser(description="OMPA search smoke test (not LongMemEval)")
     parser.add_argument("--k", type=int, default=5, help="Recall@K (default: 5)")
     parser.add_argument("--limit", type=int, default=None, help="Limit number of items")
     parser.add_argument("--data-path", type=str, default=None, help="Path to JSONL data file")
@@ -239,7 +233,9 @@ def main():
 
     print()
     print("=" * 50)
-    print(f"  Recall@{results['k']}:     {results['recall_at_k']:.1%}  ({results['hits']}/{results['total']})")
+    print(
+        f"  Recall@{results['k']}:     {results['recall_at_k']:.1%}  ({results['hits']}/{results['total']})"
+    )
     print(f"  Mean rank:      {results['mean_rank']:.1f}")
     print(f"  Index time:     {results['index_time_s']}s")
     print(f"  Mean query:     {results['mean_query_ms']:.1f}ms")

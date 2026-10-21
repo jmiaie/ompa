@@ -73,7 +73,8 @@ class KeywordIndex:
                     path UNINDEXED, body, tokenize = 'porter unicode61'
                 );
                 CREATE TABLE IF NOT EXISTS files (
-                    path TEXT PRIMARY KEY, mtime_ns INTEGER NOT NULL, size INTEGER NOT NULL
+                    path TEXT PRIMARY KEY, mtime_ns INTEGER NOT NULL, size INTEGER NOT NULL,
+                    fts_rowid INTEGER NOT NULL
                 );
                 """
             )
@@ -91,12 +92,22 @@ class KeywordIndex:
         except (OSError, UnicodeDecodeError) as e:
             logger.debug("Keyword index skipping %s: %s", path, e)
             return False
-        conn.execute("DELETE FROM notes_fts WHERE path = ?", (path_str,))
-        conn.execute("INSERT INTO notes_fts (path, body) VALUES (?, ?)", (path_str, body))
+        self._delete_note(conn, path_str)
+        cur = conn.execute("INSERT INTO notes_fts (path, body) VALUES (?, ?)", (path_str, body))
         conn.execute(
-            "INSERT OR REPLACE INTO files (path, mtime_ns, size) VALUES (?, ?, ?)",
-            (path_str, st.st_mtime_ns, st.st_size),
+            "INSERT INTO files (path, mtime_ns, size, fts_rowid) VALUES (?, ?, ?, ?)",
+            (path_str, st.st_mtime_ns, st.st_size, cur.lastrowid),
         )
+        return True
+
+    @staticmethod
+    def _delete_note(conn: sqlite3.Connection, path_str: str) -> bool:
+        """Delete one note by FTS rowid (``path`` is UNINDEXED: a WHERE on it scans)."""
+        row = conn.execute("SELECT fts_rowid FROM files WHERE path = ?", (path_str,)).fetchone()
+        if row is None:
+            return False
+        conn.execute("DELETE FROM notes_fts WHERE rowid = ?", (row[0],))
+        conn.execute("DELETE FROM files WHERE path = ?", (path_str,))
         return True
 
     def update_file(self, path: Path | str) -> bool:
@@ -114,10 +125,9 @@ class KeywordIndex:
             return False
         path_str = str(Path(path))
         with self._lock:
-            cur = self._conn.execute("DELETE FROM files WHERE path = ?", (path_str,))
-            self._conn.execute("DELETE FROM notes_fts WHERE path = ?", (path_str,))
+            removed = self._delete_note(self._conn, path_str)
             self._conn.commit()
-        return cur.rowcount > 0
+        return removed
 
     def refresh(
         self,
@@ -151,8 +161,7 @@ class KeywordIndex:
             prefix = str(vault_path)
             for path_str in known:
                 if path_str.startswith(prefix) and path_str not in snapshot:
-                    conn.execute("DELETE FROM files WHERE path = ?", (path_str,))
-                    conn.execute("DELETE FROM notes_fts WHERE path = ?", (path_str,))
+                    self._delete_note(conn, path_str)
                     stats["removed"] += 1
             conn.commit()
         return stats

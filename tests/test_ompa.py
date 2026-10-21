@@ -1817,3 +1817,24 @@ class TestResidentSemanticIndex:
             b = semantic.SemanticIndex(Path(tmpdir) / "b", model_name="fake-model")
             assert a.model is b.model
         assert loads == ["fake-model"]
+
+
+def test_keyword_reindex_replaces_rows_without_duplicates():
+    from pathlib import Path
+
+    from ompa.keyword import KeywordIndex
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        d = Path(tmpdir)
+        idx = KeywordIndex(d / ".palace" / "k.sqlite3")
+        for i in range(20):
+            (d / f"n{i}.md").write_text(f"note {i} about heron", encoding="utf-8")
+        idx.refresh(d)
+        for i in range(0, 20, 2):
+            assert idx.update_file(d / f"n{i}.md")  # re-index in place
+        (d / "n1.md").unlink()
+        assert idx.remove_file(d / "n1.md")
+        assert not idx.remove_file(d / "n1.md")
+        fts_rows = idx._conn.execute("SELECT COUNT(*) FROM notes_fts").fetchone()[0]
+        assert len(idx) == fts_rows == 19
+        assert len(idx.search("heron", 100)) == 19

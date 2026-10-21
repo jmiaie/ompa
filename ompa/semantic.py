@@ -221,7 +221,9 @@ class _VectorStore:
         """Cosine similarity of every row with normalised query ``q``."""
         n = len(self.meta)
         if _np is not None:
-            return self._buf[:n] @ q
+            # einsum = one single-threaded SIMD pass.  BLAS gemv (``@``) spins up every
+            # OpenBLAS thread and was 3-10x slower on a loaded multi-core box.
+            return _np.einsum("ij,j->i", self._buf[:n], q)
         return [sum(a * b for a, b in zip(r, q, strict=False)) for r in self._rows]
 
     def to_bytes(self) -> bytes:

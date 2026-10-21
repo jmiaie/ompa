@@ -110,7 +110,7 @@ def search(
     shared_vault: Path | None = typer.Option(None, help="Shared vault path"),
     personal_vault: Path | None = typer.Option(None, help="Personal vault path"),
 ):
-    """Search the vault semantically."""
+    """Search the vault (hybrid BM25 + semantic; keyword-only without ompa[semantic])."""
     ao = make_ompa(vault_path, shared_vault, personal_vault, enable_semantic=True)
     vaults = [vault] if vault and vault != "both" else None
     if vault == "both":
@@ -127,7 +127,7 @@ def search(
         excerpt = (
             r.content_excerpt[:80] + "..." if len(r.content_excerpt) > 80 else r.content_excerpt
         )
-        table.add_row(f"{r.score:.2f}", r.match_type, r.path, excerpt)
+        table.add_row(f"{r.score:.4g}", r.match_type, r.path, excerpt)
 
     console.print(table)
 
@@ -304,7 +304,7 @@ def validate(
 def rebuild_index(
     vault_path: Path = Path("."),
 ):
-    """Rebuild the semantic search index."""
+    """Rebuild the search indexes (keyword, plus semantic when available)."""
     ao = Ompa(vault_path, enable_semantic=True)
     count = ao.rebuild_index()
     console.print(f"[green]Rebuilt index: {count} files indexed[/green]")
