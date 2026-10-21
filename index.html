@@ -1079,7 +1079,7 @@
 <a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>│  Layer 3: Knowledge Graph — temporal SQLite triples  │
 <a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>└──────────────────────────────────────────────────────┘
 </code></pre></div>
-<p><strong>96.6% R@5 on LongMemEval</strong> using verbatim storage — no summarization loss, no API cost for search.</p>
+<p>Verbatim storage plus local hybrid search (BM25 + embeddings). Measured on the full LongMemEval-S (n=470): R@5 <strong>0.979</strong> for hybrid search and <strong>0.970</strong> for keyword-only search. See <a href="https://github.com/jmiaie/ompa/blob/main/benchmarks/README.md">benchmarks/README.md</a>.</p>
 <h2 id="install">Install<a class="headerlink" href="#install" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>pip<span class="w"> </span>install<span class="w"> </span>ompa<span class="w">          </span><span class="c1"># Core</span>
 <a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>pip<span class="w"> </span>install<span class="w"> </span>ompa<span class="o">[</span>all<span class="o">]</span><span class="w">     </span><span class="c1"># Core + local semantic search</span>

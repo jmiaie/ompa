@@ -1140,7 +1140,7 @@
 <li><strong>15 MCP tools + CLI (<code>ao</code>)</strong> — drop into Claude Desktop, Cursor, Windsurf, or any MCP host</li>
 <li><strong>Dual-vault isolation</strong> — shared team vault vs personal notes without leaking identifiers</li>
 </ul>
-<p>Benchmark signal: <strong>96.6% R@5 on LongMemEval</strong> with verbatim storage (no summarization loss, no per-query API cost for local search).</p>
+<p>Benchmark signal: on the full LongMemEval-S (n=470), OMPA's own measured R@5 is <strong>0.979</strong> with hybrid search and <strong>0.970</strong> with keyword-only search. Storage is verbatim, and local search has no per-query API cost. See <a href="https://github.com/jmiaie/ompa/blob/main/benchmarks/README.md">benchmarks/README.md</a>.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>pip<span class="w"> </span>install<span class="w"> </span>ompa
 <a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>ao<span class="w"> </span>init<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>ao<span class="w"> </span>session-start
 </code></pre></div>
