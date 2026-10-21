@@ -1508,3 +1508,81 @@ class TestIndexFreshness:
             idx2 = SemanticIndex(idx.index_path, embedding_backend=_BagOfWordsBackend())
             assert idx2.load_index()
             assert idx2.refresh(vault) == {"added": 1, "updated": 0, "removed": 0}
+
+
+class TestConcurrentFactWrites:
+    """add_triple's check-then-write must stay atomic under concurrent writers."""
+
+    def test_concurrent_overlapping_reassertions_merge_to_one_interval(self):
+        import random
+        import threading
+        from datetime import date, timedelta
+
+        from ompa import KnowledgeGraph
+
+        base = date(2020, 1, 1)
+        # 40 overlapping closed intervals of one fact -> union is a single interval
+        spans = [(base + timedelta(days=d), base + timedelta(days=d + 10)) for d in range(0, 200, 5)]
+        random.Random(7).shuffle(spans)
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db = os.path.join(tmpdir, "kg.sqlite3")
+            KnowledgeGraph(db_path=db)
+            errors = []
+
+            def worker(chunk):
+                kg = KnowledgeGraph(db_path=db)  # separate connection per writer
+                for a, b in chunk:
+                    try:
+                        kg.add_triple("Kai", "works_on", "Orion", a.isoformat(), b.isoformat())
+                    except Exception as e:  # pragma: no cover - surfaced below
+                        errors.append(e)
+
+            threads = [threading.Thread(target=worker, args=(spans[i::8],)) for i in range(8)]
+            for t in threads:
+                t.start()
+            for t in threads:
+                t.join()
+            assert errors == []
+            rows = KnowledgeGraph(db_path=db).query_relation("Kai", "works_on")
+            assert [(r.valid_from, r.valid_to) for r in rows] == [
+                (base.isoformat(), (base + timedelta(days=205)).isoformat())
+            ]
+
+    def test_concurrent_distinct_facts_no_lost_writes(self):
+        import threading
+
+        from ompa import KnowledgeGraph
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db = os.path.join(tmpdir, "kg.sqlite3")
+            kg = KnowledgeGraph(db_path=db)
+
+            def worker(w):
+                for i in range(100):
+                    kg.add_triple(f"w{w}", "item", f"i{i}", valid_from="2024-01-01")
+                    kg.add_triple(f"w{w}", "item", f"i{i}", valid_from="2024-01-01")  # idempotent
+
+            threads = [threading.Thread(target=worker, args=(w,)) for w in range(8)]
+            for t in threads:
+                t.start()
+            for t in threads:
+                t.join()
+            for w in range(8):
+                assert len(kg.query_relation(f"w{w}", "item")) == 100
+
+    def test_overlap_lookup_uses_exact_fact_index(self):
+        """Guard against O(fan-out) writes: the overlap probe must hit idx_triples_spo."""
+        from ompa import KnowledgeGraph
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            kg = KnowledgeGraph(db_path=os.path.join(tmpdir, "kg.sqlite3"))
+            conn = kg._get_connection()
+            plan = conn.execute(
+                """EXPLAIN QUERY PLAN SELECT 1 FROM triples
+                   WHERE subject = ? AND predicate = ? AND object = ?
+                     AND (valid_to IS NULL OR valid_to >= ?)
+                     AND (? IS NULL OR valid_from IS NULL OR valid_from <= ?)
+                   LIMIT 1""",
+                ("Kai", "works_on", "Orion", "2024-01-01", None, None),
+            ).fetchall()
+            assert any("idx_triples_spo" in row[3] for row in plan)

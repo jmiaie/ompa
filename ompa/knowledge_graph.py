@@ -22,6 +22,7 @@ import threading
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime
+from functools import lru_cache
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -51,6 +52,12 @@ def _row_to_triple(row: sqlite3.Row) -> Triple:
         confidence=row["confidence"],
         source_file=row["source_file"],
     )
+
+
+@lru_cache(maxsize=65536)
+def _entity_id(name: str) -> str:
+    """Stable entity id (pure function of the name; cached, it's on the write path)."""
+    return hashlib.sha256(name.encode()).hexdigest()[:16]
 
 
 class KnowledgeGraph:
@@ -119,11 +126,17 @@ class KnowledgeGraph:
                     ON triples(object, predicate);
                 CREATE INDEX IF NOT EXISTS idx_triples_validity
                     ON triples(valid_from, valid_to);
+
+                -- Exact-fact lookup for add_triple's overlap check.  Without it
+                -- each write scans every row sharing the subject or the
+                -- (object, predicate) pair, i.e. O(fan-out) per insert.
+                CREATE INDEX IF NOT EXISTS idx_triples_spo
+                    ON triples(subject, predicate, object);
             """)
 
     def _entity_id(self, name: str) -> str:
         """Generate a stable ID for an entity."""
-        return hashlib.sha256(name.encode()).hexdigest()[:16]
+        return _entity_id(name)
 
     def _interval_id(self, subject: str, predicate: str, obj: str, valid_from: str | None) -> str:
         """Stable ID for one validity interval of a fact."""
@@ -210,20 +223,44 @@ class KnowledgeGraph:
         valid_from = valid_from or self._now()
         subject_id = self._entity_id(subject)
         object_id = self._entity_id(object)
+        interval_id = self._interval_id(subject, predicate, object, valid_from)
 
         with self._conn() as conn:
-            # Serialize the read-merge-write below across threads and processes.
-            if not conn.in_transaction:
-                conn.execute("BEGIN IMMEDIATE")
-            # Ensure entities exist (single transaction)
+            # The first statement is a write, so this (deferred) transaction holds
+            # SQLite's write lock from here to commit: the check-then-write below
+            # is serialized across threads and processes without BEGIN IMMEDIATE.
             conn.execute(
-                "INSERT OR IGNORE INTO entities (id, name, type) VALUES (?, ?, ?)",
-                (subject_id, subject, "unknown"),
+                "INSERT OR IGNORE INTO entities (id, name, type) VALUES (?, ?, ?), (?, ?, ?)",
+                (subject_id, subject, "unknown", object_id, object, "unknown"),
             )
-            conn.execute(
-                "INSERT OR IGNORE INTO entities (id, name, type) VALUES (?, ?, ?)",
-                (object_id, object, "unknown"),
-            )
+            # Fast path (the common case): no overlapping interval for this exact
+            # fact -> append a new row.  Indexed point lookup, no merge logic.
+            overlap = conn.execute(
+                """SELECT 1 FROM triples
+                   WHERE subject = ? AND predicate = ? AND object = ?
+                     AND (valid_to IS NULL OR valid_to >= ?)
+                     AND (? IS NULL OR valid_from IS NULL OR valid_from <= ?)
+                   LIMIT 1""",
+                (subject, predicate, object, valid_from, valid_to, valid_to),
+            ).fetchone()
+            if overlap is None:
+                conn.execute(
+                    """INSERT OR REPLACE INTO triples
+                       (id, subject, predicate, object, valid_from, valid_to, confidence, source_file)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (
+                        interval_id,
+                        subject,
+                        predicate,
+                        object,
+                        valid_from,
+                        valid_to,
+                        confidence,
+                        source,
+                    ),
+                )
+                return
+            # Slow path: overlaps an existing interval (re-assertion) -> merge.
             self._upsert_interval(
                 conn, subject, predicate, object, valid_from, valid_to, confidence, source
             )
