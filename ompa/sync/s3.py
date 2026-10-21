@@ -101,8 +101,9 @@ class S3SyncBackend(SyncBackend):
                 and parts
                 and parts[0] == ".palace"
                 and "semantic_index" not in str(rel)
+                and not f.name.startswith("keyword_index.sqlite3")
             ):
-                # Skip large binary/model files in semantic_index
+                # Skip derived search indexes (semantic vectors, FTS5 keyword db)
                 files.append(f)
         return files
 

@@ -14,9 +14,10 @@ from typing import Any
 from .classifier import Classification, MessageClassifier
 from .config import DualVaultConfig, IsolationMode, VaultTarget
 from .hooks import HookManager, HookResult
+from .keyword import KeywordIndex
 from .knowledge_graph import KnowledgeGraph
 from .palace import Palace
-from .semantic import SearchResult, SemanticIndex
+from .semantic import SearchResult, SemanticIndex, scan_vault
 from .vault import Note, Vault, _safe_resolve
 
 logger = logging.getLogger(__name__)
@@ -72,7 +73,7 @@ class Ompa:
         # search (0 = check on every search).  Writes through Ompa.write() are
         # indexed immediately regardless; this catches edits made outside OMPA.
         self.index_refresh_interval = index_refresh_interval
-        self._last_refresh: dict[int, float] = {}
+        self._last_refresh: dict[tuple[int, int], float] = {}
         self._embedding_backend = embedding_backend  # optional custom backend
         self._session_started = False
         self._last_classification: Classification | None = None
@@ -119,11 +120,30 @@ class Ompa:
         # Semantic search (lazy-loaded); annotated explicitly to help mypy
         self._semantic: SemanticIndex | None = None
         self._personal_semantic: SemanticIndex | None = None
+        # BM25 keyword index over note content (stdlib SQLite FTS5; always on)
+        self._keyword: KeywordIndex | None = None
+        self._personal_keyword: KeywordIndex | None = None
 
     @property
     def is_dual_vault(self) -> bool:
         """True if dual-vault mode is active."""
         return self.dual_config.is_dual_vault
+
+    @property
+    def keyword(self) -> KeywordIndex:
+        """Lazy-open the BM25 keyword index (kept fresh by search/write)."""
+        if self._keyword is None:
+            self._keyword = KeywordIndex(self.vault_path / ".palace" / "keyword_index.sqlite3")
+        return self._keyword
+
+    @property
+    def personal_keyword(self) -> KeywordIndex | None:
+        """Lazy-open the personal vault's keyword index (dual-vault mode only)."""
+        if self._personal_keyword is None and self.dual_config.personal_path:
+            self._personal_keyword = KeywordIndex(
+                self.dual_config.personal_path / ".palace" / "keyword_index.sqlite3"
+            )
+        return self._personal_keyword
 
     @property
     def semantic(self) -> SemanticIndex | None:
@@ -132,6 +152,7 @@ class Ompa:
             self._semantic = SemanticIndex(
                 index_path=self.vault_path / ".palace" / "semantic_index",
                 embedding_backend=self._embedding_backend,
+                keyword_index=self.keyword,
             )
             if not self._semantic.load_index():
                 count = self._semantic.index_vault(self.vault_path)
@@ -149,6 +170,8 @@ class Ompa:
         ):
             self._personal_semantic = SemanticIndex(
                 index_path=self.dual_config.personal_path / ".palace" / "semantic_index",
+                embedding_backend=self._embedding_backend,
+                keyword_index=self.personal_keyword,
             )
             if not self._personal_semantic.load_index():
                 count = self._personal_semantic.index_vault(self.dual_config.personal_path)
@@ -280,8 +303,14 @@ class Ompa:
             logger.debug("KG auto-update failed for %s: %s", path, e)
 
     def _auto_update_index(self, path: Path) -> None:
-        """Incrementally update semantic index when a note is written/edited."""
-        if path.suffix != ".md" or not self._enable_semantic:
+        """Incrementally update the search indexes when a note is written/edited."""
+        if path.suffix != ".md":
+            return
+        try:
+            self.keyword.update_file(_index_key(self.vault_path, path))
+        except Exception as e:
+            logger.debug("Keyword index update failed for %s: %s", path, e)
+        if not self._enable_semantic:
             return
         try:
             if self._semantic is not None:
@@ -344,7 +373,9 @@ class Ompa:
         # Search shared vault
         if "shared" in vaults:
             all_results.extend(
-                self._search_vault(self.vault, self.semantic, query, limit, hybrid, wing, room)
+                self._search_vault(
+                    self.vault, self.semantic, query, limit, hybrid, wing, room, self.keyword
+                )
             )
 
         # Search personal vault
@@ -357,6 +388,7 @@ class Ompa:
                 hybrid,
                 wing,
                 room,
+                self.personal_keyword,
             )
             # Tag personal results
             for r in personal_results:
@@ -376,11 +408,24 @@ class Ompa:
         hybrid: bool,
         wing: str = None,
         room: str = None,
+        keyword: KeywordIndex | None = None,
     ) -> list[SearchResult]:
-        """Search a single vault."""
-        if semantic is None:
+        """Search a single vault.
+
+        Hybrid (semantic + BM25, RRF-fused) when the semantic extra is available,
+        BM25 keyword search over note content otherwise, and note-name matching
+        as a last resort (e.g. SQLite without FTS5, or no keyword hit).
+        """
+        self._maybe_refresh(semantic, vault.vault_path, keyword)
+        results: list[SearchResult] = []
+        if semantic is not None and semantic.available and semantic.chunks:
+            results = semantic.search(query, limit, hybrid)
+        elif keyword is not None and keyword.available:
+            results = keyword.search(query, limit)
+
+        if not results:
             notes = vault.search_by_name(query)
-            return [
+            results = [
                 SearchResult(
                     path=str(n.path),
                     content_excerpt=n.content[:200],
@@ -389,9 +434,6 @@ class Ompa:
                 )
                 for n in notes[:limit]
             ]
-
-        self._maybe_refresh(semantic, vault.vault_path)
-        results = semantic.search(query, limit, hybrid)
 
         if wing or room:
             filtered = []
@@ -405,33 +447,54 @@ class Ompa:
 
         return results
 
-    def _maybe_refresh(self, semantic: SemanticIndex, vault_path: Path) -> None:
-        """Re-index new/changed/deleted notes if the last check is old enough."""
+    def _maybe_refresh(
+        self,
+        semantic: SemanticIndex | None,
+        vault_path: Path,
+        keyword: KeywordIndex | None = None,
+    ) -> None:
+        """Re-index new/changed/deleted notes if the last check is old enough.
+
+        One directory walk is shared by the semantic and keyword indexes.
+        """
         now = time.monotonic()
-        last = self._last_refresh.get(id(semantic))
+        key = (id(semantic), id(keyword))
+        last = self._last_refresh.get(key)
         if last is not None and now - last < self.index_refresh_interval:
             return
-        self._last_refresh[id(semantic)] = now
+        self._last_refresh[key] = now
         try:
-            changes = semantic.refresh(vault_path)
-            if any(changes.values()):
-                logger.debug("Semantic index refreshed: %s", changes)
+            snapshot = scan_vault(vault_path)
         except Exception as e:
-            logger.debug("Semantic index refresh skipped: %s", e)
+            logger.debug("Vault scan for index refresh failed: %s", e)
+            return
+        for index in (keyword, semantic):
+            if index is None:
+                continue
+            try:
+                changes = index.refresh(vault_path, snapshot=snapshot)
+                if any(changes.values()):
+                    logger.debug("%s refreshed: %s", type(index).__name__, changes)
+            except Exception as e:
+                logger.debug("Index refresh skipped: %s", e)
 
     def qsearch(self, query: str, limit: int = 5) -> list[SearchResult]:
         """QMD-style semantic search. Convenience method."""
         return self.search(query, limit, hybrid=True)
 
     def rebuild_index(self) -> int:
-        """Rebuild the semantic index."""
+        """Rebuild the search indexes (keyword, and semantic when enabled).
+
+        Returns the number of notes indexed.
+        """
+        keyword_count = self.keyword.index_vault(self.vault_path)
         semantic = self.semantic  # access property once; narrows Optional
         if semantic is None:
-            return 0
+            return keyword_count
         semantic.clear()
         count = semantic.index_vault(self.vault_path)
         semantic.save_index()
-        return count
+        return count or keyword_count
 
     # -------------------------------------------------------------------------
     # Validation
@@ -606,11 +669,16 @@ class Ompa:
         target_semantic = (
             self._semantic if target == VaultTarget.SHARED else self._personal_semantic
         )
+        target_keyword = self.keyword if target == VaultTarget.SHARED else self.personal_keyword
+        key = _index_key(target_vault.vault_path, full_path)
+        if target_keyword is not None:
+            try:
+                target_keyword.update_file(key)
+            except Exception as e:
+                logger.debug("Keyword index update after write failed for %s: %s", full_path, e)
         if target_semantic is not None:
             try:
-                target_semantic.update_file(
-                    _index_key(target_vault.vault_path, full_path), save=False
-                )
+                target_semantic.update_file(key, save=False)
             except Exception as e:
                 logger.debug("Index update after write failed for %s: %s", full_path, e)
 
