@@ -59,6 +59,10 @@ nav:
     - Palace: api/palace.md
     - Knowledge Graph: api/kg.md
     - CLI: api/cli.md
+  - Bundle:
+    - PRD: PRD.md
+    - Roadmap: ROADMAP.md
+    - KG Schema v1: kg-schema-v1.md
   - Changelog: changelog.md
 
 markdown_extensions:

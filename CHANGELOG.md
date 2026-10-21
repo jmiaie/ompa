@@ -11,11 +11,17 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **KG schema contract v1** (`docs/kg-schema-v1.md`, `ompa/kg_schema.py`): documented triple/entity tables, provenance, reserved predicates, versioning and migration rules; `PRAGMA user_version` now stamped as `1` (legacy `0` files are upgraded in place); `check_kg_schema()` for reader projects; contract test `tests/test_kg_contract.py`.
+- MCP Registry manifest `server.json` and `mcp-name` marker in README.
+- MCP server reads `OMPA_VAULT_PATH` as the default vault (already documented in `docs/guides/mcp.md`, previously ignored).
+- Bundle docs: `docs/PRD.md`, `docs/ROADMAP.md`.
 - **Why OMPA vs raw Obsidian?** consulting one-pager (`docs/why-ompa.md`) — agent-memory wedge, dual-vault hygiene, Locus + CognitionOS companion stack.
 - README + docs home cross-links to [Locus](https://github.com/jmiaie/locus) (vectorless retrieval) and [CognitionOS](https://github.com/jmiaie/cognition-os) (compliance productization).
 
 ### Changed
 
+- MCP server caches one `Ompa` instance per vault (and semantic setting) instead of building one per tool call, so `ao_search` loads the embedding model once per process. The in-memory semantic index is reloaded if its file changes on disk.
+- README, docs and `benchmarks/longmemeval.py` now attribute the 96.6% LongMemEval R@5 figure to MemPalace and state that OMPA's script scores a 20-item synthetic sample by default.
 - Pin `ruff==0.11.13` in `pyproject.toml` optional `dev` deps; per-file ignore `B008` on `ompa/cli.py` (typer.Option defaults).
 - Apply `ruff format` + autofix/`B904`/`E741`/`F841`/`SIM102` cleanups across `ompa/` so CI Lint & Format can go green (pairs with PR #12 CI pin/split).
 

@@ -387,8 +387,7 @@ class HookManager:
     def __init__(self, vault_path: str | Path, agent_name: str = "agent"):
         self.vault_path = Path(vault_path)
         self.agent_name = agent_name
-        self.session_id = datetime.now().strftime("%Y%m%d_%H%M%S")
-        self.timestamp = datetime.now()
+        self.new_session()
 
         # Register default hooks
         self.hooks = {
@@ -398,6 +397,11 @@ class HookManager:
             "pre_compact": PreCompactHook(),
             "stop": StopHook(),
         }
+
+    def new_session(self) -> None:
+        """Reset the session id and timestamp used by hook contexts."""
+        self.timestamp = datetime.now()
+        self.session_id = self.timestamp.strftime("%Y%m%d_%H%M%S")
 
     def _create_context(self, memory=None) -> HookContext:
         return HookContext(
