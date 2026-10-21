@@ -334,6 +334,7 @@ class VaultGovernance:
         name: str = "shared",
     ):
         self.vault_path = Path(vault_path).resolve()
+        self._root_prefix = str(self.vault_path) + os.sep
         self.palace = self.vault_path / ".palace"
         self.principal = principal
         self.name = name
@@ -355,9 +356,14 @@ class VaultGovernance:
     # ---------------------------------------------------------------- helpers
 
     def rel(self, path: Path | str) -> str:
+        """Vault-relative POSIX path (fast prefix path; resolve() only if needed)."""
+        s = str(path)
+        root = self._root_prefix
+        if s.startswith(root):
+            return s[len(root) :].replace(os.sep, "/")
         p = Path(path)
-        with contextlib.suppress(ValueError):
-            return p.resolve().relative_to(self.vault_path.resolve()).as_posix()
+        with contextlib.suppress(ValueError, OSError):
+            return p.resolve().relative_to(self.vault_path).as_posix()
         return p.as_posix()
 
     def txn(self):
@@ -373,10 +379,12 @@ class VaultGovernance:
         if self.audit is not None:
             self.audit.append_durable(action, body, actor=self.principal)
 
-    def require(self, perm: str, op: str, target: str | None = None) -> None:
+    def require(self, perm: str, op: str, target: str | Path | None = None) -> None:
         """Raise AccessDeniedError (after logging ``access.denied``) unless allowed."""
         if self.acl is None or self.acl.allows(self.principal, perm):
             return
+        if isinstance(target, Path):
+            target = self.rel(target)
         self.log_durable(
             "access.denied", {"perm": perm, "op": op, "vault": self.name, "target": target}
         )

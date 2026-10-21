@@ -158,7 +158,7 @@ ao classify "We decided to go with Postgres over MySQL"
 # → MessageType.DECISION → vault/work/decisions/2026-05-07-postgres.md
 ```
 
-### MCP Server (15 Tools)
+### MCP Server (24 Tools)
 
 Plug directly into **Claude Desktop, Cursor, or Windsurf** with one command:
 
@@ -182,7 +182,33 @@ claude mcp add ompa -- python -m ompa.mcp_server
 | `ao_status` | Vault health status |
 | `ao_orphans` | Detect orphaned notes |
 | `ao_init` | Initialize a new vault |
-| `ao_stop` | Clean session shutdown |
+| `ao_write` | Write a note (indexed, KG-extracted, audited) |
+| `ao_kg_populate` | Extract facts from notes into the KG |
+| `ao_sync` | Sync the vault (git / rsync / S3) |
+| `ao_export` / `ao_import` | Move notes between personal and shared vaults |
+| `ao_audit_verify` | Verify the tamper-evident audit chain (+ note drift) |
+| `ao_audit_head` | Current chain head, for external anchoring |
+| `ao_audit_export` | Exportable JSON evidence bundle |
+| `ao_forget` | Right-to-erasure (dry run by default) |
+| `ao_as_of` | What the agent knew at time T |
+
+### Audit Memory (opt-in)
+
+Tamper-evident, hash-chained audit log of every memory mutation, with Merkle
+checkpoints, optional Ed25519/HMAC signing and exportable evidence bundles.
+Also: citations (path, line/byte span, content hash, author, recorded and valid
+time) on search and KG results, `as_of(t)` point-in-time views, retention TTLs,
+legal hold, right-to-erasure with proof of deletion, and per-vault ACLs.
+Stdlib-only (`pip install ompa[audit]` adds Ed25519). Off by default.
+
+```python
+ao = Ompa(vault_path="./vault", audit=True, principal="agent-7")
+ao.search("Orion budget")[0].citation
+ao.audit_verify()["ok"]
+```
+
+See [docs/AUDIT.md](docs/AUDIT.md) for the threat model, the guarantees and
+non-guarantees, migration and a compliance mapping (supports, not certifies).
 
 ### Dual-Vault Mode
 
@@ -219,6 +245,11 @@ ao kg-timeline <e>   Entity timeline
 ao kg-stats          Knowledge graph statistics
 ao validate          Validate vault structure
 ao rebuild-index     Rebuild the search indexes
+ao audit …           enable | verify | head | log | export | verify-bundle | keygen | as-of
+ao forget <subject>  Right-to-erasure with a tombstone in the audit chain
+ao retention …       add | list | apply | remove   (TTL rules)
+ao hold …            add | release                 (legal hold)
+ao acl …             init | show                   (vault access control)
 ```
 
 ---
@@ -244,8 +275,8 @@ ao rebuild-index     Rebuild the search indexes
 | Memory layers | **Vault + Palace + KG** | Palace + KG | Vault only |
 | Search | **Local BM25 + optional local embeddings (free)** | ChromaDB API | QMD (paid) |
 | Temporal KG | **SQLite ✓** | SQLite ✓ | ✗ |
-| MCP server | **19 tools** | 15 tools | ✗ |
-| CLI | **23 commands** | ✗ | ✗ |
+| MCP server | **24 tools** | 15 tools | ✗ |
+| CLI | **40 commands** | ✗ | ✗ |
 | Lifecycle hooks | **5** | 3 | 3 |
 | Message types | **15** | 15 | 5 |
 | Verbatim storage | **✓** | ✓ | ✗ |
@@ -290,9 +321,12 @@ ompa/
 ├── classifier.py        # 15 message types with auto-routing
 ├── semantic.py          # Semantic index (resident float16 matrix) + RRF hybrid
 ├── keyword.py           # BM25 keyword index (stdlib SQLite FTS5)
-├── mcp_server.py        # MCP protocol server (19 tools)
+├── audit.py             # Hash-chained audit log, Merkle checkpoints, signing, bundles
+├── governance.py        # ACL, retention, legal hold, forget(), as_of views
+├── provenance.py        # Citations for search / KG results
+├── mcp_server.py        # MCP protocol server (24 tools)
 ├── config.py            # Dual-vault configuration
-└── cli.py               # typer CLI (23 commands)
+└── cli.py               # typer CLI (40 commands)
 ```
 
 ---

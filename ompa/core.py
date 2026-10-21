@@ -318,7 +318,7 @@ class Ompa:
             if file_path:
                 path = Path(file_path)
                 # Raises AccessDeniedError (logged) if this principal may not write here
-                self.gov.require("write", "post_tool:" + tool_name, self.gov.rel(path))
+                self.gov.require("write", "post_tool:" + tool_name, path)
                 self._auto_add_to_palace(file_path)
                 with self.gov.txn():
                     self._auto_update_kg(path)
@@ -799,7 +799,7 @@ class Ompa:
         full_path = _safe_resolve(target_vault.vault_path, file_path)
         gov = self.gov if target == VaultTarget.SHARED else self.personal_gov
         # ACL + legal hold checks happen before any change (denials are logged)
-        gov.require("write", "write", gov.rel(full_path))
+        gov.require("write", "write", full_path)
         existed = full_path.exists()
         if existed:
             gov.check_hold_note(full_path, "overwrite")
@@ -988,7 +988,7 @@ class Ompa:
         """
         gov, kg, keyword, sem_attr, root = self._ctx(vault)
         full = _safe_resolve(root, file_path)
-        gov.require("write", "delete_note", gov.rel(full))
+        gov.require("write", "delete_note", full)
         if not full.exists():
             return {"success": False, "error": f"Note not found: {file_path}"}
         gov.check_hold_note(full, "delete")

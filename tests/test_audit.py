@@ -154,6 +154,26 @@ def test_truncate_db_file_detected(tmp_path):
     assert det
 
 
+@pytest.mark.parametrize("cut", [1, 26, 511, 4095])
+def test_partial_page_truncation_detected(tmp_path, cut):
+    # Found by the Monte Carlo (seed 1337): a 26-byte cut of a trailing page that
+    # held no live rows used to verify clean.  SQLite never writes partial pages.
+    make_log(tmp_path).close()
+    p = tmp_path / "audit.sqlite3"
+    with open(p, "r+b") as f:
+        f.truncate(p.stat().st_size - cut)
+    rep = AuditLog(p, readonly=True).verify()
+    assert "db_size" in kinds(rep)
+
+
+def test_padded_db_file_detected(tmp_path):
+    make_log(tmp_path).close()
+    p = tmp_path / "audit.sqlite3"
+    with open(p, "ab") as f:
+        f.write(b"\0" * 4096)
+    assert "db_size" in kinds(AuditLog(p, readonly=True).verify())
+
+
 def test_deleted_log_is_not_silently_recreated(tmp_path):
     make_log(tmp_path).close()
     for suffix in ("", "-wal", "-shm"):

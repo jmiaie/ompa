@@ -364,6 +364,10 @@ class AuditLog:
         self._depth = 0
         self._pending_head: tuple[int, str] | None = None
         self._deferred: list[tuple[str, dict | None, str | None]] = []
+        # (seq, hash) of the last entry, valid only inside a write transaction
+        # (BEGIN IMMEDIATE holds SQLite's write lock, so nobody else can append)
+        self._tail: tuple[int, str] | None = None
+        self._tail_valid = False
         if readonly:
             if not self.db_path.exists():
                 raise AuditError(f"{self.db_path} does not exist")
@@ -516,12 +520,14 @@ class AuditLog:
             if outer:
                 self._conn.execute("BEGIN IMMEDIATE")
                 self._pending_head = None
+                self._tail_valid = False
             self._depth += 1
             try:
                 yield self
             except BaseException:
                 self._depth -= 1
                 if outer:
+                    self._tail_valid = False
                     self._conn.execute("ROLLBACK")
                     self._pending_head = None
                     self._flush_deferred()
@@ -543,6 +549,7 @@ class AuditLog:
                     raise
                 finally:
                     self._pending_head = None
+                    self._tail_valid = False
                     self._flush_deferred()
 
     def _flush_deferred(self) -> None:
@@ -613,7 +620,9 @@ class AuditLog:
         actor = actor or self.actor
         try:
             with self.transaction():
-                last = self._last()
+                if not self._tail_valid:
+                    self._tail, self._tail_valid = self._last(), True
+                last = self._tail
                 seq, prev = (last[0] + 1, last[1]) if last else (1, GENESIS_PREV)
                 ts = utc_now()
                 h = entry_hash(seq, ts, actor, action, body_hash, prev)
@@ -636,6 +645,7 @@ class AuditLog:
                         )
                 self._maybe_checkpoint(seq)
                 self._pending_head = (seq, h)
+                self._tail = (seq, h)
         except sqlite3.Error as e:
             raise AuditError(f"audit append failed: {e}") from e
         return AuditEntry(seq, ts, actor, action, body, h)
@@ -743,6 +753,35 @@ class AuditLog:
 
     # ------------------------------------------------------------ verification
 
+    def _file_size_issue(self) -> str | None:
+        """SQLite only ever writes whole pages, so a file that is not a whole number of
+        pages, or (with no WAL pending) disagrees with the page count in its own
+        header, was cut or padded outside SQLite."""
+        try:
+            size = self.db_path.stat().st_size
+            with open(self.db_path, "rb") as f:
+                hdr = f.read(100)
+        except OSError as e:
+            return f"cannot stat database file: {e}"
+        if len(hdr) < 100 or not hdr.startswith(b"SQLite format 3\x00"):
+            return "database file header missing or invalid"
+        page_size = int.from_bytes(hdr[16:18], "big")
+        page_size = 65536 if page_size == 1 else page_size
+        if page_size < 512 or size % page_size:
+            return f"file size {size} is not a multiple of the page size {page_size}"
+        wal = self.db_path.with_name(self.db_path.name + "-wal")
+        wal_pending = wal.exists() and wal.stat().st_size > 0
+        change_counter, valid_for = hdr[24:28], hdr[92:96]
+        header_pages = int.from_bytes(hdr[28:32], "big")
+        if (
+            not wal_pending
+            and change_counter == valid_for
+            and header_pages
+            and header_pages * page_size != size
+        ):
+            return f"file has {size // page_size} pages but its header records {header_pages}"
+        return None
+
     def verify(
         self,
         verifier=None,
@@ -760,6 +799,9 @@ class AuditLog:
         t0 = time.perf_counter()
         rep = VerifyReport()
         verifier = verifier if verifier is not None else self.signer
+        size_issue = self._file_size_issue()
+        if size_issue:
+            rep.add("db_size", None, size_issue)
         try:
             qc = [r[0] for r in self._conn.execute("PRAGMA quick_check")]
             if qc != ["ok"]:

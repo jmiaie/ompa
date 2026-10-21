@@ -11,6 +11,21 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **Tamper-evident audit memory (opt-in, stdlib-only).** See `docs/AUDIT.md`.
+  - `ompa.audit.AuditLog`: append-only, hash-chained log in `.palace/audit.sqlite3`. It records every memory mutation: note write/edit/delete/observed, fact add/merge/invalidate/delete, forget, retention, policy and ACL changes, and denied attempts. Entries are canonical JSON with prev-hash + SHA-256 and salted body commitments. RFC 6962 Merkle checkpoints are taken every 1000 entries, and a head file detects truncation.
+  - Optional signing: Ed25519 (`pip install ompa[audit]`) or HMAC-SHA256 (stdlib). Keys come from `ao audit keygen`, `audit_key=` or `$OMPA_AUDIT_KEY_FILE`.
+  - `verify` detects any edit, deletion, reorder, insertion, truncation or checkpoint tamper, plus note drift (files edited outside OMPA). It is available as `Ompa.audit_verify()`, `ao audit verify [--key] [--anchor]` (exit 1 on failure) and the MCP tool `ao_audit_verify`.
+  - Evidence bundles (JSON, sealed, with optional Merkle inclusion proofs): `ao audit export` / `ao audit verify-bundle`, MCP `ao_audit_export`.
+- **Provenance and citations.** `SearchResult.citation` and `Triple.citation` give the source path, line and byte span, `content_sha256`, author/agent id, recorded time, valid-from/to, staleness and whether the note matches its audited hash. `search(citations=False)` opts out. The KG gains nullable `agent`, `source_line` and `source_sha256` columns (added in place).
+- **Point-in-time view.** `Ompa.as_of(t)` / `ao audit as-of` / MCP `ao_as_of` replay the audit chain up to `t` ("what did the agent know at time T"), bitemporally via `valid_at`.
+- **Data policies.**
+  - Retention TTL rules by tag, folder, fact predicate or the whole vault: `add_retention_rule`, `apply_retention`, `ao retention …`.
+  - Legal holds by subject, path or tag block delete, overwrite, expiry and erasure: `add_legal_hold`, `ao hold …`.
+  - Right-to-erasure `forget(subject, aliases)` / `ao forget` / MCP `ao_forget` (dry run by default). It deletes or redacts note text, KG facts, index entries and audit bodies, and vacuums every database. A tombstone with a nonce-salted subject commitment stays in the chain.
+- **Vault access control.** `.palace/acl.json` grants read/write/admin to principals, teams or `*`, per vault (private vs shared). Checks are enforced in the `Ompa` API, the KG and the MCP dispatcher (`principal` argument, pinnable via `$OMPA_PRINCIPAL`). Every denial is written to the audit chain, even when the surrounding transaction rolls back. A malformed ACL fails closed.
+- New methods `Ompa.delete_note()`, `enable_audit()`, `audit_head()`, `audit_export()`, `set_acl()`, `policies()` and `remove_policy()`. New `ao audit enable` migrates an existing vault (baseline snapshot).
+- `benchmarks/audit_overhead.py` (write latency, verify at 10k/100k, citation cost) and `benchmarks/audit_tamper_mc.py` (randomized tamper Monte Carlo). Tamper, erasure-grep, ACL, concurrency and Hypothesis property tests are in `tests/test_audit*.py`.
+
 - **Keyword search over note content, no extra required.** `ompa.keyword.KeywordIndex` is a BM25 index built on the SQLite FTS5 extension that ships with Python, stored in `.palace/keyword_index.sqlite3`. Before this, `Ompa.search()` without `ompa[semantic]` matched only *file names*. It now ranks notes by their content. The index stays fresh the same way the semantic index does: notes are indexed on `write()`, and an `[mtime_ns, size]` refresh catches edits made outside OMPA. Query text is quoted token by token, so FTS5 syntax in a query can't cause an error.
 - **Hybrid search.** With `ompa[semantic]`, `search(hybrid=True)` (the default) fuses the semantic and BM25 rankings with reciprocal rank fusion (k=60). `hybrid=False` gives pure semantic search.
 - **Reproducible benchmarks**, each documented in `benchmarks/README.md` (method, machine, results):
@@ -22,6 +37,7 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- README: MCP tool table corrected (24 tools; removed the non-existent `ao_stop`), CLI reference lists the new `audit`/`forget`/`retention`/`hold`/`acl` commands (40 commands in total).
 - **Resident, compact semantic index.** The index loads once into a single matrix: float16 on disk, float32 in memory. A query is one SIMD matrix-vector pass, replacing a Python loop over every chunk. Search at 50k notes went from 1.06 s to 44 ms (hybrid) or 3 ms (semantic only).
 - **New on-disk format.** The index is now `index_meta.json` + `index_vectors.f16`, replacing the JSON-float `semantic_index.json`. At 50k notes that is 411 MB → 60 MB, and a fresh-process cold start went from 6.8 s to 0.5 s.
 - **Incremental updates.** Adding or removing a note costs O(that note's chunks), with no full-matrix copies.
