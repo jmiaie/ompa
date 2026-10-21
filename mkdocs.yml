@@ -53,6 +53,7 @@ nav:
     - MCP Server: guides/mcp.md
     - Dual-Vault: guides/dual-vault.md
     - Message Types: guides/message-types.md
+    - Audit Memory: AUDIT.md
   - API Reference:
     - Ompa: api/ompa.md
     - Vault: api/vault.md

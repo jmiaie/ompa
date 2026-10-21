@@ -100,6 +100,60 @@ re-assert an earlier fact. Each seed checks 400 point-in-time queries.
 python benchmarks/temporal_mc.py --seeds 20
 ```
 
+## 4. Audit memory (`audit_overhead.py`, `audit_tamper_mc.py`)
+
+```bash
+python benchmarks/audit_overhead.py --out audit_overhead.json          # ~1.5 min
+python benchmarks/audit_tamper_mc.py --trials 5000 --seed 20261021 --seed 7 --seed 1337 --seed 42 --seed 99 --mode unsigned
+python benchmarks/audit_tamper_mc.py ... --mode hmac
+python benchmarks/audit_tamper_mc.py --trials 500 ... --mode unsigned_rehash
+```
+
+Tamper ops: flip_byte, delete_row, delete_tail, reorder, insert_forged, append_forged, duplicate_row, redact_no_tombstone, unredact_flag, truncate_file, drop_table_rows, checkpoint_flip, checkpoint_delete, head_tamper, head_delete. HMAC mode adds sig_flip, sig_strip_all, rehash_suffix and rekey_suffix (an attacker without the key). A tamper that leaves the file byte-identical (a 0-byte truncation) counts as no_effect, not as a detection. `unsigned_rehash` is an attacker who rewrites the whole chain consistently. It is **undetectable without a key or an external anchor, by design**; the table shows the same trials verified against a head published before the attack.
+
+An earlier 2000×3-seed run found one miss: a 26-byte cut of a trailing page holding no live rows. Verify now checks file size against page size and the header page count (`db_size`). The table is from the run after that fix.
+
+Measured 2026-10-21 (PT) on the shared 16 GB Linux box, Python 3.12, while another worker shared the CPU. Numbers vary run to run; compare within a table only.
+
+**Write latency** (`Ompa.write`, keyword-only vault, `enable_semantic=False`, n=900 writes per mode, rotated rounds):
+
+| mode | write p50 (ms) | p95 (ms) | overhead p50 | `kg_add` p50 (µs) |
+|---|---|---|---|---|
+| audit off | 0.92 | 5.20 | — | 42 |
+| audit on | 1.42 | 6.09 | +0.50 ms (54%) | 205 |
+| audit + hmac | 1.50 | 6.55 | +0.57 ms (62%) | 213 |
+| audit + ed25519 | 1.77 | 6.70 | +0.84 ms (91%) | 256 |
+
+Single `AuditLog.append` (own transaction + head update): p50 101 µs, 8131 appends/s.
+
+**Verify** (full chain + checkpoints + head, median of 3; log built in 1000-entry batches):
+
+| entries | mode | verify (s) | µs/entry | DB size | as_of full replay (s) |
+|---|---|---|---|---|---|
+| 10,000 | unsigned | 0.072 | 7.2 | 5.5 MB (551 B/entry) | 0.54 |
+| 10,000 | hmac | 0.090 | 9.0 | 6.3 MB (627 B/entry) | 0.53 |
+| 10,000 | ed25519 | 1.001 | 100.1 | 6.5 MB (647 B/entry) | 0.53 |
+| 100,000 | unsigned | 0.767 | 7.7 | 55.1 MB (551 B/entry) | 5.91 |
+| 100,000 | hmac | 0.923 | 9.2 | 62.6 MB (626 B/entry) | 6.21 |
+| 100,000 | ed25519 | 10.067 | 100.7 | 64.8 MB (648 B/entry) | 6.32 |
+
+**Citations on search** (keyword search, p50, n=200 queries):
+
+| notes | without (ms) | with (ms) | overhead |
+|---|---|---|---|
+| 1,000 | 0.247 | 0.423 | +0.176 ms |
+| 10,000 | 0.781 | 0.987 | +0.206 ms |
+
+**Tamper Monte Carlo** (`benchmarks/audit_tamper_mc.py`; one random tamper per trial, every 5th trial also verifies the untouched log as a false-positive control):
+
+| mode | seeds | trials | effective tampers | detected | rate | false positives |
+|---|---|---|---|---|---|---|
+| unsigned | 20261021, 7, 1337, 42, 99 | 25,000 | 24,998 | 24,998 | 1.0000 | 0/5,000 |
+| hmac | 20261021, 7, 1337, 42, 99 | 25,000 | 25,000 | 25,000 | 1.0000 | 0/5,000 |
+| unsigned_rehash | 20261021, 7, 1337 | 1,500 | 1,500 | 0 | 0.0000 | 0/300 |
+| unsigned_rehash + external anchor | 20261021, 7, 1337 | 1,500 | 1,500 | 1,500 | 1.0000 | — |
+
+
 ## Notes and limits
 
 - LongMemEval-S tests haystacks of about 50 sessions per question. That is retrieval over small

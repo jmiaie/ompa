@@ -16,21 +16,89 @@ Usage:
     # - etc.
 """
 
+import contextvars
 import json
+import os
 import sys
 from pathlib import Path
 
-from ompa import Ompa, __version__
+from ompa import Ompa as _Ompa
+from ompa import __version__
 from ompa.config import make_ompa
+from ompa.governance import AccessDeniedError, AccessPolicy, LegalHoldError
+
+# Principal for the tool call being handled.  If the server operator pins one
+# with $OMPA_PRINCIPAL, a client-supplied ``principal`` argument that differs is
+# rejected (MCP stdio has no authentication; see docs/AUDIT.md threat model).
+_PRINCIPAL: contextvars.ContextVar[str | None] = contextvars.ContextVar(
+    "ompa_principal", default=None
+)
 
 
-def _make_ompa(arguments: dict, enable_semantic: bool = False) -> Ompa:
+def Ompa(*args, **kwargs) -> _Ompa:  # noqa: N802 - drop-in for the class inside tools
+    """Construct :class:`ompa.Ompa` acting as the current call's principal."""
+    kwargs.setdefault("principal", _PRINCIPAL.get())
+    return _Ompa(*args, **kwargs)
+
+
+def _make_ompa(arguments: dict, enable_semantic: bool = False) -> _Ompa:
     return make_ompa(
         vault_path=arguments.get("vault_path", "."),
         shared_vault_path=arguments.get("shared_vault_path"),
         personal_vault_path=arguments.get("personal_vault_path"),
         enable_semantic=enable_semantic,
+        principal=_PRINCIPAL.get(),
     )
+
+
+def _resolve_principal(arguments: dict) -> str | None:
+    pinned = os.environ.get("OMPA_PRINCIPAL")
+    asked = arguments.get("principal")
+    if pinned and asked and asked != pinned:
+        raise AccessDeniedError(f"principal {asked!r} does not match the server's pinned principal")
+    return pinned or asked
+
+
+# Permission each tool needs on its vault when the vault has an acl.json.
+# Dual-vault tools (ao_write / ao_export / ao_import) are checked per vault by
+# Ompa itself.  Denials are recorded in the vault's audit chain.
+TOOL_PERMS = {
+    "ao_session_start": "read",
+    "ao_search": "read",
+    "ao_kg_query": "read",
+    "ao_kg_stats": "read",
+    "ao_palace_wings": "read",
+    "ao_palace_rooms": "read",
+    "ao_validate": "read",
+    "ao_status": "read",
+    "ao_orphans": "read",
+    "ao_classify": "read",
+    "ao_audit_verify": "read",
+    "ao_audit_head": "read",
+    "ao_audit_export": "read",
+    "ao_as_of": "read",
+    "ao_write": "write",
+    "ao_export": "write",
+    "ao_import": "write",
+    "ao_kg_add": "write",
+    "ao_kg_populate": "write",
+    "ao_palace_tunnel": "write",
+    "ao_wrap_up": "write",
+    "ao_sync": "write",
+    "ao_init": "write",
+    "ao_forget": "admin",
+}
+
+
+def _enforce_acl(name: str, vault_path: str) -> None:
+    perm = TOOL_PERMS.get(name)
+    if perm is None or not (Path(vault_path) / ".palace" / "acl.json").exists():
+        return
+    policy = AccessPolicy.load(Path(vault_path) / ".palace" / "acl.json")
+    if policy is not None and policy.allows(_PRINCIPAL.get() or "", perm):
+        return
+    # logs access.denied to the chain, then raises
+    Ompa(vault_path=vault_path, enable_semantic=False).gov.require(perm, "mcp:" + name)
 
 
 # ---------------------------------------------------------------------------
@@ -75,6 +143,7 @@ def ao_search(query: str, vault_path: str = ".", limit: int = 5) -> dict:
                 "excerpt": r.content_excerpt,
                 "score": r.score,
                 "type": r.match_type,
+                "citation": r.citation,
             }
             for r in results
         ]
@@ -94,10 +163,61 @@ def ao_kg_query(entity: str, vault_path: str = ".", as_of: str = None) -> dict:
                 "object": t.object,
                 "valid_from": t.valid_from,
                 "valid_to": t.valid_to,
+                "citation": t.citation,
             }
             for t in triples
         ],
     }
+
+
+def ao_audit_verify(vault_path: str = ".", key_path: str | None = None) -> dict:
+    """Verify the vault's tamper-evident audit chain (+ note drift)."""
+    verifier = None
+    if key_path:
+        from ompa.audit import load_key
+
+        verifier = load_key(key_path)
+    ao = Ompa(vault_path=vault_path, enable_semantic=False)
+    return ao.audit_verify(verifier=verifier)
+
+
+def ao_audit_head(vault_path: str = ".") -> dict:
+    """Current chain head (store it elsewhere to anchor future verification)."""
+    return Ompa(vault_path=vault_path, enable_semantic=False).audit_head()
+
+
+def ao_audit_export(vault_path: str = ".", start: int = 1, end: int | None = None) -> dict:
+    """Evidence bundle for entries start..end (capped at 10k entries per call)."""
+    ao = Ompa(vault_path=vault_path, enable_semantic=False)
+    if end is None or end - start + 1 > 10000:
+        end = start + 9999
+    return ao.audit_export(start=start, end=end)
+
+
+def ao_forget(
+    subject: str, vault_path: str = ".", aliases: list | None = None, dry_run: bool = True
+) -> dict:
+    """Right to erasure.  Defaults to a dry run; pass dry_run=false to erase."""
+    ao = Ompa(vault_path=vault_path, enable_semantic=False)
+    return {"receipts": ao.forget([subject, *(aliases or [])], dry_run=dry_run)}
+
+
+def ao_as_of(when: str, entity: str, vault_path: str = ".", valid_at: str | None = None) -> dict:
+    """What did the agent know about an entity at transaction time `when`?"""
+    ao = Ompa(vault_path=vault_path, enable_semantic=False)
+    with ao.as_of(when) as view:
+        return {
+            "stats": view.stats(),
+            "facts": [
+                {
+                    "subject": f.subject,
+                    "predicate": f.predicate,
+                    "object": f.object,
+                    "citation": f.citation,
+                }
+                for f in view.facts(entity, valid_at=valid_at)
+            ],
+        }
 
 
 def ao_kg_add(
@@ -506,6 +626,65 @@ TOOLS = {
             ],
         },
     },
+    "ao_audit_verify": {
+        "description": "Verify the tamper-evident audit log: hash chain, Merkle checkpoints, "
+        "head, signatures (with key_path) and note drift. Detects edits, deletions, "
+        "reorders, insertions and truncation.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "vault_path": {"type": "string", "default": "."},
+                "key_path": {"type": "string", "description": "Public/HMAC key file"},
+            },
+        },
+    },
+    "ao_audit_head": {
+        "description": "Current audit chain head {seq, hash}; store it outside the vault "
+        "as an anchor.",
+        "input_schema": {
+            "type": "object",
+            "properties": {"vault_path": {"type": "string", "default": "."}},
+        },
+    },
+    "ao_audit_export": {
+        "description": "Export an evidence bundle (JSON) of audit entries start..end.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "vault_path": {"type": "string", "default": "."},
+                "start": {"type": "integer", "default": 1},
+                "end": {"type": "integer"},
+            },
+        },
+    },
+    "ao_forget": {
+        "description": "Right to erasure (admin): delete/redact a subject from notes, "
+        "facts, indexes and audit bodies, keeping a tombstone. dry_run defaults to true.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "subject": {"type": "string"},
+                "aliases": {"type": "array", "items": {"type": "string"}},
+                "dry_run": {"type": "boolean", "default": True},
+                "vault_path": {"type": "string", "default": "."},
+            },
+            "required": ["subject"],
+        },
+    },
+    "ao_as_of": {
+        "description": "Point-in-time view: facts known about an entity at time `when` "
+        "(ISO 8601, UTC if no offset), replayed from the audit log.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "when": {"type": "string"},
+                "entity": {"type": "string"},
+                "valid_at": {"type": "string", "description": "Valid-time date"},
+                "vault_path": {"type": "string", "default": "."},
+            },
+            "required": ["when", "entity"],
+        },
+    },
     "ao_init": {
         "description": "Initialize a new vault + palace structure with folders and brain notes.",
         "input_schema": {
@@ -522,11 +701,17 @@ def handle_list_tools():
     """Handle tool list request."""
     tools = []
     for name, spec in TOOLS.items():
+        schema = json.loads(json.dumps(spec["input_schema"]))
+        schema.setdefault("properties", {})["principal"] = {
+            "type": "string",
+            "description": "User/agent id to act as (ACL + audit actor); ignored "
+            "if the server pins $OMPA_PRINCIPAL",
+        }
         tools.append(
             {
                 "name": name,
                 "description": spec["description"],
-                "inputSchema": spec["input_schema"],
+                "inputSchema": schema,
             }
         )
     return {"tools": tools}
@@ -546,6 +731,8 @@ def handle_call_tool(name: str, arguments: dict) -> dict:
         # Cap limit parameters
         if "limit" in arguments:
             arguments = {**arguments, "limit": min(int(arguments["limit"]), 100)}
+        _PRINCIPAL.set(_resolve_principal(arguments))
+        _enforce_acl(name, vault_path)
 
         if name == "ao_session_start":
             result = ao_session_start(vault_path)
@@ -614,10 +801,31 @@ def handle_call_tool(name: str, arguments: dict) -> dict:
             result = ao_import(arguments)
         elif name == "ao_init":
             result = ao_init(vault_path)
+        elif name == "ao_audit_verify":
+            result = ao_audit_verify(vault_path, arguments.get("key_path"))
+        elif name == "ao_audit_head":
+            result = ao_audit_head(vault_path)
+        elif name == "ao_audit_export":
+            result = ao_audit_export(
+                vault_path, int(arguments.get("start", 1)), arguments.get("end")
+            )
+        elif name == "ao_forget":
+            result = ao_forget(
+                arguments["subject"],
+                vault_path,
+                arguments.get("aliases"),
+                bool(arguments.get("dry_run", True)),
+            )
+        elif name == "ao_as_of":
+            result = ao_as_of(
+                arguments["when"], arguments["entity"], vault_path, arguments.get("valid_at")
+            )
         else:
             result = {"error": f"Unhandled tool: {name}"}
 
         return result
+    except (AccessDeniedError, LegalHoldError) as e:
+        return {"error": type(e).__name__, "detail": str(e)}
     except KeyError as e:
         return {"error": f"Missing required argument: {e}"}
     except Exception as e:

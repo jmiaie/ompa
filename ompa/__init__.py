@@ -28,9 +28,11 @@ Sync backends:
 __version__ = "1.0.8"
 
 from .async_api import AsyncOmpa
+from .audit import AuditLog, VerifyReport, verify_bundle
 from .classifier import Classification, MessageClassifier, MessageType
 from .config import DualVaultConfig, IsolationMode, VaultTarget
 from .core import Ompa
+from .governance import AccessDeniedError, AccessPolicy, LegalHoldError, PointInTimeView
 from .hooks import Hook, HookContext, HookManager, HookResult
 from .keyword import KeywordIndex
 from .knowledge_graph import KnowledgeGraph
@@ -65,4 +67,12 @@ __all__ = [
     "VaultTarget",
     "count_tokens",
     "AsyncOmpa",
+    # audit memory
+    "AuditLog",
+    "VerifyReport",
+    "verify_bundle",
+    "AccessDeniedError",
+    "AccessPolicy",
+    "LegalHoldError",
+    "PointInTimeView",
 ]

@@ -13,7 +13,7 @@ import math
 import os
 import struct
 import threading
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Protocol, runtime_checkable
 
@@ -259,6 +259,10 @@ class SearchResult:
     content_excerpt: str
     score: float
     match_type: str  # "semantic", "keyword", "hybrid", "name"
+    # Provenance (filled by Ompa.search): path, line/byte span, content_sha256,
+    # author, recorded_at, valid_from/valid_to.  See ompa.provenance.
+    citation: dict | None = None
+    chunk_index: int | None = field(default=None, repr=False)
 
 
 class SemanticIndex:
@@ -649,6 +653,7 @@ class SemanticIndex:
                             content_excerpt=m["text"],
                             score=float(scores[int(i)]),
                             match_type="semantic",
+                            chunk_index=m.get("chunk_index"),
                         )
                     )
                     if len(out) >= limit:
@@ -751,7 +756,9 @@ def fuse_rrf(
         for rank, r in enumerate(results):
             scores[r.path] = scores.get(r.path, 0.0) + 1.0 / (k + rank + 1)
             if r.path not in fused:
-                fused[r.path] = SearchResult(r.path, r.content_excerpt, 0.0, kind)
+                fused[r.path] = SearchResult(
+                    r.path, r.content_excerpt, 0.0, kind, chunk_index=r.chunk_index
+                )
             elif fused[r.path].match_type != kind:
                 fused[r.path].match_type = "hybrid"
     for path, s in scores.items():
