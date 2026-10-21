@@ -7,6 +7,7 @@ Supports single-vault (legacy) and dual-vault (shared + personal) architecture.
 import logging
 import re
 import shutil
+import time
 from pathlib import Path
 from typing import Any
 
@@ -19,6 +20,15 @@ from .semantic import SearchResult, SemanticIndex
 from .vault import Note, Vault, _safe_resolve
 
 logger = logging.getLogger(__name__)
+
+
+def _index_key(vault_path: Path, note_path: Path) -> Path:
+    """Path form used as the semantic-index key (matches ``vault_path.rglob``)."""
+    vault_path = Path(vault_path)
+    try:
+        return vault_path / Path(note_path).resolve().relative_to(vault_path.resolve())
+    except ValueError:
+        return Path(note_path)
 
 
 class Ompa:
@@ -54,9 +64,15 @@ class Ompa:
         shared_vault_path: str | Path = None,
         personal_vault_path: str | Path = None,
         isolation_mode: str = "strict",
+        index_refresh_interval: float = 1.0,
     ):
         self.agent_name = agent_name
         self._enable_semantic = enable_semantic
+        # Seconds between automatic staleness checks of the semantic index on
+        # search (0 = check on every search).  Writes through Ompa.write() are
+        # indexed immediately regardless; this catches edits made outside OMPA.
+        self.index_refresh_interval = index_refresh_interval
+        self._last_refresh: dict[int, float] = {}
         self._embedding_backend = embedding_backend  # optional custom backend
         self._session_started = False
         self._last_classification: Classification | None = None
@@ -205,6 +221,12 @@ class Ompa:
     def stop(self) -> HookResult:
         """Run stop hook (wrap-up checklist)."""
         result = self.hooks.run_stop(self)
+        for sem in (self._semantic, self._personal_semantic):
+            if sem is not None:
+                try:
+                    sem.flush()
+                except Exception as e:
+                    logger.debug("Semantic index flush failed: %s", e)
         self._session_started = False
         return result
 
@@ -368,6 +390,7 @@ class Ompa:
                 for n in notes[:limit]
             ]
 
+        self._maybe_refresh(semantic, vault.vault_path)
         results = semantic.search(query, limit, hybrid)
 
         if wing or room:
@@ -381,6 +404,20 @@ class Ompa:
             results = filtered or results[:limit]
 
         return results
+
+    def _maybe_refresh(self, semantic: SemanticIndex, vault_path: Path) -> None:
+        """Re-index new/changed/deleted notes if the last check is old enough."""
+        now = time.monotonic()
+        last = self._last_refresh.get(id(semantic))
+        if last is not None and now - last < self.index_refresh_interval:
+            return
+        self._last_refresh[id(semantic)] = now
+        try:
+            changes = semantic.refresh(vault_path)
+            if any(changes.values()):
+                logger.debug("Semantic index refreshed: %s", changes)
+        except Exception as e:
+            logger.debug("Semantic index refresh skipped: %s", e)
 
     def qsearch(self, query: str, limit: int = 5) -> list[SearchResult]:
         """QMD-style semantic search. Convenience method."""
@@ -563,6 +600,19 @@ class Ompa:
         target_kg = self.kg if target == VaultTarget.SHARED else self.personal_kg
         if target_kg:
             target_kg.populate_from_note(full_path, target_vault.vault_path)
+
+        # Make the note searchable now (no manual rebuild).  Only touches an index
+        # that is already loaded; an index loaded later catches up via refresh().
+        target_semantic = (
+            self._semantic if target == VaultTarget.SHARED else self._personal_semantic
+        )
+        if target_semantic is not None:
+            try:
+                target_semantic.update_file(
+                    _index_key(target_vault.vault_path, full_path), save=False
+                )
+            except Exception as e:
+                logger.debug("Index update after write failed for %s: %s", full_path, e)
 
         return {
             "vault": target.value,

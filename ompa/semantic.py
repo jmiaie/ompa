@@ -37,6 +37,12 @@ def _cosine_similarity(a, b) -> float:
         return 0.0
 
 
+def _file_signature(path: Path) -> list[int]:
+    """Cheap change detector for a note: [mtime_ns, size_bytes]."""
+    st = path.stat()
+    return [st.st_mtime_ns, st.st_size]
+
+
 @dataclass
 class SearchResult:
     path: str
@@ -66,6 +72,9 @@ class SemanticIndex:
         self.embedding_dim = embedding_dim
         self.embeddings = None
         self.chunks: list[dict[str, Any]] = []
+        # path -> [st_mtime_ns, st_size] when the file was last indexed; drives refresh()
+        self.file_mtimes: dict[str, list[int]] = {}
+        self._dirty = False
         self._initialized = False
         # Accept a pre-built backend (e.g. NIMEmbeddingBackend) or load lazily
         self._model: EmbeddingBackend | None = embedding_backend
@@ -136,13 +145,16 @@ class SemanticIndex:
                         "embedding": embedding.tolist(),
                     }
                 )
+            self.file_mtimes[path_str] = _file_signature(path)
+            self._dirty = True
         except Exception as e:
             logger.warning("Error indexing %s: %s", path, e)
 
-    def update_file(self, path: Path) -> bool:
+    def update_file(self, path: Path, save: bool = True) -> bool:
         """
         Incrementally update the index for a single file.
-        Re-indexes the file and saves the updated index.
+        Re-indexes the file and (by default) saves the updated index.
+        Pass ``save=False`` to defer persistence; call :meth:`flush` later.
         Returns True if successful.
         """
         path = Path(path)
@@ -151,7 +163,8 @@ class SemanticIndex:
 
         try:
             self.index_file(path)
-            self.save_index()
+            if save:
+                self.save_index()
             logger.debug("Incrementally updated index for %s", path)
             return True
         except Exception as e:
@@ -164,7 +177,8 @@ class SemanticIndex:
         before = len(self.chunks)
         self.chunks = [c for c in self.chunks if c["path"] != path_str]
         removed = before - len(self.chunks)
-        if removed > 0:
+        had_mtime = self.file_mtimes.pop(path_str, None) is not None
+        if removed > 0 or had_mtime:
             self.save_index()
             logger.debug("Removed %d chunks for %s", removed, path)
         return removed > 0
@@ -187,6 +201,55 @@ class SemanticIndex:
 
         return count
 
+    def refresh(self, vault_path: Path, exclude_patterns: list | None = None) -> dict:
+        """Bring the index up to date with the vault without a full rebuild.
+
+        Re-embeds only notes that are new or whose mtime changed since they were
+        indexed, and drops notes that no longer exist.  Saves the index when
+        anything changed.  Returns ``{"added": n, "updated": n, "removed": n}``.
+        """
+        stats = {"added": 0, "updated": 0, "removed": 0}
+        if not self._initialized:
+            self._init_model()
+        if self._model is None:
+            return stats
+
+        exclude_patterns = exclude_patterns or DEFAULT_EXCLUDE_PATTERNS
+        vault_path = Path(vault_path)
+        seen: set[str] = set()
+        for path in vault_path.rglob("*.md"):
+            path_str = str(path)
+            if any(excl in path_str for excl in exclude_patterns):
+                continue
+            seen.add(path_str)
+            try:
+                sig = _file_signature(path)
+            except OSError:
+                continue
+            known = self.file_mtimes.get(path_str)
+            if known == sig:
+                continue
+            self.index_file(path)
+            stats["updated" if known is not None else "added"] += 1
+
+        vault_prefix = str(vault_path)
+        for path_str in [
+            p for p in self.file_mtimes if p.startswith(vault_prefix) and p not in seen
+        ]:
+            self.chunks = [c for c in self.chunks if c["path"] != path_str]
+            del self.file_mtimes[path_str]
+            self._dirty = True
+            stats["removed"] += 1
+
+        if any(stats.values()):
+            self.save_index()
+        return stats
+
+    def flush(self) -> None:
+        """Persist the index if there are unsaved incremental updates."""
+        if self._dirty:
+            self.save_index()
+
     def save_index(self) -> None:
         """Save the index to disk."""
         index_file = self.index_path / "semantic_index.json"
@@ -194,10 +257,12 @@ class SemanticIndex:
         serializable = {
             "model": self.model_name,
             "chunks": [{**c, "embedding": c["embedding"]} for c in self.chunks],
+            "files": self.file_mtimes,
         }
 
         with open(index_file, "w", encoding="utf-8") as f:
             json.dump(serializable, f)
+        self._dirty = False
 
     def load_index(self) -> bool:
         """Load the index from disk."""
@@ -210,6 +275,25 @@ class SemanticIndex:
                 data = json.load(f)
 
             self.chunks = data["chunks"]
+            files = data.get("files")
+            if files is None:
+                # Index written before mtime tracking: treat every indexed note as
+                # current as of the index file's own mtime, so notes edited (or
+                # added) after the last save are picked up by refresh().
+                saved_at = index_file.stat().st_mtime_ns
+                files = {}
+                for c in self.chunks:
+                    try:
+                        sig = _file_signature(Path(c["path"]))
+                    except OSError:
+                        sig = [saved_at, -1]
+                    # unchanged since the save -> current; newer -> forces re-index
+                    files[c["path"]] = sig if sig[0] <= saved_at else [saved_at, -1]
+            self.file_mtimes = {
+                str(k): [int(x) for x in v] if isinstance(v, list) else [int(v), -1]
+                for k, v in files.items()
+            }
+            self._dirty = False
             return True
         except Exception as e:
             logger.warning("Error loading index: %s", e)
@@ -341,6 +425,8 @@ class SemanticIndex:
     def clear(self) -> None:
         """Clear the index."""
         self.chunks = []
+        self.file_mtimes = {}
+        self._dirty = False
         index_file = self.index_path / "semantic_index.json"
         if index_file.exists():
             index_file.unlink()
