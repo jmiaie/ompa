@@ -21,7 +21,7 @@ OMPA gives any AI agent persistent memory in one `pip install`. It combines thre
 └──────────────────────────────────────────────────────┘
 ```
 
-**96.6% R@5 on LongMemEval** using verbatim storage — no summarization loss, no API cost for search.
+Verbatim storage plus local hybrid search (BM25 + embeddings). Measured on the full LongMemEval-S (n=470): R@5 **0.979** for hybrid search and **0.970** for keyword-only search. See [benchmarks/README.md](https://github.com/jmiaie/ompa/blob/main/benchmarks/README.md).
 
 ## Install
 

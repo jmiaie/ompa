@@ -1,6 +1,6 @@
 # MCP Server
 
-OMPA exposes all of its capabilities as an MCP (Model Context Protocol) server with 15 tools. This lets Claude Desktop, Cursor, Windsurf, and any MCP-compatible client access your vault directly — no code changes needed.
+OMPA exposes all of its capabilities as an MCP (Model Context Protocol) server with 19 tools. This lets Claude Desktop, Cursor, Windsurf, and any MCP-compatible client access your vault directly — no code changes needed.
 
 ## Setup
 

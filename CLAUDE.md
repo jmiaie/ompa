@@ -72,7 +72,7 @@ claude mcp add ompa -- python -m ompa.mcp_server
 1. **Lazy semantic loading**: `SemanticIndex._model` loaded on first access
 2. **Framework-agnostic**: Pure Python, no agent SDK deps
 3. **Vault + Palace dual-layer**: Vault=source of truth, Palace=retrieval acceleration
-4. **Verbatim storage**: No summarization (proven 96.6% R@5 by MemPalace)
+4. **Verbatim storage**: No summarization (OMPA's measured LongMemEval-S numbers: benchmarks/README.md)
 5. **Temporal KG**: SQLite triples with validity windows
 6. **Path traversal guards**: All vault file ops resolve + boundary-check paths
 7. **Context managers**: All SQLite connections use `with` for leak-free operation

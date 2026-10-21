@@ -12,7 +12,6 @@
   <a href="https://github.com/jmiaie/ompa/blob/main/LICENSE"><img src="https://img.shields.io/pypi/l/ompa" alt="License"></a>
   <a href="https://codecov.io/gh/jmiaie/ompa"><img src="https://codecov.io/gh/jmiaie/ompa/branch/main/graph/badge.svg" alt="Coverage"></a>
   <img src="https://img.shields.io/badge/code%20style-ruff-purple" alt="Ruff">
-  <img src="https://img.shields.io/badge/MCP-15%20tools-green" alt="MCP Tools">
 </p>
 
 ---
@@ -25,7 +24,10 @@ pip install ompa
 ao init && ao session-start
 ```
 
-**96.6% R@5 on LongMemEval** using verbatim storage — no summarization loss, no API cost for search.
+Verbatim storage plus local hybrid search (BM25 + embeddings), with no API cost for search. Measured on
+the full LongMemEval-S (n=470): **R@5 0.979** [95% CI 0.964–0.991] for hybrid search and **0.970** with
+keyword-only search, which needs no ML dependencies. Method, machine and reproduction steps are in
+[`benchmarks/README.md`](benchmarks/README.md).
 
 ---
 
@@ -39,9 +41,9 @@ OMPA solves all three:
 |---|---|
 | Lost decisions | Vault — every significant event persisted as markdown |
 | Expensive context | 5 lifecycle hooks with token budgets (~2K at start, ~100 per message) |
-| Summarization loss | Verbatim storage — proven 96.6% R@5 on LongMemEval |
+| Summarization loss | Verbatim storage; search runs over the full note text ([measured](benchmarks/README.md)) |
 | Framework lock-in | Works with any Python agent, any LLM |
-| API cost for search | Local `sentence-transformers` — zero per-query cost |
+| API cost for search | Local SQLite FTS5 (BM25) out of the box; optional local `sentence-transformers` for hybrid search |
 
 ---
 
@@ -100,7 +102,7 @@ ao status            # Verify everything looks good
 ```bash
 ao session-start                              # ~2K token context injection
 ao classify "We decided to go with Postgres"  # Routes to right folder automatically
-ao search "authentication decisions"          # Local semantic search, zero API cost
+ao search "authentication decisions"          # Local hybrid search (keyword-only without ompa[semantic])
 ao kg-query Kai                               # Query the knowledge graph
 ao wrap-up                                    # Session summary + save to vault
 ```
@@ -118,7 +120,7 @@ hint = ao.handle_message("We won the enterprise deal!")
 ao.post_tool("write", {"file_path": "work/active/auth.md"})
 ao.stop()
 
-# Semantic search
+# Search (hybrid BM25 + semantic; BM25 only without ompa[semantic])
 results = ao.search("authentication decisions", wing="Orion")
 
 # Knowledge graph
@@ -168,7 +170,7 @@ claude mcp add ompa -- python -m ompa.mcp_server
 |------|-------------|
 | `ao_session_start` | Inject full memory context (~2K tokens) |
 | `ao_classify` | Route a message to the right vault folder |
-| `ao_search` | Semantic search across vault |
+| `ao_search` | Hybrid keyword + semantic search across vault |
 | `ao_kg_query` | Query knowledge graph for an entity |
 | `ao_kg_add` | Add a triple to the knowledge graph |
 | `ao_kg_stats` | Knowledge graph statistics |
@@ -206,7 +208,7 @@ ao init              Initialize a new vault
 ao status            Health check and stats
 ao session-start     Inject memory context (use at session start)
 ao classify <msg>    Classify and route a message
-ao search <query>    Semantic search
+ao search <query>    Hybrid search (BM25 + semantic)
 ao orphans           Detect orphaned notes
 ao wrap-up           Session summary and save
 ao wings             List palace wings
@@ -216,7 +218,7 @@ ao kg-query <entity> Query knowledge graph
 ao kg-timeline <e>   Entity timeline
 ao kg-stats          Knowledge graph statistics
 ao validate          Validate vault structure
-ao rebuild-index     Rebuild the semantic index
+ao rebuild-index     Rebuild the search indexes
 ```
 
 ---
@@ -240,15 +242,17 @@ ao rebuild-index     Rebuild the semantic index
 |---|---|---|---|
 | Framework support | **Any** | Claude Code only | Claude Code only |
 | Memory layers | **Vault + Palace + KG** | Palace + KG | Vault only |
-| Semantic search | **Local (free)** | ChromaDB API | QMD (paid) |
+| Search | **Local BM25 + optional local embeddings (free)** | ChromaDB API | QMD (paid) |
 | Temporal KG | **SQLite ✓** | SQLite ✓ | ✗ |
-| MCP server | **15 tools** | 15 tools | ✗ |
-| CLI | **14 commands** | ✗ | ✗ |
+| MCP server | **19 tools** | 15 tools | ✗ |
+| CLI | **23 commands** | ✗ | ✗ |
 | Lifecycle hooks | **5** | 3 | 3 |
 | Message types | **15** | 15 | 5 |
 | Verbatim storage | **✓** | ✓ | ✗ |
 | Multi-agent | **✓** | ✗ | ✗ |
 | Dual-vault isolation | **✓** | ✗ | ✗ |
+
+<sub>OMPA's column is checked against this repo. The other columns come from those projects' docs when the table was written and have not been re-verified.</sub>
 
 ---
 
@@ -258,7 +262,8 @@ ao rebuild-index     Rebuild the semantic index
 # Core (vault + palace + KG + CLI + MCP server)
 pip install ompa
 
-# With local semantic search (adds sentence-transformers + numpy)
+# With local semantic + hybrid search (adds sentence-transformers + numpy).
+# Keyword (BM25) search over note content works without it.
 pip install ompa[all]
 
 # Development
@@ -283,10 +288,11 @@ ompa/
 ├── knowledge_graph.py   # Temporal KG (SQLite triples + validity windows)
 ├── hooks.py             # 5 lifecycle hooks + HookManager
 ├── classifier.py        # 15 message types with auto-routing
-├── semantic.py          # Local semantic search (lazy model loading)
-├── mcp_server.py        # MCP protocol server (15 tools)
+├── semantic.py          # Semantic index (resident float16 matrix) + RRF hybrid
+├── keyword.py           # BM25 keyword index (stdlib SQLite FTS5)
+├── mcp_server.py        # MCP protocol server (19 tools)
 ├── config.py            # Dual-vault configuration
-└── cli.py               # typer CLI (14 commands)
+└── cli.py               # typer CLI (23 commands)
 ```
 
 ---
@@ -295,7 +301,7 @@ ompa/
 
 OMPA is a synthesis of ideas from the AI agent memory community:
 
-- **[MemPalace](https://github.com/corbt/mem_palace)** by Kyle Corbitt — palace metaphor (wings/rooms/drawers), temporal KG design, and verbatim storage approach (96.6% R@5 on LongMemEval)
+- **[MemPalace](https://github.com/corbt/mem_palace)** by Kyle Corbitt — palace metaphor (wings/rooms/drawers), temporal KG design, and verbatim storage approach
 - **[obsidian-mind](https://github.com/obsidian-ai/obsidian-mind)** — vault structure (brain/work/org/perf), wikilink conventions, frontmatter validation, session lifecycle patterns
 - **Claude Code / Anthropic** — hook patterns and agent-tool interaction models
 - **OpenClaw** — framework-agnostic agent runtime that inspired the "universal" design goal

@@ -32,6 +32,7 @@ from .classifier import Classification, MessageClassifier, MessageType
 from .config import DualVaultConfig, IsolationMode, VaultTarget
 from .core import Ompa
 from .hooks import Hook, HookContext, HookManager, HookResult
+from .keyword import KeywordIndex
 from .knowledge_graph import KnowledgeGraph
 from .palace import Palace
 from .semantic import SearchResult, SemanticIndex
@@ -57,6 +58,7 @@ __all__ = [
     "HookResult",
     "Hook",
     "SemanticIndex",
+    "KeywordIndex",
     "SearchResult",
     "DualVaultConfig",
     "IsolationMode",

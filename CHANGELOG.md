@@ -11,16 +11,40 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **Keyword search over note content, no extra required.** `ompa.keyword.KeywordIndex` is a BM25 index built on the SQLite FTS5 extension that ships with Python, stored in `.palace/keyword_index.sqlite3`. Before this, `Ompa.search()` without `ompa[semantic]` matched only *file names*. It now ranks notes by their content. The index stays fresh the same way the semantic index does: notes are indexed on `write()`, and an `[mtime_ns, size]` refresh catches edits made outside OMPA. Query text is quoted token by token, so FTS5 syntax in a query can't cause an error.
+- **Hybrid search.** With `ompa[semantic]`, `search(hybrid=True)` (the default) fuses the semantic and BM25 rankings with reciprocal rank fusion (k=60). `hybrid=False` gives pure semantic search.
+- **Reproducible benchmarks**, each documented in `benchmarks/README.md` (method, machine, results):
+  - `benchmarks/longmemeval_s.py`: full LongMemEval-S, n=470, bootstrap CIs.
+  - `benchmarks/search_latency.py`: 1k/10k/50k notes.
+  - `benchmarks/temporal_mc.py`: 20-seed temporal KG Monte Carlo.
 - **Why OMPA vs raw Obsidian?** consulting one-pager (`docs/why-ompa.md`) — agent-memory wedge, dual-vault hygiene, Locus + CognitionOS companion stack.
 - README + docs home cross-links to [Locus](https://github.com/jmiaie/locus) (vectorless retrieval) and [CognitionOS](https://github.com/jmiaie/cognition-os) (compliance productization).
 
 ### Changed
 
+- **Resident, compact semantic index.** The index loads once into a single matrix: float16 on disk, float32 in memory. A query is one SIMD matrix-vector pass, replacing a Python loop over every chunk. Search at 50k notes went from 1.06 s to 44 ms (hybrid) or 3 ms (semantic only).
+- **New on-disk format.** The index is now `index_meta.json` + `index_vectors.f16`, replacing the JSON-float `semantic_index.json`. At 50k notes that is 411 MB → 60 MB, and a fresh-process cold start went from 6.8 s to 0.5 s.
+- **Incremental updates.** Adding or removing a note costs O(that note's chunks), with no full-matrix copies.
+- **Automatic migration.** An existing v1 `semantic_index.json` is converted on load, rewritten in the new format on the next save, and then deleted.
+- Bulk (re)indexing embeds in batches. It uses the backend's `encode_batch()` if present, or sentence-transformers' batched `encode`.
+- The SentenceTransformer model loads once per process and model name, not once per `Ompa`/`SemanticIndex`.
+- Semantic search falls back to pure Python when numpy is missing, for custom or NIM backends.
+- **Score scale changed.** Hybrid `SearchResult.score` is now an RRF score (≈0.01–0.035), and keyword results score `-bm25`. Only compare scores within one mode. `ao search` now prints 4 significant digits.
+- Note-name matching is now only a last resort, used when content search finds nothing.
+- `ao rebuild-index` / `rebuild_index()` rebuild the keyword index too.
+- rsync and S3 sync skip `keyword_index.sqlite3*`, like `semantic_index/`.
+- **README/docs:** removed the "96.6% R@5 on LongMemEval" claim. That is MemPalace's figure for a different pipeline and was never measured on OMPA. The README now publishes OMPA's own measured numbers: hybrid R@5 0.979 [0.964, 0.991] and keyword-only 0.970 on LongMemEval-S (n=470). Also:
+  - Removed the stale "MCP 15 tools" badge.
+  - Corrected counts to 19 MCP tools and 23 CLI commands.
+  - Marked competitor comparison columns as not re-verified.
+- `benchmarks/longmemeval.py` (20 hand-written items) is now `benchmarks/smoke_sample.py`, clearly labelled as a smoke test.
 - Pin `ruff==0.11.13` in `pyproject.toml` optional `dev` deps; per-file ignore `B008` on `ompa/cli.py` (typer.Option defaults).
 - Apply `ruff format` + autofix/`B904`/`E741`/`F841`/`SIM102` cleanups across `ompa/` so CI Lint & Format can go green (pairs with PR #12 CI pin/split).
 
 ### Fixed
 
+- **Temporal KG history (#16).** Re-asserting a fact no longer overwrites its earlier validity intervals. In the 20-seed Monte Carlo, point-in-time accuracy went from 0.895 to 1.000 and the share of intervals lost from 36% to 0%.
+- **Index freshness (#16).** New and edited notes become searchable without `rebuild_index()`.
 - Property test `test_brain_note_roundtrip`: assert against strip-on-read content so Hypothesis examples with leading/trailing spaces do not flake (`Note.from_file` normalizes with `str.strip()`).
 
 ---

@@ -1737,7 +1737,7 @@ class TestResidentSemanticIndex:
             assert idx.load_index()
             assert idx.refresh(vault) == {"added": 0, "updated": 0, "removed": 0}
             assert Path(idx.search("otters", 1)[0].path).name == "a.md"
-            idx.flush()
+            # migrated on load: v2 files written, v1 JSON gone
             assert (si / META_FILE).exists() and not (si / LEGACY_FILE).exists()
 
     def test_incremental_updates_match_full_rebuild(self):

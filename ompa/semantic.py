@@ -602,8 +602,11 @@ class SemanticIndex:
                     str(k): [int(x) for x in v] if isinstance(v, list) else [int(v), -1]
                     for k, v in files.items()
                 }
-                # migrated: written out in the v2 format on the next save/flush
                 self._dirty = True
+            try:  # migrate now: write the v2 files (and drop the v1 JSON) once
+                self.save_index()
+            except OSError as e:
+                logger.debug("Legacy index migration deferred: %s", e)
             return True
         except Exception as e:
             logger.warning("Error loading index: %s", e)
