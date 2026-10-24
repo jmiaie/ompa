@@ -29,6 +29,20 @@ the full LongMemEval-S (n=470): **R@5 0.979** [95% CI 0.964–0.991] for hybrid 
 keyword-only search, which needs no ML dependencies. Method, machine and reproduction steps are in
 [`benchmarks/README.md`](benchmarks/README.md).
 
+### Benchmarks at a glance
+
+| What | Result | Data / n |
+|---|---|---|
+| LongMemEval-S R@5 (session retrieval) | hybrid **0.979** [0.964, 0.991]; keyword-only **0.970** [0.953, 0.985] | 470 questions |
+| Search latency, hybrid p50 (vs 1.0.8) | 1k: 17.4 → **2.1 ms** · 10k: 185 → **9.4 ms** · 50k: 1,061 → **44 ms** (8–24× faster) | synthetic notes, stub embedder |
+| Temporal KG point-in-time accuracy (vs 1.0.8) | 0.895 → **1.000** | 20-seed Monte Carlo, 400 queries/seed |
+| Audit log tamper detection | unsigned **24,998 / 24,998**, HMAC **25,000 / 25,000**, 0 false positives | randomized tamper Monte Carlo, 5 seeds |
+| Full-chain rewrite (no key) | detected **only** against an external anchor (1,500 / 1,500 with, 0 / 1,500 without) | by design; see [docs/AUDIT.md](docs/AUDIT.md) |
+| Audit write overhead | +0.50 ms p50 per write (unsigned), +0.84 ms (Ed25519) | 900 writes/mode |
+
+Latencies come from a shared VM and are indicative. A head-to-head against mem0, Zep, Letta and LangMem
+is **not done yet**; no numbers are claimed for it.
+
 ---
 
 ## Why OMPA?
