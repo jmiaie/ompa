@@ -9,6 +9,22 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+---
+
+## [1.1.0] — 2026-10-24
+
+First PyPI release built from this repository (`jmiaie/ompa`); 1.0.4–1.0.8 on PyPI were built from the
+`ompa/` folder of `jmiaie/MicapAiLabs`. Everything below ships in 1.1.0. The public API is backwards
+compatible; new features are opt-in except content keyword search, which replaces file-name matching
+when `ompa[semantic]` is not installed.
+
+Measured results (all in `benchmarks/README.md`, with method, machine and caveats):
+- Search is 8–24× faster at 1k–50k notes (hybrid p50 17.4 → 2.1 ms at 1k, 185 → 9.4 ms at 10k, 1,061 → 44 ms at 50k; synthetic corpus, stub embedder).
+- Temporal KG point-in-time accuracy 0.895 → 1.000 (20-seed Monte Carlo).
+- LongMemEval-S (n=470) R@5: hybrid 0.979, keyword-only 0.970 (no ML dependencies).
+- Audit tamper Monte Carlo: 24,998/24,998 effective tampers detected unsigned and 25,000/25,000 with HMAC, 0 false positives. A full consistent chain rewrite by an attacker without a key is detected only against an externally anchored head (1,500/1,500 with an anchor, 0/1,500 without).
+- Python classifiers now list 3.10–3.13, the versions CI tests.
+
 ### Added
 
 - **Tamper-evident audit memory (opt-in, stdlib-only).** See `docs/AUDIT.md`.
