@@ -9,6 +9,10 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+- Documentation URL in package metadata now points to the docs site (https://jmiaie.github.io/ompa/) now that GitHub Pages is live. PyPI will show it from the next release; 1.1.0 on PyPI still links to the repo `docs/` folder.
+- README: added a docs-site badge.
+
 ---
 
 ## [1.1.0] — 2026-10-24

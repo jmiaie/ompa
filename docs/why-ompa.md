@@ -93,7 +93,7 @@ Agents / MCP hosts
 
 ## Next step
 
-- Docs site: [jmiaie.github.io/ompa](https://jmiaie.github.io/ompa)
+- Docs site: [jmiaie.github.io/ompa](https://jmiaie.github.io/ompa/)
 - Quickstart: [quickstart.md](quickstart.md)
 - Issues / support: [github.com/jmiaie/ompa](https://github.com/jmiaie/ompa)
 

@@ -73,7 +73,7 @@ all = [
 [project.urls]
 Homepage = "https://github.com/jmiaie/ompa"
 Repository = "https://github.com/jmiaie/ompa"
-Documentation = "https://github.com/jmiaie/ompa/tree/main/docs"
+Documentation = "https://jmiaie.github.io/ompa/"
 Changelog = "https://github.com/jmiaie/ompa/blob/main/CHANGELOG.md"
 Benchmarks = "https://github.com/jmiaie/ompa/blob/main/benchmarks/README.md"
 "Bug Tracker" = "https://github.com/jmiaie/ompa/issues"
