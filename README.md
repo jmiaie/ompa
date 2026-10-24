@@ -11,6 +11,7 @@
   <a href="https://pypi.org/project/ompa/"><img src="https://img.shields.io/pypi/pyversions/ompa" alt="Python"></a>
   <a href="https://github.com/jmiaie/ompa/blob/main/LICENSE"><img src="https://img.shields.io/pypi/l/ompa" alt="License"></a>
   <a href="https://codecov.io/gh/jmiaie/ompa"><img src="https://codecov.io/gh/jmiaie/ompa/branch/main/graph/badge.svg" alt="Coverage"></a>
+  <a href="https://jmiaie.github.io/ompa/"><img src="https://img.shields.io/badge/docs-jmiaie.github.io%2Fompa-blue" alt="Docs"></a>
   <img src="https://img.shields.io/badge/code%20style-ruff-purple" alt="Ruff">
 </p>
 
