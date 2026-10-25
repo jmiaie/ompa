@@ -40,9 +40,11 @@ keyword-only search, which needs no ML dependencies. Method, machine and reprodu
 | Audit log tamper detection | unsigned **24,998 / 24,998**, HMAC **25,000 / 25,000**, 0 false positives | randomized tamper Monte Carlo, 5 seeds |
 | Full-chain rewrite (no key) | detected **only** against an external anchor (1,500 / 1,500 with, 0 / 1,500 without) | by design; see [docs/AUDIT.md](docs/AUDIT.md) |
 | Audit write overhead | +0.50 ms p50 per write (unsigned), +0.84 ms (Ed25519) | 900 writes/mode |
+| Head-to-head vs LLM-memory systems (LME-S session retrieval, same questions; LLM `gpt-4o-mini`, MiniLM embeddings) | OMPA R@5 **1.000**, MRR **0.967**; Locus 1.000 / 0.917; mem0 2.2.1 0.933 / 0.722 (ΔMRR vs OMPA −0.24, sig.); LangMem 0.767 / 0.606 (−0.36, sig.). OMPA uses no LLM at ingest or query; mem0/LangMem spend ~4 min and 4–6¢ of LLM per 48-session haystack. Zep (Graphiti OSS) and Letta: **in progress, partial n** | 30-question stratified subset (low power) |
 
-Latencies come from a shared VM and are indicative. A head-to-head against mem0, Zep, Letta and LangMem
-is **not done yet**; no numbers are claimed for it.
+Latencies come from a shared VM and are indicative. Head-to-head method, per-question results and harness:
+[locus `benchmarks/published/2026-10-24-headtohead/`](https://github.com/jmiaie/locus/tree/main/benchmarks/published/2026-10-24-headtohead)
+(OMPA main `34d533e`, hybrid search with MiniLM).
 
 ---
 
