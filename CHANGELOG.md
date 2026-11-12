@@ -12,6 +12,7 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ### Changed
 - Documentation URL in package metadata now points to the docs site (https://jmiaie.github.io/ompa/) now that GitHub Pages is live. PyPI will show it from the next release; 1.1.0 on PyPI still links to the repo `docs/` folder.
 - README: added a docs-site badge.
+- README: Graphiti on Gemini, reasoning high (n=30, 0 ingest errors, $0), beside the existing minimal-reasoning Gemini row. Label: `gemini-3.5-flash-lite, reasoning high; different LLM setting, not directly comparable`. Default R@5 0.500, MRR 0.467 (1/30 empty searches; minimal was 19/30); cosine floor removed R@5 0.633, MRR 0.539. Paired bootstrap (B=10,000, seed 20261020) vs Graphiti `gpt-4o-mini`: MRR p=0.7622 default and p=0.9324 floor removed (no significant difference, and not evidence of equivalence). Vs minimal Gemini: MRR p=0.0026 and p=0.0054 (significant).
 
 ---
 
