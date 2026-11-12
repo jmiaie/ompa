@@ -9,6 +9,12 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- **KG schema contract v1** (`docs/kg-schema-v1.md`, `ompa/kg_schema.py`): documented triple/entity tables, provenance columns, reserved predicates, versioning and migration rules. New and existing knowledge graphs are stamped `PRAGMA user_version = 1`; a newer version logs a warning.
+- MCP Registry manifest `server.json` (version 1.1.0) and the `mcp-name` ownership marker in the README.
+- The MCP server reads `OMPA_VAULT_PATH` as the default vault when a tool call omits `vault_path` (already documented in `docs/guides/mcp.md`, previously ignored). The same traversal checks apply.
+- Bundle docs: `docs/PRD.md`, `docs/ROADMAP.md`.
+
 ### Changed
 - Documentation URL in package metadata now points to the docs site (https://jmiaie.github.io/ompa/) now that GitHub Pages is live. PyPI will show it from the next release; 1.1.0 on PyPI still links to the repo `docs/` folder.
 - README: added a docs-site badge.

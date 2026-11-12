@@ -25,6 +25,8 @@ pip install ompa
 ao init && ao session-start
 ```
 
+<!-- mcp-name: io.github.jmiaie/ompa -->
+
 Verbatim storage plus local hybrid search (BM25 + embeddings), with no API cost for search. Measured on
 the full LongMemEval-S (n=470): **R@5 0.979** [95% CI 0.964–0.991] for hybrid search and **0.970** with
 keyword-only search, which needs no ML dependencies. Method, machine and reproduction steps are in
