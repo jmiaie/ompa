@@ -10,6 +10,8 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **Date-aware ranking (opt-in, off by default):** `Ompa.search(..., temporal=True, reference_date=...)` and `Ompa(temporal_ranking=True, temporal_depth=100)`, in the new module `ompa/temporal.py` (standard library only). Notes whose frontmatter `date` falls in the window a point-in-time phrase refers to ("3 weeks ago", "last Tuesday", ...) are boosted by RRF. Duration ranges are ignored, and there is no recency prior. On LongMemEval-S (n=470) the overall change is +0.003 MRR (not significant); temporal-reasoning gains +0.025 (significant). See `benchmarks/published/2026-11-12-temporal/`.
+- `Ompa.write(..., date="YYYY-MM-DD")`: set the note's frontmatter date explicitly (the default is still today).
 - **KG schema contract v1** (`docs/kg-schema-v1.md`, `ompa/kg_schema.py`): documented triple/entity tables, provenance columns, reserved predicates, versioning and migration rules. New and existing knowledge graphs are stamped `PRAGMA user_version = 1`; a newer version logs a warning.
 - MCP Registry manifest `server.json` (version 1.1.0) and the `mcp-name` ownership marker in the README.
 - The MCP server reads `OMPA_VAULT_PATH` as the default vault when a tool call omits `vault_path` (already documented in `docs/guides/mcp.md`, previously ignored). The same traversal checks apply.

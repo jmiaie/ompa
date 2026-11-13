@@ -156,6 +156,18 @@ ao.palace.create_wing("Orion", type="project")
 ao.palace.create_tunnel("Kai", "Orion", "auth-migration")
 ```
 
+### 5. Date-aware ranking (opt-in, off by default)
+
+```python
+ao.write(content=transcript, file_path="work/chats/2023-05-20.md", date="2023-05-20")  # when it happened (default: today)
+ao.search("what did I buy two weeks ago?", temporal=True, reference_date="2023-05-30")
+ao = Ompa(vault_path="./workspace", temporal_ranking=True)    # or make it the default
+```
+
+Point-in-time phrases ("3 weeks ago", "last Tuesday", "yesterday", "last weekend", "last week", "last month") are resolved against `reference_date` (default: today). Notes whose frontmatter `date` falls in that window are boosted by reciprocal rank fusion. Duration ranges ("past few months") and windows wider than 45 days are ignored. Undated notes are never boosted, and there is no general recency boost. A query without such a phrase returns exactly the normal ranking.
+
+**Measured on LongMemEval-S** (470 questions, session retrieval, paired bootstrap): the overall effect is small and **not significant** (MRR 0.932 → 0.935, +0.003 [−0.006, +0.012]). On **temporal-reasoning questions** (n=127) it is **significant**: 0.893 → 0.918, +0.025 [+0.002, +0.053]. Multi-session (−0.008) and single-session-user (−0.014) dip slightly; neither change is significant. It adds no measurable latency. See [`benchmarks/published/2026-11-12-temporal/`](benchmarks/published/2026-11-12-temporal/README.md).
+
 ---
 
 ## Features

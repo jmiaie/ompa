@@ -1,0 +1,9 @@
+{
+ "temporal": {
+  "prototype_variant": "+ time-window",
+  "n": 470,
+  "identical_top10": 298,
+  "same_top1": 464,
+  "same_reciprocal_rank": 465
+ }
+}

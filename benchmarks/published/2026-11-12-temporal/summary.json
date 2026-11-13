@@ -1,0 +1,194 @@
+{
+ "system": "ompa",
+ "n": 470,
+ "baseline_identical_to_lme500": 314,
+ "variants": {
+  "baseline": {
+   "R@5": 0.9809,
+   "Rall@5": 0.8766,
+   "MRR@10": 0.9323,
+   "MRR_ci": [
+    0.9134,
+    0.95
+   ],
+   "changed_q": 0,
+   "ms_p50": 28.49,
+   "ms_p95": 75.34,
+   "by_type": {
+    "knowledge-update": {
+     "n": 72,
+     "MRR@10": 0.9792,
+     "Rall@5": 0.9722
+    },
+    "multi-session": {
+     "n": 121,
+     "MRR@10": 0.9441,
+     "Rall@5": 0.7851
+    },
+    "single-session-assistant": {
+     "n": 56,
+     "MRR@10": 0.9821,
+     "Rall@5": 1.0
+    },
+    "single-session-preference": {
+     "n": 30,
+     "MRR@10": 0.7923,
+     "Rall@5": 0.9
+    },
+    "single-session-user": {
+     "n": 64,
+     "MRR@10": 0.9576,
+     "Rall@5": 1.0
+    },
+    "temporal-reasoning": {
+     "n": 127,
+     "MRR@10": 0.8928,
+     "Rall@5": 0.7874
+    }
+   }
+  },
+  "temporal": {
+   "R@5": 0.9809,
+   "Rall@5": 0.8702,
+   "MRR@10": 0.9351,
+   "MRR_ci": [
+    0.9163,
+    0.9526
+   ],
+   "changed_q": 22,
+   "ms_p50": 28.51,
+   "ms_p95": 75.58,
+   "dMRR": {
+    "diff": 0.0028,
+    "ci": [
+     -0.0063,
+     0.0121
+    ],
+    "sig": false,
+    "p_boot_2s": 0.544,
+    "better": 10,
+    "worse": 4
+   },
+   "dR@5": {
+    "diff": 0.0,
+    "ci": [
+     -0.0106,
+     0.0106
+    ],
+    "sig": false,
+    "p_boot_2s": 1.0,
+    "better": 3,
+    "worse": 3
+   },
+   "dRall@5": {
+    "diff": -0.0064,
+    "ci": [
+     -0.017,
+     0.0021
+    ],
+    "sig": false,
+    "p_boot_2s": 0.2506,
+    "better": 1,
+    "worse": 4
+   },
+   "by_type": {
+    "knowledge-update": {
+     "n": 72,
+     "MRR@10": 0.9792,
+     "Rall@5": 0.9722,
+     "dMRR": {
+      "diff": 0.0,
+      "ci": [
+       0.0,
+       0.0
+      ],
+      "sig": false,
+      "p_boot_2s": 1.0,
+      "better": 0,
+      "worse": 0
+     }
+    },
+    "multi-session": {
+     "n": 121,
+     "MRR@10": 0.9358,
+     "Rall@5": 0.7769,
+     "dMRR": {
+      "diff": -0.0083,
+      "ci": [
+       -0.0248,
+       0.0
+      ],
+      "sig": false,
+      "p_boot_2s": 0.7372,
+      "better": 0,
+      "worse": 1
+     }
+    },
+    "single-session-assistant": {
+     "n": 56,
+     "MRR@10": 0.9821,
+     "Rall@5": 1.0,
+     "dMRR": {
+      "diff": 0.0,
+      "ci": [
+       0.0,
+       0.0
+      ],
+      "sig": false,
+      "p_boot_2s": 1.0,
+      "better": 0,
+      "worse": 0
+     }
+    },
+    "single-session-preference": {
+     "n": 30,
+     "MRR@10": 0.7923,
+     "Rall@5": 0.9,
+     "dMRR": {
+      "diff": 0.0,
+      "ci": [
+       0.0,
+       0.0
+      ],
+      "sig": false,
+      "p_boot_2s": 1.0,
+      "better": 0,
+      "worse": 0
+     }
+    },
+    "single-session-user": {
+     "n": 64,
+     "MRR@10": 0.9432,
+     "Rall@5": 0.9844,
+     "dMRR": {
+      "diff": -0.0143,
+      "ci": [
+       -0.0469,
+       0.0039
+      ],
+      "sig": false,
+      "p_boot_2s": 0.7208,
+      "better": 1,
+      "worse": 1
+     }
+    },
+    "temporal-reasoning": {
+     "n": 127,
+     "MRR@10": 0.9182,
+     "Rall@5": 0.7795,
+     "dMRR": {
+      "diff": 0.0254,
+      "ci": [
+       0.0017,
+       0.053
+      ],
+      "sig": true,
+      "p_boot_2s": 0.0312,
+      "better": 9,
+      "worse": 2
+     }
+    }
+   }
+  }
+ }
+}
