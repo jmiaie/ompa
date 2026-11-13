@@ -28,6 +28,12 @@ from .knowledge_graph import KnowledgeGraph
 from .palace import Palace
 from .provenance import cite
 from .semantic import SearchResult, SemanticIndex, scan_vault
+from .temporal import (
+    NoteDateCache,
+    parse_reference_date,
+    parse_relative_windows,
+    rerank_by_time,
+)
 from .vault import Note, Vault, _safe_resolve
 
 logger = logging.getLogger(__name__)
@@ -40,6 +46,16 @@ def _index_key(vault_path: Path, note_path: Path) -> Path:
         return vault_path / Path(note_path).resolve().relative_to(vault_path.resolve())
     except ValueError:
         return Path(note_path)
+
+
+def _valid_iso(value: str) -> bool:
+    from datetime import date as _date
+
+    try:
+        _date.fromisoformat(value)
+    except ValueError:
+        return False
+    return True
 
 
 class Ompa:
@@ -80,6 +96,9 @@ class Ompa:
         principal: str | None = None,
         audit: bool | None = None,
         audit_key=None,
+        # Date-aware ranking (opt-in; see ompa/temporal.py)
+        temporal_ranking: bool = False,
+        temporal_depth: int = 100,
     ):
         """
         Audit-memory args:
@@ -92,8 +111,16 @@ class Ompa:
             audit_key: signer for entries/checkpoints: a key-file path
                 (Ed25519 PEM needs the ``audit`` extra; otherwise an HMAC key)
                 or a signer object.  Default: $OMPA_AUDIT_KEY_FILE if set.
+
+        Date-aware ranking args (off by default):
+            temporal_ranking: default for ``search(..., temporal=)``.
+            temporal_depth: candidate results examined when a query refers to
+                a point in time ("two weeks ago", "last Friday"); max 100.
         """
         self.agent_name = agent_name
+        self.temporal_ranking = bool(temporal_ranking)
+        self.temporal_depth = max(1, min(int(temporal_depth), 100))
+        self._note_dates: NoteDateCache | None = None
         self._enable_semantic = enable_semantic
         # Seconds between automatic staleness checks of the semantic index on
         # search (0 = check on every search).  Writes through Ompa.write() are
@@ -440,6 +467,8 @@ class Ompa:
         room: str = None,
         vaults: list[str] = None,
         citations: bool = True,
+        temporal: bool | None = None,
+        reference_date=None,
     ) -> list[SearchResult]:
         """
         Search the vault(s) semantically.
@@ -456,6 +485,15 @@ class Ompa:
             citations: attach a provenance ``citation`` to each result (path,
                     line/byte span, content_sha256, author, recorded_at,
                     valid_from/valid_to; see ompa.provenance).
+            temporal: date-aware ranking (default: the ``temporal_ranking``
+                constructor option, off).  Point-in-time references in the
+                query ("3 weeks ago", "last Tuesday", "yesterday", "last
+                weekend", "last week", "last month") are resolved against
+                ``reference_date`` and notes whose frontmatter ``date`` falls
+                in that window are boosted by reciprocal rank fusion.
+                Duration ranges ("past few months") are ignored; queries
+                without a reference return exactly the normal ranking.
+            reference_date: "YYYY-MM-DD", "YYYY/MM/DD" or a date (default today).
 
         Raises AccessDeniedError (logged to the audit chain) if the principal
         may not read a requested vault.
@@ -471,6 +509,31 @@ class Ompa:
             elif name == "personal" and self.personal_gov is not None:
                 self.personal_gov.require("read", "search")
 
+        if temporal is None:
+            temporal = self.temporal_ranking
+        windows = []
+        if temporal:
+            windows = parse_relative_windows(query, parse_reference_date(reference_date))
+
+        results = self._gather(query, limit, hybrid, wing, room, vaults)
+        if windows:
+            pool = self._gather(query, max(limit, self.temporal_depth), hybrid, wing, room, vaults)
+            results = rerank_by_time(results, pool, windows, self._note_date, limit)
+        if citations:
+            for r in results:
+                self._attach_citation(r, query)
+        return results
+
+    def _gather(
+        self,
+        query: str,
+        limit: int,
+        hybrid: bool,
+        wing: str | None,
+        room: str | None,
+        vaults: list[str],
+    ) -> list[SearchResult]:
+        """Search each requested vault, merge by score, keep the top *limit*."""
         all_results = []
 
         # Search shared vault
@@ -500,11 +563,16 @@ class Ompa:
 
         # Sort by score and limit
         all_results.sort(key=lambda r: r.score, reverse=True)
-        results = all_results[:limit]
-        if citations:
-            for r in results:
-                self._attach_citation(r, query)
-        return results
+        return all_results[:limit]
+
+    def _note_date(self, path: str):
+        """Frontmatter ``date`` of a note inside one of this instance's vaults (cached)."""
+        if self._note_dates is None:
+            roots = [self.vault.vault_path]
+            if self.personal_vault is not None:
+                roots.append(self.personal_vault.vault_path)
+            self._note_dates = NoteDateCache(roots)
+        return self._note_dates.get(path)
 
     def _attach_citation(self, r: SearchResult, query: str) -> None:
         personal = r.match_type.startswith("personal:")
@@ -743,6 +811,7 @@ class Ompa:
         file_path: str = None,
         tags: list[str] = None,
         vault: str = None,
+        date: str | None = None,
     ) -> dict:
         """
         Write content to the appropriate vault.
@@ -755,11 +824,18 @@ class Ompa:
             file_path: Target file path (relative to vault root)
             tags: Tags for classification and frontmatter
             vault: Force target vault: "shared" or "personal"
+            date: frontmatter ``date`` as "YYYY-MM-DD" (default: today), e.g.
+                when the recorded conversation happened; used by date-aware
+                search (``search(..., temporal=True)``).
 
         Returns:
             dict with {vault, path, classified_as}
         """
         tags = tags or []
+        if date is not None and not (
+            isinstance(date, str) and re.fullmatch(r"\d{4}-\d{2}-\d{2}", date) and _valid_iso(date)
+        ):
+            raise ValueError(f"date must be 'YYYY-MM-DD', got {date!r}")
 
         # Determine target vault
         if not self.is_dual_vault:
@@ -791,7 +867,7 @@ class Ompa:
         from datetime import datetime
 
         frontmatter: dict[str, Any] = {
-            "date": datetime.now().strftime("%Y-%m-%d"),
+            "date": date or datetime.now().strftime("%Y-%m-%d"),
             "tags": tags,
             "vault": target.value,
         }
