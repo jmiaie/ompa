@@ -145,7 +145,7 @@ with the reason each was chosen (term match, KG edge, link hop).
 
 | Channel | What it needs | Status |
 |---|---|---|
-| PyPI | `ompa` 1.1.0 is published (CHANGELOG) | Exists |
+| PyPI | `ompa` 1.1.1 is published (CHANGELOG) | Exists |
 | Official MCP Registry (registry.modelcontextprotocol.io) | `server.json`; README `mcp-name` marker; `mcp-publisher login github` as jmiaie; `mcp-publisher publish` | Manifest in this PR. Publishing is an owner action. The marker must ship in a PyPI release before publishing, because the registry reads the PyPI description. |
 | Smithery | Smithery lists servers from a repo config (`smithery.yaml`) or a hosted endpoint. OMPA is stdio and local-file based, so a local stdio listing fits. | Not started. **[Owner]** confirm Smithery's current format; do not host user vaults. |
 | PulseMCP | Directory that lists servers (it also ingests the official registry). | Not started. Expected to follow from the registry listing; submit manually if it does not. **Assumption.** |
