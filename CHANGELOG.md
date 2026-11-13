@@ -9,16 +9,22 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+---
+
+## [1.1.1] — 2026-11-12
+
+Backwards-compatible release. New ranking features are opt-in; default search results are unchanged from 1.1.0.
+
 ### Added
 - **Date-aware ranking (opt-in, off by default):** `Ompa.search(..., temporal=True, reference_date=...)` and `Ompa(temporal_ranking=True, temporal_depth=100)`, in the new module `ompa/temporal.py` (standard library only). Notes whose frontmatter `date` falls in the window a point-in-time phrase refers to ("3 weeks ago", "last Tuesday", ...) are boosted by RRF. Duration ranges are ignored, and there is no recency prior. On LongMemEval-S (n=470) the overall change is +0.003 MRR (not significant); temporal-reasoning gains +0.025 (significant). See `benchmarks/published/2026-11-12-temporal/`.
 - `Ompa.write(..., date="YYYY-MM-DD")`: set the note's frontmatter date explicitly (the default is still today).
 - **KG schema contract v1** (`docs/kg-schema-v1.md`, `ompa/kg_schema.py`): documented triple/entity tables, provenance columns, reserved predicates, versioning and migration rules. New and existing knowledge graphs are stamped `PRAGMA user_version = 1`; a newer version logs a warning.
-- MCP Registry manifest `server.json` (version 1.1.0) and the `mcp-name` ownership marker in the README.
+- MCP Registry manifest `server.json` (version 1.1.1) and the `mcp-name` ownership marker in the README.
 - The MCP server reads `OMPA_VAULT_PATH` as the default vault when a tool call omits `vault_path` (already documented in `docs/guides/mcp.md`, previously ignored). The same traversal checks apply.
 - Bundle docs: `docs/PRD.md`, `docs/ROADMAP.md`.
 
 ### Changed
-- Documentation URL in package metadata now points to the docs site (https://jmiaie.github.io/ompa/) now that GitHub Pages is live. PyPI will show it from the next release; 1.1.0 on PyPI still links to the repo `docs/` folder.
+- Documentation URL in package metadata now points to the docs site (https://jmiaie.github.io/ompa/) now that GitHub Pages is live. PyPI shows it from 1.1.1 on (1.1.0 links to the repo `docs/` folder).
 - README: added a docs-site badge.
 - README: Graphiti on Gemini, reasoning high (n=30, 0 ingest errors, $0), beside the existing minimal-reasoning Gemini row. Label: `gemini-3.5-flash-lite, reasoning high; different LLM setting, not directly comparable`. Default R@5 0.500, MRR 0.467 (1/30 empty searches; minimal was 19/30); cosine floor removed R@5 0.633, MRR 0.539. Paired bootstrap (B=10,000, seed 20261020) vs Graphiti `gpt-4o-mini`: MRR p=0.7622 default and p=0.9324 floor removed (no significant difference, and not evidence of equivalence). Vs minimal Gemini: MRR p=0.0026 and p=0.0054 (significant).
 
