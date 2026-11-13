@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="300" viewBox="0 0 1200 300" font-family="Inter, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" role="img" aria-label="OMPA: Persistent memory for any AI agent: verbatim vault, temporal knowledge graph, MCP.">
+<rect x="1" y="1" width="1198" height="298" rx="18" fill="#f6f8fa" stroke="#d1d9e0"/>
+<rect x="40" y="44" width="8" height="64" rx="4" fill="#a371f7"/>
+<text x="66" y="96" font-size="58" font-weight="800" fill="#1f2328">OMPA</text>
+<text x="66" y="136" font-size="21" fill="#59636e">Persistent memory for any AI agent: verbatim vault, temporal knowledge graph, MCP.</text>
+<rect x="40" y="168" width="262" height="96" rx="12" fill="none" stroke="#d1d9e0"/>
+<text x="58" y="212" font-size="32" font-weight="700" fill="#a371f7">0.981</text>
+<text x="58" y="236" font-size="15" fill="#1f2328">R@5 on LongMemEval-S</text>
+<text x="58" y="254" font-size="12.5" fill="#59636e">470 questions</text>
+<rect x="320" y="168" width="262" height="96" rx="12" fill="none" stroke="#d1d9e0"/>
+<text x="338" y="212" font-size="32" font-weight="700" fill="#a371f7">0.933</text>
+<text x="338" y="236" font-size="15" fill="#1f2328">MRR@10</text>
+<text x="338" y="254" font-size="12.5" fill="#59636e">470 questions</text>
+<rect x="600" y="168" width="262" height="96" rx="12" fill="none" stroke="#d1d9e0"/>
+<text x="618" y="212" font-size="32" font-weight="700" fill="#a371f7">0</text>
+<text x="618" y="236" font-size="15" fill="#1f2328">LLM calls to store or search</text>
+<text x="618" y="254" font-size="12.5" fill="#59636e">$0 per question</text>
+<rect x="880" y="168" width="262" height="96" rx="12" fill="none" stroke="#d1d9e0"/>
+<text x="898" y="212" font-size="32" font-weight="700" fill="#a371f7">+0.244</text>
+<text x="898" y="236" font-size="15" fill="#1f2328">MRR@10 vs mem0</text>
+<text x="898" y="254" font-size="12.5" fill="#59636e">same 30 q, significant</text>
+</svg>
