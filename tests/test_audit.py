@@ -486,18 +486,19 @@ def test_legal_hold_blocks_delete_overwrite_forget(tmp_path):
 
 
 def test_retention_rules(tmp_path):
+    from datetime import datetime, timedelta, timezone
+
     ao = Ompa(vault_path=str(tmp_path), enable_semantic=False, audit=True)
     ao.write("scratch thought about Zyx", file_path="brain/s1.md", tags=["scratch"])
     ao.write("keep me", file_path="brain/k.md", tags=["keep"])
     ao.write("held scratch", file_path="brain/s2.md", tags=["scratch", "legal"])
-    for p in ("brain/s1.md", "brain/s2.md"):  # backdate frontmatter date
-        f = tmp_path / p
-        f.write_text(f.read_text().replace(f.read_text().split("date: ")[1][:10], "2020-01-01"))
     ao.add_retention_rule(30, tag="scratch")
     ao.add_legal_hold("legal", kind="tag")
-    dry = ao.apply_retention(dry_run=True)[0]
+    assert ao.apply_retention(dry_run=True)[0]["notes"] == []  # nothing is 30 days old yet
+    later = datetime.now(timezone.utc) + timedelta(days=60)  # notes age by write time
+    dry = ao.apply_retention(dry_run=True, now=later)[0]
     assert dry["notes"] == ["brain/s1.md"] and dry["held_skipped"] == ["brain/s2.md"]
-    rc = ao.apply_retention()[0]
+    rc = ao.apply_retention(now=later)[0]
     assert rc["notes_deleted"] == 1 and not (tmp_path / "brain/s1.md").exists()
     assert (tmp_path / "brain/s2.md").exists() and (tmp_path / "brain/k.md").exists()
     assert ao.audit_verify()["ok"]
