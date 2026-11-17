@@ -714,14 +714,14 @@ class KnowledgeGraph:
         Returns:
             Total number of triples added.
         """
-        from .vault import DEFAULT_EXCLUDE_PATTERNS
+        from .vault import DEFAULT_EXCLUDE_PATTERNS, is_excluded
 
         exclude_patterns = exclude_patterns or DEFAULT_EXCLUDE_PATTERNS
         total = 0
         vault_path = Path(vault_path)
 
         for md_file in vault_path.rglob("*.md"):
-            if any(excl in str(md_file) for excl in exclude_patterns):
+            if is_excluded(md_file, vault_path, exclude_patterns):
                 continue
             added = self.populate_from_note(md_file, vault_path)
             total += added

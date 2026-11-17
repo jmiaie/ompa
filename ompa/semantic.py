@@ -17,7 +17,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Protocol, runtime_checkable
 
-from .vault import DEFAULT_EXCLUDE_PATTERNS
+from .vault import DEFAULT_EXCLUDE_PATTERNS, is_excluded
 
 logger = logging.getLogger(__name__)
 
@@ -109,9 +109,10 @@ def scan_vault(vault_path: Path, exclude_patterns: list | None = None) -> dict[s
     """
     exclude_patterns = exclude_patterns or DEFAULT_EXCLUDE_PATTERNS
     out: dict[str, list[int]] = {}
-    for path in Path(vault_path).rglob("*.md"):
+    vault_path = Path(vault_path)
+    for path in vault_path.rglob("*.md"):
         path_str = str(path)
-        if any(excl in path_str for excl in exclude_patterns):
+        if is_excluded(path, vault_path, exclude_patterns):
             continue
         try:
             out[path_str] = _file_signature(path)
@@ -712,7 +713,7 @@ class SemanticIndex:
         vault_path = self.index_path.parent.parent  # .palace/semantic_index -> vault
         if vault_path.exists():
             for md_file in vault_path.rglob("*.md"):
-                if any(excl in str(md_file) for excl in DEFAULT_EXCLUDE_PATTERNS):
+                if is_excluded(md_file, vault_path):
                     continue
                 try:
                     content = md_file.read_text(encoding="utf-8")

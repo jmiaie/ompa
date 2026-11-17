@@ -9,6 +9,14 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Security
+- **The MCP server only opens vaults its operator configured.** Every tool took `vault_path` from the client and the only check rejected `..` and the exact string `/`, so a tool call could name any directory: `ao_write` would write a file there and `ao_search` would return the text of every markdown file under it. The server now opens only its default vault (`OMPA_VAULT_PATH`, else the working directory) and directories under the new `OMPA_VAULT_ROOTS` (a list separated by `:` on POSIX, `;` on Windows). Paths are compared after resolving symlinks, a filesystem root is never accepted (`//` and `/.` used to pass), and the same check covers `shared_vault_path` and `personal_vault_path`. **Upgrade note:** if your client passes a `vault_path` other than the server's default vault, set `OMPA_VAULT_PATH` to it or add its parent directory to `OMPA_VAULT_ROOTS`.
+- The `ao_write` MCP tool only writes markdown notes (`*.md`) outside hidden folders, so it can no longer replace `.palace/acl.json`, `.palace/policies.json` or files under `.git/`. `Ompa.write()` is unchanged.
+
+### Fixed
+- **`Ompa.write()` without a `file_path` no longer replaces a different note.** The file name comes from the note's first five words, so two notes that opened the same way ("Summary of the conversation with ...") landed on one file and the first was lost. A name already taken by different content now gets a numeric suffix (`-2`, `-3`, ...); identical content reuses the file, so a retried write does not duplicate.
+- **Folder exclusions match path components.** `.git`, `.claude` and `thinking` were matched as substrings of the absolute path, so a vault stored under `~/.claude/`, `.github/` or any directory containing "thinking" indexed no notes at all (empty search, empty knowledge graph, empty audit baseline), and a note named `Rethinking auth.md` was skipped. New helper `ompa.vault.is_excluded()`; a pattern may also name a folder path such as `work/archive`.
+
 ---
 
 ## [1.1.1] — 2026-11-12

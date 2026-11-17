@@ -328,6 +328,16 @@ def ao_sync(vault_path: str = ".") -> dict:
 
 def ao_write(arguments: dict) -> dict:
     """Write content to the appropriate vault (auto-classifies in dual mode)."""
+    file_path = arguments.get("file_path")
+    if file_path is not None:
+        # The model picks this name.  Notes are markdown; anything else in a
+        # vault is configuration or an index (.palace/acl.json, .git/...).
+        target = Path(str(file_path))
+        if target.suffix.lower() != ".md" or any(p.startswith(".") for p in target.parts):
+            return {
+                "error": "Invalid file_path",
+                "detail": "ao_write writes markdown notes (*.md) outside hidden folders.",
+            }
     ao = _make_ompa(arguments, enable_semantic=False)
     content = arguments.get("content", "")
     tags_raw = arguments.get("tags", "")
@@ -726,6 +736,52 @@ def default_vault_path() -> str:
     return os.environ.get("OMPA_VAULT_PATH") or "."
 
 
+def vault_roots() -> list[Path]:
+    """Directories under which a client may name vaults: ``$OMPA_VAULT_ROOTS``.
+
+    A list separated by ``os.pathsep`` (``:`` on POSIX, ``;`` on Windows).
+    Empty by default, which limits the server to its one default vault.
+    """
+    roots = []
+    for item in os.environ.get("OMPA_VAULT_ROOTS", "").split(os.pathsep):
+        if item.strip():
+            roots.append(Path(item.strip()).expanduser().resolve())
+    return roots
+
+
+def _vault_path_error(raw: str, expand_user: bool = False) -> dict | None:
+    """An error result if the server may not use ``raw`` as a vault, else None.
+
+    Tool arguments are chosen by the model, and a memory server replays stored
+    text into the model's context, so a prompt injection in any note could ask
+    for a vault somewhere else on disk.  Opening a vault creates folders and
+    SQLite files there, ``ao_write`` then writes any file name inside it and
+    ``ao_search`` returns the text of every markdown file under it.  So the
+    server only opens directories its operator named: the default vault
+    (``$OMPA_VAULT_PATH``, else the working directory) and anything under
+    ``$OMPA_VAULT_ROOTS``.  The path is compared after resolving symlinks.
+    """
+    if ".." in raw:
+        return {"error": "Invalid vault_path"}
+    path = Path(raw).expanduser() if expand_user else Path(raw)
+    try:
+        resolved = path.resolve()
+    except (OSError, RuntimeError):
+        return {"error": "Invalid vault_path"}
+    if resolved.parent == resolved:  # a filesystem root is never a vault
+        return {"error": "Invalid vault_path"}
+    if resolved == Path(default_vault_path()).resolve():
+        return None
+    if any(resolved == root or root in resolved.parents for root in vault_roots()):
+        return None
+    return {
+        "error": "Invalid vault_path",
+        "detail": "This directory is not a vault the server was configured to use. "
+        "Set OMPA_VAULT_PATH to the vault, or list allowed parent directories "
+        "in OMPA_VAULT_ROOTS.",
+    }
+
+
 def handle_call_tool(name: str, arguments: dict) -> dict:
     """Handle tool call request."""
     if name not in TOOLS:
@@ -736,9 +792,13 @@ def handle_call_tool(name: str, arguments: dict) -> dict:
         if "vault_path" not in arguments:
             arguments = {**arguments, "vault_path": default_vault_path()}
         vault_path = str(arguments["vault_path"])
-        # Block obvious traversal attempts
-        if ".." in vault_path or vault_path in ("/", "C:\\", "C:/"):
-            return {"error": "Invalid vault_path"}
+        for key in ("vault_path", "shared_vault_path", "personal_vault_path"):
+            if arguments.get(key) is None:
+                continue
+            # Ompa expands "~" for the dual-vault paths only; check what it will open.
+            error = _vault_path_error(str(arguments[key]), expand_user=key != "vault_path")
+            if error is not None:
+                return error
         # Cap limit parameters
         if "limit" in arguments:
             arguments = {**arguments, "limit": min(int(arguments["limit"]), 100)}

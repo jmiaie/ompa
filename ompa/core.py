@@ -861,7 +861,7 @@ class Ompa:
             # Sanitize content for filename
             words = re.sub(r"[^\w\s]", "", content[:40]).split()
             name = "-".join(words[:5]) if words else "note"
-            file_path = f"{folder}{name}.md"
+            file_path = self._unused_note_path(target_vault.vault_path, folder, name, content)
 
         # Write the note
         from datetime import datetime
@@ -912,6 +912,26 @@ class Ompa:
             "path": str(full_path),
             "classified_as": target.value,
         }
+
+    @staticmethod
+    def _unused_note_path(vault_root: Path, folder: str, name: str, content: str) -> str:
+        """Vault-relative path for an auto-named note that will not clobber another.
+
+        The name comes from the note's first words, so different notes that
+        open the same way ("Summary of the conversation with ...") used to
+        land on one file and silently replace each other.  A name already
+        taken by a note with different content gets a numeric suffix.  The
+        same content reuses the file, so a retried write stays idempotent.
+        """
+        n = 1
+        while True:
+            rel = f"{folder}{name}.md" if n == 1 else f"{folder}{name}-{n}.md"
+            existing = vault_root / rel
+            if not existing.exists():
+                return rel
+            if Note.from_file(existing).content.strip() == content.strip():
+                return rel
+            n += 1
 
     def export_to_shared(
         self,
