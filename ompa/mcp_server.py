@@ -340,8 +340,10 @@ def ao_write(arguments: dict) -> dict:
             }
     ao = _make_ompa(arguments, enable_semantic=False)
     content = arguments.get("content", "")
-    tags_raw = arguments.get("tags", "")
-    tags = [t.strip() for t in tags_raw.split(",") if t.strip()] if tags_raw else []
+    tags_raw = arguments.get("tags") or []
+    if isinstance(tags_raw, str):  # documented form: comma-separated
+        tags_raw = tags_raw.split(",")
+    tags = [str(t).strip() for t in tags_raw if str(t).strip()]
     result = ao.write(
         content,
         file_path=arguments.get("file_path"),
@@ -900,7 +902,8 @@ def handle_call_tool(name: str, arguments: dict) -> dict:
     except KeyError as e:
         return {"error": f"Missing required argument: {e}"}
     except Exception as e:
-        return {"error": type(e).__name__}
+        # The message lets the model correct its call ("date must be 'YYYY-MM-DD'").
+        return {"error": type(e).__name__, "detail": str(e)[:300]}
 
 
 # ---------------------------------------------------------------------------
@@ -953,27 +956,39 @@ def main():
                 name = request["params"]["name"]
                 arguments = request["params"].get("arguments", {})
                 result = handle_call_tool(name, arguments)
-                response = {
-                    "jsonrpc": "2.0",
-                    "id": request_id,
-                    "result": {
-                        "content": [
-                            {
-                                "type": "text",
-                                "text": json.dumps(result, indent=2),
-                            }
-                        ]
-                    },
+                payload: dict = {
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": json.dumps(result, indent=2, default=str),
+                        }
+                    ]
                 }
+                if isinstance(result, dict) and "error" in result:
+                    payload["isError"] = True  # MCP: the call ran and failed
+                response = {"jsonrpc": "2.0", "id": request_id, "result": payload}
                 sys.stdout.write(json.dumps(response) + "\n")
                 sys.stdout.flush()
 
-            elif method in ("notifications/initialized",):
-                pass  # MCP lifecycle notification, no response needed
+            elif method == "ping":
+                # Clients ping to check the server is alive; no answer reads as a hang.
+                response = {"jsonrpc": "2.0", "id": request_id, "result": {}}
+                sys.stdout.write(json.dumps(response) + "\n")
+                sys.stdout.flush()
 
-            else:
-                if method in ("shutdown", "exit"):
-                    break
+            elif method in ("shutdown", "exit"):
+                break
+
+            elif request_id is not None:
+                # A request (it has an id) must get a reply, or the client waits
+                # for ever.  Notifications (no id) are ignored, as JSON-RPC requires.
+                response = {
+                    "jsonrpc": "2.0",
+                    "id": request_id,
+                    "error": {"code": -32601, "message": f"Method not found: {method}"},
+                }
+                sys.stdout.write(json.dumps(response) + "\n")
+                sys.stdout.flush()
 
         except Exception as e:
             req_id = None

@@ -4,7 +4,9 @@ Handles note organization, templates, wikilinks, and frontmatter validation.
 """
 
 import logging
+import os
 import re
+import shutil
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -134,11 +136,25 @@ class Note:
         return len(self.links) > 0
 
     def save(self) -> None:
-        """Save note to file with frontmatter."""
+        """Save note to file with frontmatter.
+
+        The text goes to a temporary file in the same folder and is then moved
+        into place, so a crash or a full disk mid-write leaves the previous
+        version of the note rather than a truncated one.
+        """
         self.path.parent.mkdir(parents=True, exist_ok=True)
         post = frontmatter.Post(self.content, **self.frontmatter)
-        with open(self.path, "w", encoding="utf-8") as f:
-            f.write(frontmatter.dumps(post))
+        # write through a symlink instead of replacing the link itself
+        target = self.path.resolve() if self.path.is_symlink() else self.path
+        tmp = target.with_name(f".{target.name}.{os.getpid()}.tmp")
+        try:
+            with open(tmp, "w", encoding="utf-8") as f:
+                f.write(frontmatter.dumps(post))
+            if target.exists():
+                shutil.copymode(target, tmp)
+            os.replace(tmp, target)
+        finally:
+            tmp.unlink(missing_ok=True)
 
 
 class Vault:

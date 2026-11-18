@@ -62,6 +62,7 @@ class RsyncBackend(SyncBackend):
         compress: bool = True,
         delete: bool = False,  # True = exact mirror (destructive)
         dry_run_on_status: bool = True,
+        update: bool = True,  # False = overwrite files that are newer on the receiver
     ):
         self.remote = remote
         self.ssh_key = ssh_key
@@ -70,6 +71,7 @@ class RsyncBackend(SyncBackend):
         self.compress = compress
         self.delete = delete
         self.dry_run_on_status = dry_run_on_status
+        self.update = update
 
     @property
     def name(self) -> str:
@@ -92,6 +94,12 @@ class RsyncBackend(SyncBackend):
             cmd.append("--dry-run")
         if self.delete:
             cmd.append("--delete")
+        if self.update:
+            # Without this, rsync copies every file that differs, whichever
+            # side is newer, so the documented "pull, then push" replaced
+            # notes edited locally since the last sync with the remote's
+            # older copies.
+            cmd.append("--update")
 
         # SSH options
         ssh_opts = [f"-p {self.ssh_port}"]
