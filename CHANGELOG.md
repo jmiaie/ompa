@@ -11,7 +11,9 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [1.2.0] — 2026-11-18
+## [1.2.1] — 2026-11-18
+
+Follows 1.1.1 directly: there is no 1.2.0 release.
 
 Security and correctness release. Three changes alter existing behaviour and are marked **Upgrade note** below: the MCP server only opens vaults it was configured for, retention ages notes by write time, and the knowledge graph closes facts a note no longer states.
 
