@@ -25,7 +25,7 @@ Sync backends:
     from ompa.sync import GitSyncBackend, S3SyncBackend, RsyncBackend
 """
 
-__version__ = "1.1.1"
+__version__ = "1.2.0"
 
 from .async_api import AsyncOmpa
 from .audit import AuditLog, VerifyReport, verify_bundle
