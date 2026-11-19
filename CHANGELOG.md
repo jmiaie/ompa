@@ -11,6 +11,35 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [1.2.1] — 2026-11-18
+
+Follows 1.1.1 directly: there is no 1.2.0 release.
+
+Security and correctness release. Three changes alter existing behaviour and are marked **Upgrade note** below: the MCP server only opens vaults it was configured for, retention ages notes by write time, and the knowledge graph closes facts a note no longer states.
+
+### Security
+- **The MCP server only opens vaults its operator configured.** Every tool took `vault_path` from the client and the only check rejected `..` and the exact string `/`, so a tool call could name any directory: `ao_write` would write a file there and `ao_search` would return the text of every markdown file under it. The server now opens only its default vault (`OMPA_VAULT_PATH`, else the working directory) and directories under the new `OMPA_VAULT_ROOTS` (a list separated by `:` on POSIX, `;` on Windows). Paths are compared after resolving symlinks, a filesystem root is never accepted (`//` and `/.` used to pass), and the same check covers `shared_vault_path` and `personal_vault_path`. **Upgrade note:** if your client passes a `vault_path` other than the server's default vault, set `OMPA_VAULT_PATH` to it or add its parent directory to `OMPA_VAULT_ROOTS`.
+- The `ao_write` MCP tool only writes markdown notes (`*.md`) outside hidden folders, so it can no longer replace `.palace/acl.json`, `.palace/policies.json` or files under `.git/`. `Ompa.write()` is unchanged.
+- `export_to_shared()` checks `read` on the personal vault before returning its preview. The check ran only on the export itself, so a principal denied `search` on the personal vault could still read the first 500 characters of a note through the preview.
+- The export sanitizer recognises current credential formats: `sk-proj-` and `sk-ant-` keys, GitHub tokens, Slack tokens, AWS and Google key ids, JWTs, bearer tokens, PEM private keys and `name = value` pairs such as `aws_secret_access_key`. It caught 1 of 8 of these before. Frontmatter is now sanitised too; it was exported untouched. Redaction is still best effort.
+- `post_tool()` only indexes notes that are inside one of the instance's vaults. It used to add whatever path the tool call named to the vault's knowledge graph and search index, so a file elsewhere on disk became searchable. In dual-vault mode a note in the personal vault is now indexed there rather than into the shared vault. A vault-relative path is accepted.
+
+### Changed
+- **Retention ages notes by when they were written, not by their frontmatter `date`.** The date is part of the note, so the writer decided when the note expired: a note dated 2099 was never deleted, and a back-dated note (which `write(date=...)` creates on purpose) was deleted on the next run. Age is now the file's modification time, or the last write recorded in the audit log when that is earlier. Facts were already aged by recorded time. **Upgrade note:** notes imported with an old `date` but a recent mtime now expire later than before.
+
+### Fixed
+- **`Ompa.write()` without a `file_path` no longer replaces a different note.** The file name comes from the note's first five words, so two notes that opened the same way ("Summary of the conversation with ...") landed on one file and the first was lost. A name already taken by different content now gets a numeric suffix (`-2`, `-3`, ...); identical content reuses the file, so a retried write does not duplicate.
+- **The knowledge graph follows the vault.** `populate_from_note()` only ever added facts, so a link or tag removed from a note stayed a current fact for ever. When a note is re-read, facts derived from it (`links_to`, `has_tag`, `in_folder`, `in_subfolder`, `created_on`) that it no longer states are closed: `valid_to` is set to the day before the note last changed and the row is kept, so point-in-time queries for earlier dates are unchanged. Facts added with `add_triple()` are never touched. With auditing on, each closure is logged as `fact.invalidate`. **Upgrade note:** readers of the graph should see `docs/kg-schema-v1.md`: a fact added and withdrawn within a day has `valid_to` earlier than `valid_from`.
+- **`forget()` no longer merges notes.** Two notes whose paths redact to the same name (`ada-lovelace review.md` and `Ada Lovelace review.md`) were written to one file and the first note's content was lost; the same happened when the redacted name already existed. The later file now gets a numeric suffix.
+- `search(wing=..., room=...)` is a filter. When nothing matched it returned the unfiltered results, and it matched against the absolute path, so a vault stored under a folder with the wing's name matched every note. It now matches the path inside the vault, case-insensitively, looks further down the ranking before filtering, and returns an empty list when nothing matches.
+- `write()` to an existing note keeps the frontmatter it does not set. `description`, `status`, `owner` and the original `date` were dropped on every rewrite.
+- Notes are saved atomically (temporary file, then rename), so an interrupted write leaves the previous version rather than a truncated file.
+- MCP server: `ping` and unknown methods are answered (they got no reply, so a client waited), failed tool calls set `isError` and include the error message, and `ao_write` accepts `tags` as an array as well as a comma-separated string.
+- `RsyncBackend` passes `--update`, so `pull` no longer replaces notes that are newer locally. The documented "pull, then push" overwrote local edits with the remote's older copies. `update=False` restores the old behaviour.
+- **Folder exclusions match path components.** `.git`, `.claude` and `thinking` were matched as substrings of the absolute path, so a vault stored under `~/.claude/`, `.github/` or any directory containing "thinking" indexed no notes at all (empty search, empty knowledge graph, empty audit baseline), and a note named `Rethinking auth.md` was skipped. New helper `ompa.vault.is_excluded()`; a pattern may also name a folder path such as `work/archive`.
+
+---
+
 ## [1.1.1] — 2026-11-12
 
 Backwards-compatible release. New ranking features are opt-in; default search results are unchanged from 1.1.0.

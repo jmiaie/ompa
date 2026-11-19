@@ -21,7 +21,7 @@ import sqlite3
 import threading
 from contextlib import contextmanager
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date, datetime, timedelta
 from functools import lru_cache
 from pathlib import Path
 
@@ -30,6 +30,11 @@ from .kg_schema import KG_SCHEMA_VERSION
 logger = logging.getLogger(__name__)
 
 DEFAULT_KG_PATH = "~/.ompa/knowledge_graph.sqlite3"
+
+# Predicates that populate_from_note() derives from a note's own text and
+# location.  Only these are withdrawn when the note stops saying them; facts
+# added through add_triple() by an agent are never touched.
+NOTE_DERIVED_PREDICATES = ("links_to", "has_tag", "in_folder", "in_subfolder", "created_on")
 
 
 @dataclass
@@ -636,12 +641,14 @@ class KnowledgeGraph:
             return line_at(m.start()) if m else None
 
         prov = {"source": source, "source_sha256": sha}
+        asserted: set[tuple[str, str]] = set()  # (predicate, object) the note states now
 
         # 1. Wikilinks → links_to triples
         for m in re.finditer(r"\[\[([^\]]+)\]\]", content):
             # Strip display text from piped links: [[target|display]]
             target = m.group(1).split("|")[0].strip()
             if target:
+                asserted.add(("links_to", target))
                 self.add_triple(
                     note_name,
                     "links_to",
@@ -659,6 +666,7 @@ class KnowledgeGraph:
             tags_line = fm_line("tags")
             for tag in tags:
                 if isinstance(tag, str) and tag.strip():
+                    asserted.add(("has_tag", tag.strip()))
                     self.add_triple(
                         note_name, "has_tag", tag.strip(), source_line=tags_line, **prov
                     )
@@ -671,11 +679,13 @@ class KnowledgeGraph:
                 parts = rel.parts
                 if len(parts) > 1:
                     folder = parts[0]  # top-level: brain, work, org, perf
+                    asserted.add(("in_folder", folder))
                     self.add_triple(note_name, "in_folder", folder, **prov)
                     count += 1
                     # Sub-folder (e.g., work/active, org/people)
                     if len(parts) > 2:
                         subfolder = f"{parts[0]}/{parts[1]}"
+                        asserted.add(("in_subfolder", subfolder))
                         self.add_triple(note_name, "in_subfolder", subfolder, **prov)
                         count += 1
             except ValueError:
@@ -685,6 +695,7 @@ class KnowledgeGraph:
         date_val = metadata.get("date")
         if date_val:
             date_str = str(date_val)[:10]  # YYYY-MM-DD
+            asserted.add(("created_on", date_str))
             self.add_triple(
                 note_name,
                 "created_on",
@@ -701,7 +712,82 @@ class KnowledgeGraph:
             self.add_entity(note_name, entity_type="note")
             count += 1
 
+        self._retract_stale(note_name, note_path, vault_path, asserted)
         return count
+
+    def _retract_stale(
+        self,
+        subject: str,
+        note_path: Path,
+        vault_path: Path | None,
+        asserted: set[tuple[str, str]],
+    ) -> int:
+        """Close note-derived facts that ``note_path`` no longer states.
+
+        populate_from_note() used to only add, so a link or tag removed from a
+        note stayed a current fact for ever and the graph drifted from the
+        vault.  Each open fact about ``subject`` that was derived from this
+        note (or from a file that no longer exists, e.g. the note was moved)
+        and is not in ``asserted`` gets ``valid_to`` set to the day before the
+        note last changed.  The row is kept, so point-in-time queries for
+        earlier dates still see it.  A fact asserted and withdrawn within one
+        day ends before it starts and is therefore valid on no date.
+
+        Returns the number of facts closed.  Logged as ``fact.invalidate``.
+        """
+        try:
+            target = str(note_path.resolve())
+            edited = date.fromtimestamp(note_path.stat().st_mtime)
+        except OSError:
+            return 0
+        today = date.fromisoformat(self._now())
+        ended = (min(edited, today) - timedelta(days=1)).isoformat()
+
+        def gone_or_this_note(source_file: str) -> bool:
+            src = Path(source_file)
+            try:
+                if str(src.resolve()) == target:
+                    return True
+            except OSError:
+                pass
+            return not src.exists() and not (vault_path is not None and (vault_path / src).exists())
+
+        marks = ",".join("?" * len(NOTE_DERIVED_PREDICATES))
+        closed: list[tuple[str, str]] = []
+        with self._conn() as conn:
+            rows = conn.execute(
+                f"""SELECT id, predicate, object, source_file FROM triples
+                    WHERE subject = ? AND valid_to IS NULL AND source_file IS NOT NULL
+                      AND predicate IN ({marks})""",  # nosec B608 - constant placeholders
+                (subject, *NOTE_DERIVED_PREDICATES),
+            ).fetchall()
+            stale = [
+                r
+                for r in rows
+                if (r["predicate"], r["object"]) not in asserted
+                # else: stated by another note that shares this name
+                and gone_or_this_note(r["source_file"])
+            ]
+            if stale:
+                self._check("write")
+            for r in stale:
+                conn.execute("UPDATE triples SET valid_to = ? WHERE id = ?", (ended, r["id"]))
+                closed.append((r["predicate"], r["object"]))
+        if self.audit is not None:
+            for predicate, obj in closed:
+                self._log(
+                    "fact.invalidate",
+                    {
+                        "s": subject,
+                        "p": predicate,
+                        "o": obj,
+                        "ended": ended,
+                        "rows": 1,
+                        "reason": "no longer stated by its source note",
+                        "source": str(note_path),
+                    },
+                )
+        return len(closed)
 
     def populate_from_vault(self, vault_path: Path, exclude_patterns: list = None) -> int:
         """
@@ -714,14 +800,14 @@ class KnowledgeGraph:
         Returns:
             Total number of triples added.
         """
-        from .vault import DEFAULT_EXCLUDE_PATTERNS
+        from .vault import DEFAULT_EXCLUDE_PATTERNS, is_excluded
 
         exclude_patterns = exclude_patterns or DEFAULT_EXCLUDE_PATTERNS
         total = 0
         vault_path = Path(vault_path)
 
         for md_file in vault_path.rglob("*.md"):
-            if any(excl in str(md_file) for excl in exclude_patterns):
+            if is_excluded(md_file, vault_path, exclude_patterns):
                 continue
             added = self.populate_from_note(md_file, vault_path)
             total += added

@@ -69,6 +69,10 @@ Identity and history:
   re-asserting a still-true fact is idempotent. Re-asserting a fact after it was invalidated opens a new interval and
   keeps the old one, so point-in-time answers for the earlier period stay correct.
 * `invalidate()` closes a fact by setting `valid_to` on its open intervals (`valid_to IS NULL`).
+* Facts derived from a note (`links_to`, `has_tag`, `in_folder`, `in_subfolder`, `created_on`) are closed the same
+  way when the note is re-read and no longer states them: `valid_to` becomes the day before the note last changed.
+  A fact that was added and withdrawn within one day therefore has `valid_to` earlier than `valid_from` and is
+  valid on no date. Readers must apply the validity rule below rather than assume `valid_from <= valid_to`.
 * OMPA deletes rows only for retention expiry, right-to-erasure (`forget`) and note deletion. Those deletions are
   recorded in the audit log when auditing is enabled.
 * A fact is valid on date `D` when `(valid_from IS NULL OR valid_from <= D) AND (valid_to IS NULL OR valid_to >= D)`.

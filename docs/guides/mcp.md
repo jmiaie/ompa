@@ -51,8 +51,18 @@ Add to `.cursor/mcp.json` in your project root:
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `OMPA_VAULT_PATH` | `.` (current directory) | Path to the vault |
+| `OMPA_VAULT_ROOTS` | unset | Extra directories under which a tool call may name a vault, separated by `:` (`;` on Windows). Needed for dual-vault calls and for serving several vaults |
 | `OMPA_ENABLE_SEMANTIC` | `false` | Enable semantic search |
 | `OMPA_AGENT_NAME` | `agent` | Agent name for session hooks |
+
+### Which directories the server will open
+
+Tool arguments come from the model, so the server does not let a tool call choose
+an arbitrary directory. It opens its default vault (`OMPA_VAULT_PATH`, or the
+working directory when unset) and any directory under `OMPA_VAULT_ROOTS`. A
+`vault_path`, `shared_vault_path` or `personal_vault_path` outside those returns
+`{"error": "Invalid vault_path"}` and creates nothing. Paths are compared after
+resolving symlinks, and a filesystem root is never accepted.
 
 ## Available tools
 

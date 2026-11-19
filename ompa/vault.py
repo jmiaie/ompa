@@ -4,7 +4,9 @@ Handles note organization, templates, wikilinks, and frontmatter validation.
 """
 
 import logging
+import os
 import re
+import shutil
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -14,6 +16,33 @@ logger = logging.getLogger(__name__)
 
 # Shared exclude patterns for vault traversal
 DEFAULT_EXCLUDE_PATTERNS = [".git", ".claude", "thinking"]
+
+
+def is_excluded(path: Path | str, root: Path | str, patterns: list[str] | None = None) -> bool:
+    """True if *path* lies in an excluded folder of the vault at *root*.
+
+    A pattern names a folder (``"thinking"``) or a folder path
+    (``"work/archive"``) and matches whole path components below the vault
+    root.  Matching used to be a substring test on the absolute path, so a
+    vault kept under ``~/.claude/`` or ``design-thinking/`` excluded every
+    note in it, and a note called ``Rethinking auth.md`` was skipped.
+    """
+    patterns = DEFAULT_EXCLUDE_PATTERNS if patterns is None else patterns
+    path = Path(path)
+    try:
+        parts = path.relative_to(root).parts
+    except ValueError:
+        # Not under root as spelled (e.g. one side is relative): compare resolved.
+        try:
+            parts = path.resolve().relative_to(Path(root).resolve()).parts
+        except (ValueError, OSError):
+            parts = path.parts
+    for pattern in patterns:
+        want = tuple(p for p in str(pattern).replace("\\", "/").split("/") if p)
+        n = len(want)
+        if n and any(parts[i : i + n] == want for i in range(len(parts) - n + 1)):
+            return True
+    return False
 
 
 def _safe_resolve(base: Path, untrusted: str) -> Path:
@@ -107,11 +136,25 @@ class Note:
         return len(self.links) > 0
 
     def save(self) -> None:
-        """Save note to file with frontmatter."""
+        """Save note to file with frontmatter.
+
+        The text goes to a temporary file in the same folder and is then moved
+        into place, so a crash or a full disk mid-write leaves the previous
+        version of the note rather than a truncated one.
+        """
         self.path.parent.mkdir(parents=True, exist_ok=True)
         post = frontmatter.Post(self.content, **self.frontmatter)
-        with open(self.path, "w", encoding="utf-8") as f:
-            f.write(frontmatter.dumps(post))
+        # write through a symlink instead of replacing the link itself
+        target = self.path.resolve() if self.path.is_symlink() else self.path
+        tmp = target.with_name(f".{target.name}.{os.getpid()}.tmp")
+        try:
+            with open(tmp, "w", encoding="utf-8") as f:
+                f.write(frontmatter.dumps(post))
+            if target.exists():
+                shutil.copymode(target, tmp)
+            os.replace(tmp, target)
+        finally:
+            tmp.unlink(missing_ok=True)
 
 
 class Vault:
@@ -162,8 +205,7 @@ class Vault:
         notes = []
 
         for path in self.vault_path.rglob("*.md"):
-            # Check exclusions
-            if any(excl in str(path) for excl in exclude_patterns):
+            if is_excluded(path, self.vault_path, exclude_patterns):
                 continue
             notes.append(Note.from_file(path))
 

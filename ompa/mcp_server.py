@@ -328,10 +328,22 @@ def ao_sync(vault_path: str = ".") -> dict:
 
 def ao_write(arguments: dict) -> dict:
     """Write content to the appropriate vault (auto-classifies in dual mode)."""
+    file_path = arguments.get("file_path")
+    if file_path is not None:
+        # The model picks this name.  Notes are markdown; anything else in a
+        # vault is configuration or an index (.palace/acl.json, .git/...).
+        target = Path(str(file_path))
+        if target.suffix.lower() != ".md" or any(p.startswith(".") for p in target.parts):
+            return {
+                "error": "Invalid file_path",
+                "detail": "ao_write writes markdown notes (*.md) outside hidden folders.",
+            }
     ao = _make_ompa(arguments, enable_semantic=False)
     content = arguments.get("content", "")
-    tags_raw = arguments.get("tags", "")
-    tags = [t.strip() for t in tags_raw.split(",") if t.strip()] if tags_raw else []
+    tags_raw = arguments.get("tags") or []
+    if isinstance(tags_raw, str):  # documented form: comma-separated
+        tags_raw = tags_raw.split(",")
+    tags = [str(t).strip() for t in tags_raw if str(t).strip()]
     result = ao.write(
         content,
         file_path=arguments.get("file_path"),
@@ -726,6 +738,52 @@ def default_vault_path() -> str:
     return os.environ.get("OMPA_VAULT_PATH") or "."
 
 
+def vault_roots() -> list[Path]:
+    """Directories under which a client may name vaults: ``$OMPA_VAULT_ROOTS``.
+
+    A list separated by ``os.pathsep`` (``:`` on POSIX, ``;`` on Windows).
+    Empty by default, which limits the server to its one default vault.
+    """
+    roots = []
+    for item in os.environ.get("OMPA_VAULT_ROOTS", "").split(os.pathsep):
+        if item.strip():
+            roots.append(Path(item.strip()).expanduser().resolve())
+    return roots
+
+
+def _vault_path_error(raw: str, expand_user: bool = False) -> dict | None:
+    """An error result if the server may not use ``raw`` as a vault, else None.
+
+    Tool arguments are chosen by the model, and a memory server replays stored
+    text into the model's context, so a prompt injection in any note could ask
+    for a vault somewhere else on disk.  Opening a vault creates folders and
+    SQLite files there, ``ao_write`` then writes any file name inside it and
+    ``ao_search`` returns the text of every markdown file under it.  So the
+    server only opens directories its operator named: the default vault
+    (``$OMPA_VAULT_PATH``, else the working directory) and anything under
+    ``$OMPA_VAULT_ROOTS``.  The path is compared after resolving symlinks.
+    """
+    if ".." in raw:
+        return {"error": "Invalid vault_path"}
+    path = Path(raw).expanduser() if expand_user else Path(raw)
+    try:
+        resolved = path.resolve()
+    except (OSError, RuntimeError):
+        return {"error": "Invalid vault_path"}
+    if resolved.parent == resolved:  # a filesystem root is never a vault
+        return {"error": "Invalid vault_path"}
+    if resolved == Path(default_vault_path()).resolve():
+        return None
+    if any(resolved == root or root in resolved.parents for root in vault_roots()):
+        return None
+    return {
+        "error": "Invalid vault_path",
+        "detail": "This directory is not a vault the server was configured to use. "
+        "Set OMPA_VAULT_PATH to the vault, or list allowed parent directories "
+        "in OMPA_VAULT_ROOTS.",
+    }
+
+
 def handle_call_tool(name: str, arguments: dict) -> dict:
     """Handle tool call request."""
     if name not in TOOLS:
@@ -736,9 +794,13 @@ def handle_call_tool(name: str, arguments: dict) -> dict:
         if "vault_path" not in arguments:
             arguments = {**arguments, "vault_path": default_vault_path()}
         vault_path = str(arguments["vault_path"])
-        # Block obvious traversal attempts
-        if ".." in vault_path or vault_path in ("/", "C:\\", "C:/"):
-            return {"error": "Invalid vault_path"}
+        for key in ("vault_path", "shared_vault_path", "personal_vault_path"):
+            if arguments.get(key) is None:
+                continue
+            # Ompa expands "~" for the dual-vault paths only; check what it will open.
+            error = _vault_path_error(str(arguments[key]), expand_user=key != "vault_path")
+            if error is not None:
+                return error
         # Cap limit parameters
         if "limit" in arguments:
             arguments = {**arguments, "limit": min(int(arguments["limit"]), 100)}
@@ -840,7 +902,8 @@ def handle_call_tool(name: str, arguments: dict) -> dict:
     except KeyError as e:
         return {"error": f"Missing required argument: {e}"}
     except Exception as e:
-        return {"error": type(e).__name__}
+        # The message lets the model correct its call ("date must be 'YYYY-MM-DD'").
+        return {"error": type(e).__name__, "detail": str(e)[:300]}
 
 
 # ---------------------------------------------------------------------------
@@ -893,27 +956,39 @@ def main():
                 name = request["params"]["name"]
                 arguments = request["params"].get("arguments", {})
                 result = handle_call_tool(name, arguments)
-                response = {
-                    "jsonrpc": "2.0",
-                    "id": request_id,
-                    "result": {
-                        "content": [
-                            {
-                                "type": "text",
-                                "text": json.dumps(result, indent=2),
-                            }
-                        ]
-                    },
+                payload: dict = {
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": json.dumps(result, indent=2, default=str),
+                        }
+                    ]
                 }
+                if isinstance(result, dict) and "error" in result:
+                    payload["isError"] = True  # MCP: the call ran and failed
+                response = {"jsonrpc": "2.0", "id": request_id, "result": payload}
                 sys.stdout.write(json.dumps(response) + "\n")
                 sys.stdout.flush()
 
-            elif method in ("notifications/initialized",):
-                pass  # MCP lifecycle notification, no response needed
+            elif method == "ping":
+                # Clients ping to check the server is alive; no answer reads as a hang.
+                response = {"jsonrpc": "2.0", "id": request_id, "result": {}}
+                sys.stdout.write(json.dumps(response) + "\n")
+                sys.stdout.flush()
 
-            else:
-                if method in ("shutdown", "exit"):
-                    break
+            elif method in ("shutdown", "exit"):
+                break
+
+            elif request_id is not None:
+                # A request (it has an id) must get a reply, or the client waits
+                # for ever.  Notifications (no id) are ignored, as JSON-RPC requires.
+                response = {
+                    "jsonrpc": "2.0",
+                    "id": request_id,
+                    "error": {"code": -32601, "message": f"Method not found: {method}"},
+                }
+                sys.stdout.write(json.dumps(response) + "\n")
+                sys.stdout.flush()
 
         except Exception as e:
             req_id = None

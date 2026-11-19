@@ -342,18 +342,47 @@ class Ompa:
         # Auto-update on file writes
         if tool_name in ("write", "edit", "create_file"):
             file_path = tool_input.get("file_path") or tool_input.get("path")
-            if file_path:
-                path = Path(file_path)
-                # Raises AccessDeniedError (logged) if this principal may not write here
-                self.gov.require("write", "post_tool:" + tool_name, path)
-                self._auto_add_to_palace(file_path)
-                with self.gov.txn():
-                    self._auto_update_kg(path)
-                    if self.gov.audit is not None and path.suffix == ".md" and path.exists():
-                        self.gov.log_note("note.observed", path, {"tool": tool_name})
-                self._auto_update_index(path)
+            located = self._locate_in_vaults(file_path) if file_path else None
+            if located is None:
+                if file_path:
+                    # The agent edits files all over the disk.  Only notes that
+                    # live in a vault belong in its graph and search index.
+                    logger.debug("post_tool: %s is outside the vault(s); not indexed", file_path)
+                return result
+            vault, path = located
+            gov, kg, keyword, sem_attr, root = self._ctx(vault)
+            # Raises AccessDeniedError (logged) if this principal may not write here
+            gov.require("write", "post_tool:" + tool_name, path)
+            palace = self.palace if vault == "shared" else self.personal_palace
+            self._auto_add_to_palace(str(path), palace)
+            with gov.txn():
+                self._auto_update_kg(path, kg, root)
+                if gov.audit is not None and path.suffix == ".md" and path.exists():
+                    gov.log_note("note.observed", path, {"tool": tool_name})
+            self._auto_update_index(path, keyword, getattr(self, sem_attr), root)
 
         return result
+
+    def _locate_in_vaults(self, file_path: str | Path) -> tuple[str, Path] | None:
+        """``(vault name, path)`` if ``file_path`` is inside one of this instance's vaults.
+
+        A relative path is tried as given (relative to the working directory)
+        and then relative to each vault root.
+        """
+        raw = Path(file_path)
+        roots = [("shared", self.vault.vault_path)]
+        if self.personal_vault is not None:
+            roots.append(("personal", self.personal_vault.vault_path))
+        candidates = [raw] if raw.is_absolute() else [raw, *(root / raw for _, root in roots)]
+        for candidate in candidates:
+            try:
+                resolved = candidate.resolve()
+            except OSError:
+                continue
+            for name, root in roots:
+                if resolved != root and root in resolved.parents:
+                    return name, resolved
+        return None
 
     def pre_compact(self, transcript: str) -> HookResult:
         """Run pre-compact hook before context compaction."""
@@ -383,9 +412,10 @@ class Ompa:
     # Auto palace population
     # -------------------------------------------------------------------------
 
-    def _auto_add_to_palace(self, file_path: str) -> None:
+    def _auto_add_to_palace(self, file_path: str, palace: Palace | None = None) -> None:
         """Auto-add a written file to the palace metadata layer."""
         path = Path(file_path)
+        palace = self.palace if palace is None else palace
         if path.suffix != ".md":
             return
 
@@ -404,35 +434,51 @@ class Ompa:
             else:
                 return
 
-            self.palace.create_room(wing, room)
-            self.palace.link_drawer(wing, room, str(path))
+            palace.create_room(wing, room)
+            palace.link_drawer(wing, room, str(path))
         except Exception as e:
             logger.debug("Palace auto-add failed for %s: %s", file_path, e)
 
-    def _auto_update_kg(self, path: Path) -> None:
+    def _auto_update_kg(
+        self, path: Path, kg: KnowledgeGraph | None = None, root: Path | None = None
+    ) -> None:
         """Auto-update knowledge graph when a note is written/edited."""
         if path.suffix != ".md":
             return
         try:
-            added = self.kg.populate_from_note(path, self.vault_path)
+            kg = self.kg if kg is None else kg
+            added = kg.populate_from_note(path, root or self.vault_path)
             if added > 0:
                 logger.debug("KG updated: %d triples from %s", added, path.name)
         except Exception as e:
             logger.debug("KG auto-update failed for %s: %s", path, e)
 
-    def _auto_update_index(self, path: Path) -> None:
+    _UNSET: Any = object()
+
+    def _auto_update_index(
+        self,
+        path: Path,
+        keyword: KeywordIndex | None = None,
+        semantic: SemanticIndex | None = _UNSET,
+        root: Path | None = None,
+    ) -> None:
         """Incrementally update the search indexes when a note is written/edited."""
         if path.suffix != ".md":
             return
+        # an empty KeywordIndex is falsy (it defines __len__): compare with None
+        keyword = self.keyword if keyword is None else keyword
+        if semantic is self._UNSET:
+            semantic = self._semantic
+        key = _index_key(root or self.vault_path, path)
         try:
-            self.keyword.update_file(_index_key(self.vault_path, path))
+            keyword.update_file(key)
         except Exception as e:
             logger.debug("Keyword index update failed for %s: %s", path, e)
         if not self._enable_semantic:
             return
         try:
-            if self._semantic is not None:
-                self._semantic.update_file(path)
+            if semantic is not None:
+                semantic.update_file(key)
                 logger.debug("Search index updated for %s", path.name)
         except Exception as e:
             logger.debug("Index auto-update failed for %s: %s", path, e)
@@ -611,11 +657,13 @@ class Ompa:
         as a last resort (e.g. SQLite without FTS5, or no keyword hit).
         """
         self._maybe_refresh(semantic, vault.vault_path, keyword)
+        # A filter is applied after ranking, so look further down the ranking.
+        fetch = min(max(limit * 10, 50), 100) if (wing or room) else limit
         results: list[SearchResult] = []
         if semantic is not None and semantic.available and semantic.chunks:
-            results = semantic.search(query, limit, hybrid)
+            results = semantic.search(query, fetch, hybrid)
         elif keyword is not None and keyword.available:
-            results = keyword.search(query, limit)
+            results = keyword.search(query, fetch)
 
         if not results:
             notes = vault.search_by_name(query)
@@ -626,18 +674,26 @@ class Ompa:
                     score=1.0,
                     match_type="name",
                 )
-                for n in notes[:limit]
+                for n in notes[:fetch]
             ]
 
         if wing or room:
-            filtered = []
-            for r in results:
-                if wing and wing not in r.path:
-                    continue
-                if room and room not in r.path:
-                    continue
-                filtered.append(r)
-            results = filtered or results[:limit]
+            # Match against the path inside the vault.  The absolute path was
+            # used before, so a vault stored under ".../Orion/..." matched every
+            # note for wing="Orion"; and when nothing matched, the unfiltered
+            # results were returned as if they were in that wing.
+            def inside(r: SearchResult) -> str:
+                try:
+                    return Path(r.path).resolve().relative_to(vault.vault_path).as_posix().lower()
+                except (ValueError, OSError):
+                    return r.path.lower()
+
+            results = [
+                r
+                for r in results
+                if (not wing or wing.lower() in inside(r))
+                and (not room or room.lower() in inside(r))
+            ][:limit]
 
         return results
 
@@ -861,16 +917,10 @@ class Ompa:
             # Sanitize content for filename
             words = re.sub(r"[^\w\s]", "", content[:40]).split()
             name = "-".join(words[:5]) if words else "note"
-            file_path = f"{folder}{name}.md"
+            file_path = self._unused_note_path(target_vault.vault_path, folder, name, content)
 
         # Write the note
         from datetime import datetime
-
-        frontmatter: dict[str, Any] = {
-            "date": date or datetime.now().strftime("%Y-%m-%d"),
-            "tags": tags,
-            "vault": target.value,
-        }
 
         full_path = _safe_resolve(target_vault.vault_path, file_path)
         gov = self.gov if target == VaultTarget.SHARED else self.personal_gov
@@ -879,6 +929,16 @@ class Ompa:
         existed = full_path.exists()
         if existed:
             gov.check_hold_note(full_path, "overwrite")
+
+        # Rewriting a note replaces its content, not its metadata: fields this
+        # call does not set (description, status, owner, the original date...)
+        # are kept.  They used to be dropped.
+        frontmatter: dict[str, Any] = dict(Note.from_file(full_path).frontmatter) if existed else {}
+        if date or "date" not in frontmatter:
+            frontmatter["date"] = date or datetime.now().strftime("%Y-%m-%d")
+        if tags or "tags" not in frontmatter:
+            frontmatter["tags"] = tags
+        frontmatter["vault"] = target.value
         note = Note(path=full_path, frontmatter=frontmatter, content=content)
         target_kg = self.kg if target == VaultTarget.SHARED else self.personal_kg
         # One audit transaction: the note write and every fact derived from it
@@ -913,6 +973,26 @@ class Ompa:
             "classified_as": target.value,
         }
 
+    @staticmethod
+    def _unused_note_path(vault_root: Path, folder: str, name: str, content: str) -> str:
+        """Vault-relative path for an auto-named note that will not clobber another.
+
+        The name comes from the note's first words, so different notes that
+        open the same way ("Summary of the conversation with ...") used to
+        land on one file and silently replace each other.  A name already
+        taken by a note with different content gets a numeric suffix.  The
+        same content reuses the file, so a retried write stays idempotent.
+        """
+        n = 1
+        while True:
+            rel = f"{folder}{name}.md" if n == 1 else f"{folder}{name}-{n}.md"
+            existing = vault_root / rel
+            if not existing.exists():
+                return rel
+            if Note.from_file(existing).content.strip() == content.strip():
+                return rel
+            n += 1
+
     def export_to_shared(
         self,
         note_path: str,
@@ -940,6 +1020,10 @@ class Ompa:
         except ValueError:
             return {"success": False, "error": f"Invalid note_path: {note_path}"}
 
+        # The preview below returns note text, so it needs the same read
+        # permission as the export itself (it used to be checked only later).
+        self.personal_gov.require("read", "export_to_shared", note_path)
+
         if self.dual_config.isolation_mode == IsolationMode.STRICT and confirm:
             # In strict mode, first call returns preview for confirmation
             if not source.exists():
@@ -963,7 +1047,6 @@ class Ompa:
         # Perform the export
         if not source.exists():
             return {"success": False, "error": f"Note not found: {note_path}"}
-        self.personal_gov.require("read", "export_to_shared", note_path)
         self.gov.require("write", "export_to_shared", note_path)
         if target.exists():
             self.gov.check_hold_note(target, "overwrite")
@@ -971,6 +1054,7 @@ class Ompa:
         note = Note.from_file(source)
         if sanitize:
             note.content = self._sanitize_content(note.content)
+            note.frontmatter = self._sanitize_frontmatter(note.frontmatter)
 
         # Update frontmatter for shared vault
         note.frontmatter["vault"] = "shared"
@@ -1231,23 +1315,60 @@ class Ompa:
             raise RuntimeError("as_of() needs the audit log (Ompa(audit=True))")
         return PointInTimeView(gov.audit, t)
 
+    # Names that mark a key/value pair as a credential ("aws_secret_access_key = ...").
+    _SECRET_NAME = r"[\w.\-]*(?:token|passw(?:or)?d|secret|api[_\-]?key|access[_\-]?key|private[_\-]?key)[\w.\-]*"
+    _SECRET_PATTERNS = [
+        # PEM private keys, whole block
+        (
+            re.compile(
+                r"-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----.*?-----END [A-Z0-9 ]*PRIVATE KEY-----", re.S
+            ),
+            "[REDACTED]",
+        ),
+        # Provider key formats: OpenAI / Anthropic (sk-, sk-proj-, sk-ant-...), GitHub,
+        # Slack, AWS key ids, Google API keys
+        (re.compile(r"\bsk-[A-Za-z0-9_\-]{20,}"), "[REDACTED]"),
+        (
+            re.compile(r"\b(?:gh[pousr]_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{22,})"),
+            "[REDACTED]",
+        ),
+        (re.compile(r"\bxox[abeoprs]-[A-Za-z0-9\-]{10,}"), "[REDACTED]"),
+        (re.compile(r"\b(?:AKIA|ASIA)[A-Z0-9]{16}\b"), "[REDACTED]"),
+        (re.compile(r"\bAIza[0-9A-Za-z_\-]{35}\b"), "[REDACTED]"),
+        # JSON Web Tokens and bearer credentials
+        (
+            re.compile(r"\beyJ[A-Za-z0-9_\-]{8,}\.[A-Za-z0-9_\-]{8,}\.[A-Za-z0-9_\-]{8,}"),
+            "[REDACTED]",
+        ),
+        (re.compile(r"(?i)\b(Bearer)\s+[A-Za-z0-9._~+/=\-]{16,}"), r"\1 [REDACTED]"),
+        # name: value / name = value
+        (re.compile(rf"(?i)({_SECRET_NAME})\s*[:=]\s*\S+"), r"\1: [REDACTED]"),
+    ]
+
     def _sanitize_content(self, content: str) -> str:
-        """Remove sensitive markers and credentials from content."""
-        # Remove personal tags
+        """Remove personal markers and redact credential-shaped text.
+
+        Best effort: it recognises common key formats and ``name: value``
+        pairs whose name says "token", "password", "secret" or "key".  It is
+        not a substitute for reading a note before sharing it.
+        """
         content = re.sub(r"@private\b", "", content)
         content = re.sub(r"#personal\b", "", content)
-
-        # Redact credential-like patterns
-        content = re.sub(r"(sk-[a-zA-Z0-9]{20,})", "[REDACTED]", content)
-        content = re.sub(r"(AKIA[A-Z0-9]{16})", "[REDACTED]", content)
-        content = re.sub(
-            r"(token|password|secret|api_key|api-key)\s*[:=]\s*\S+",
-            r"\1: [REDACTED]",
-            content,
-            flags=re.IGNORECASE,
-        )
-
+        for pattern, replacement in self._SECRET_PATTERNS:
+            content = pattern.sub(replacement, content)
         return content
+
+    def _sanitize_frontmatter(self, value: Any, key: str = "") -> Any:
+        """Apply the same redaction to frontmatter, which is exported with the note."""
+        if isinstance(value, dict):
+            return {k: self._sanitize_frontmatter(v, str(k)) for k, v in value.items()}
+        if isinstance(value, list):
+            return [self._sanitize_frontmatter(v, key) for v in value]
+        if isinstance(value, str):
+            if key and re.fullmatch(self._SECRET_NAME, key, re.I):
+                return "[REDACTED]"
+            return self._sanitize_content(value)
+        return value
 
     def migrate_to_dual_vault(
         self,

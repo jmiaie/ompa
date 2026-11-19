@@ -255,8 +255,13 @@ that entry's body.
 all=True)`, then `apply_retention(dry_run=False)` (CLI: `ao retention apply`).
 Run it from cron or CI; nothing expires automatically in the background.
 
-* Notes are aged by frontmatter `date`, else file mtime. Facts (`predicate=`)
-  are aged by recorded time.
+* Notes are aged by when they were last written: the file's mtime, or the last
+  write recorded in the audit log when that is earlier. The frontmatter `date`
+  is **not** used, because it is part of the note: a future date would keep a
+  note for ever, and a back-dated note (`write(date=...)`) would expire at
+  once. Facts (`predicate=`) are aged by recorded time.
+* Copying notes into a vault keeps their age only if the copy preserves mtime
+  (`cp -p`, `rsync -a`); a `git clone` does not.
 * Expired notes are deleted together with the facts derived from them and
   their index entries.
 * The matching audit entry bodies are redacted, the `retention.apply`
