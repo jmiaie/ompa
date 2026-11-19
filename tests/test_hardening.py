@@ -1,6 +1,8 @@
 """Regression tests for vault confinement, note naming and folder exclusions."""
 
 import os
+import shutil
+import time
 from pathlib import Path
 
 import pytest
@@ -509,3 +511,109 @@ def test_rsync_does_not_overwrite_newer_files_by_default(monkeypatch):
     assert "--update" not in RsyncBackend(remote="host:/vault", update=False)._build_rsync_cmd(
         "a/", "b/"
     )
+
+
+# These run the real rsync binary against two local directories (rsync treats a
+# plain path as the remote, and ignores the ssh options), so they need rsync
+# installed but no SSH server.
+needs_rsync = pytest.mark.skipif(shutil.which("rsync") is None, reason="rsync is not installed")
+
+
+def _aged_note(path: Path, text: str, seconds_ago: int) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text, encoding="utf-8")
+    stamp = time.time() - seconds_ago
+    os.utime(path, (stamp, stamp))
+
+
+@pytest.fixture
+def local_and_remote(tmp_path):
+    local, remote = tmp_path / "local", tmp_path / "remote"
+    local.mkdir()
+    remote.mkdir()
+    return local, remote
+
+
+@needs_rsync
+@pytest.mark.parametrize("update, kept", [(True, "edited locally"), (False, "older remote copy")])
+def test_rsync_pull_and_a_note_edited_locally(local_and_remote, update, kept):
+    from ompa.sync import RsyncBackend
+
+    local, remote = local_and_remote
+    _aged_note(local / "note.md", "edited locally", seconds_ago=60)
+    _aged_note(remote / "note.md", "older remote copy", seconds_ago=3600)
+
+    result = RsyncBackend(remote=str(remote), update=update).pull(local)
+
+    assert result.success, result.error
+    # without --update the remote's older copy replaces the local edit
+    assert (local / "note.md").read_text(encoding="utf-8") == kept
+
+
+@needs_rsync
+def test_rsync_pull_still_brings_newer_and_new_remote_notes(local_and_remote):
+    from ompa.sync import RsyncBackend
+
+    local, remote = local_and_remote
+    _aged_note(local / "note.md", "older local copy", seconds_ago=3600)
+    _aged_note(remote / "note.md", "edited remotely", seconds_ago=60)
+    _aged_note(remote / "sub" / "new.md", "only on the remote", seconds_ago=60)
+
+    assert RsyncBackend(remote=str(remote)).pull(local).success
+
+    assert (local / "note.md").read_text(encoding="utf-8") == "edited remotely"
+    assert (local / "sub" / "new.md").read_text(encoding="utf-8") == "only on the remote"
+
+
+@needs_rsync
+def test_rsync_push_leaves_a_newer_remote_note_alone(local_and_remote):
+    from ompa.sync import RsyncBackend
+
+    local, remote = local_and_remote
+    _aged_note(local / "stale.md", "older local copy", seconds_ago=3600)
+    _aged_note(remote / "stale.md", "edited remotely", seconds_ago=60)
+    _aged_note(local / "fresh.md", "edited locally", seconds_ago=60)
+    _aged_note(remote / "fresh.md", "older remote copy", seconds_ago=3600)
+
+    backend = RsyncBackend(remote=str(remote))
+    status = backend.status(local)
+    assert [Path(name).name for name in status.details["would_transfer"]] == ["fresh.md"]
+
+    assert backend.push(local).success
+    assert (remote / "stale.md").read_text(encoding="utf-8") == "edited remotely"
+    assert (remote / "fresh.md").read_text(encoding="utf-8") == "edited locally"
+
+
+@needs_rsync
+def test_rsync_pull_then_push_keeps_edits_from_both_sides(local_and_remote):
+    """The flow in RsyncBackend's docstring: receive the other node's changes, then send ours."""
+    from ompa.sync import RsyncBackend
+
+    local, remote = local_and_remote
+    _aged_note(local / "mine.md", "edited locally", seconds_ago=60)
+    _aged_note(remote / "mine.md", "version 1", seconds_ago=3600)
+    _aged_note(remote / "theirs.md", "edited remotely", seconds_ago=60)
+    _aged_note(local / "theirs.md", "version 1", seconds_ago=3600)
+
+    backend = RsyncBackend(remote=str(remote))
+    assert backend.pull(local).success and backend.push(local).success
+
+    for vault in (local, remote):
+        assert (vault / "mine.md").read_text(encoding="utf-8") == "edited locally"
+        assert (vault / "theirs.md").read_text(encoding="utf-8") == "edited remotely"
+
+
+@needs_rsync
+def test_rsync_does_not_send_derived_indexes(local_and_remote):
+    from ompa.sync import RsyncBackend
+
+    local, remote = local_and_remote
+    _aged_note(local / "keep.md", "a note", seconds_ago=60)
+    _aged_note(local / "keyword_index.sqlite3", "index", seconds_ago=60)
+    _aged_note(local / "keyword_index.sqlite3-wal", "wal", seconds_ago=60)
+
+    assert RsyncBackend(remote=str(remote)).push(local).success
+
+    assert (remote / "keep.md").exists()
+    assert not (remote / "keyword_index.sqlite3").exists()
+    assert not (remote / "keyword_index.sqlite3-wal").exists()
