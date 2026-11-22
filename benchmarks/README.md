@@ -11,6 +11,7 @@ Recall numbers are deterministic and unaffected by load.
 | `longmemeval_s.py` | Retrieval on the full LongMemEval-S, n=470, per search mode, bootstrap 95% CIs |
 | `search_latency.py` | Search p50/p95, index size, build time and cold load at 1k / 10k / 50k notes |
 | `temporal_mc.py` | Temporal knowledge-graph point-in-time correctness, 20-seed Monte Carlo |
+| `mcp_latency.py` | What an agent waits for: whole MCP tool calls (search, session start, status ...) on 1k / 10k notes |
 | `smoke_sample.py` | **Smoke test only:** 20 hand-written items. This is *not* LongMemEval, and its score means nothing beyond "search works" |
 
 ## 1. LongMemEval-S (session-level retrieval)
@@ -153,6 +154,51 @@ Single `AuditLog.append` (own transaction + head update): p50 101 µs, 8131 appe
 | unsigned_rehash | 20261021, 7, 1337 | 1,500 | 1,500 | 0 | 0.0000 | 0/300 |
 | unsigned_rehash + external anchor | 20261021, 7, 1337 | 1,500 | 1,500 | 1,500 | 1.0000 | — |
 
+## 5. MCP tool calls (`mcp_latency.py`)
+
+The MCP server builds a fresh `Ompa` for every tool call, so sections 1–2 (a resident index) are not
+what an agent waits for. This script times `handle_call_tool`, the function the stdio loop calls.
+Notes are ~250 words with frontmatter, tags and two wikilinks; one word in six is a common English
+word and the query is a question, so it matches most notes, as a real one does.
+
+Measured 2026-11-22 on a 4-vCPU cloud sandbox, Python 3.11, **keyword-only** (`ompa[semantic]` not
+installed, so no model), 21 calls per cell (7 for the four vault-wide tools). p50 in ms; 1.1.1 is
+`main` before this release.
+
+| Tool call | 1,000 notes: 1.1.1 → 1.2.1 | 10,000 notes: 1.1.1 → 1.2.1 |
+|---|---|---|
+| `ao_session_start` | 150 → **31** (4.9×) | 1,646 → **301** (5.5×) |
+| `ao_wrap_up` | 148 → **26** (5.8×) | 1,583 → **287** (5.5×) |
+| `ao_status` | 80 → **22** (3.7×) | 794 → **202** (3.9×) |
+| `ao_orphans` | 72 → **20** (3.6×) | 782 → **217** (3.6×) |
+| `ao_search`, searches within a second of each other | 17 → **5.1** (3.5×) | 149 → **30** (5.0×) |
+| `ao_search`, no search in the last second | 15 → **9.2** (1.6×) | 118 → **60** (2.0×) |
+| the same search on a resident `Ompa` | 3.7 → 3.1 | 28 → 28 |
+| `ao_kg_query` / `ao_kg_stats` / `ao_classify` / `ao_write` | 0.5–2.3, unchanged | 0.6–4.0, unchanged |
+
+On a vault shaped like one LongMemEval-S haystack (50 notes of ~1,700 words): `ao_search` 6.1 →
+**4.0**, `ao_session_start` 12 → **5.0**, the resident search 3.1 → **2.2**.
+
+What changed, and what did not:
+
+- **Vault-wide calls** parsed every note's YAML, twice for session start and wrap-up. They now
+  read each note once and parse YAML only where it can change the answer.
+- **`ao_search`** walked the whole vault before every search to look for notes edited outside
+  OMPA. The walk is about 3× faster, and the server runs it at most once per
+  `OMPA_INDEX_REFRESH_SECONDS` (default 1). The first row is a burst of searches; the second is
+  a search that pays for the walk.
+- **The search itself is not faster on these vaults.** At 10,000 short notes it is BM25 scoring
+  of every note the question's common words match (28 ms); that is the next thing to remove.
+- **With long notes, keyword ranking no longer builds excerpts for notes it does not return.** In
+  hybrid mode the keyword half is ranked without excerpts at all. On 50 notes of 1,700 words,
+  ranking 20 notes takes 0.4 ms where ranking with excerpts took 7 ms. Not yet measured with the
+  model loaded: the published 26 ms hybrid search on LongMemEval-S includes this cost and should
+  drop, but that needs a re-run with `ompa[semantic]`.
+
+```bash
+pip install numpy
+python benchmarks/mcp_latency.py            # 1k and 10k notes, then the 50-session vault
+```
 
 ## Notes and limits
 

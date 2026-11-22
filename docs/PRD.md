@@ -135,9 +135,10 @@ with the reason each was chosen (term match, KG edge, link hop).
   The first semantic use downloads the `all-MiniLM-L6-v2` model unless it is cached; document this for offline users.
 * **Local data.** All state lives under the vault directory. Nothing leaves the machine unless a sync backend is set up.
 * **Backward compatibility.** STABILITY.md semver rules apply. KG readers follow kg-schema-v1 section 8.
-* **Latency.** No measured targets exist yet. **[Owner]** pick targets after the benchmark work in the roadmap.
-  1.1.0 removed the per-call model reload (the model is cached per process) and made the index a resident float16
-  matrix; measured latencies are in `benchmarks/README.md`.
+* **Latency.** No targets are set yet. **[Owner]** pick them from the measurements: whole MCP tool calls are timed
+  by `benchmarks/mcp_latency.py` (`benchmarks/README.md` section 5). On 10,000 notes, keyword-only, 1.2.1 measures
+  `ao_session_start` 301 ms, `ao_status` 202 ms and `ao_search` 30–60 ms. 1.1.0 removed the per-call model reload
+  (the model is cached per process) and made the index a resident float16 matrix.
 * **Security.** The MCP server rejects `vault_path` values containing `..` or a filesystem root (existing behaviour,
   now also applied to `OMPA_VAULT_PATH`). Bandit runs in CI.
 

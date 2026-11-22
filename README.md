@@ -325,6 +325,7 @@ Sources: [`published_competitors.md`](https://github.com/jmiaie/ompa/tree/main/b
 |---|---|---|
 | LongMemEval-S R@5 (session retrieval) | hybrid **0.979** [0.964, 0.991]; keyword-only **0.970** [0.953, 0.985] | 470 questions |
 | Search latency, hybrid p50 (vs 1.0.8) | 1k: 17.4 → **2.1 ms** · 10k: 185 → **9.4 ms** · 50k: 1,061 → **44 ms** (8–24× faster) | synthetic notes, stub embedder |
+| MCP tool calls on 10,000 notes, p50 (vs 1.1.1) | session start 1,646 → **301 ms** · status 794 → **202 ms** · search 149 → **30 ms** in a burst, 118 → **60 ms** alone (2–5.5× faster) | synthetic notes, keyword-only, 4 vCPU |
 | Temporal KG point-in-time accuracy (vs 1.0.8) | 0.895 → **1.000** | 20-seed Monte Carlo, 400 queries/seed |
 | Audit log tamper detection | unsigned **24,998 / 24,998**, HMAC **25,000 / 25,000**, 0 false positives | randomized tamper Monte Carlo, 5 seeds |
 | Full-chain rewrite (no key) | detected **only** against an external anchor (1,500 / 1,500 with, 0 / 1,500 without) | by design; see [docs/AUDIT.md](docs/AUDIT.md) |
