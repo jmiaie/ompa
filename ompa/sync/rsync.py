@@ -25,6 +25,25 @@ _DEFAULT_EXCLUDES = [
 ]
 
 
+# One line per change: rsync's 11-character change code, a space, the path.
+_ITEM_FORMAT = "%i %n"
+
+
+def _changed_files(stdout: str) -> list[str]:
+    """Paths of the files rsync sent (or would send) and deleted.
+
+    Reads ``--out-format='%i %n'`` output, where the second character of the
+    change code is the kind of entry (``f`` for a file) and a deletion reads
+    ``*deleting``.  Directories and symlinks are not files and are left out.
+    """
+    files = []
+    for line in stdout.splitlines():
+        code, name = line[:11], line[12:]
+        if name and (code[1:2] == "f" or code.startswith("*deleting")) and not name.endswith("/"):
+            files.append(name)
+    return files
+
+
 class RsyncBackend(SyncBackend):
     """
     rsync-based vault sync over SSH — optimized for Tailscale LAN deployments.
@@ -87,7 +106,10 @@ class RsyncBackend(SyncBackend):
         if not rsync:
             raise RuntimeError("rsync not found in PATH")
 
-        cmd = [rsync, "-av"]
+        # No -v: it adds a header and two summary lines that used to be
+        # counted as files, and a note named "sent ..." or "total ..." was
+        # dropped from status() for looking like one of them.
+        cmd = [rsync, "-a", f"--out-format={_ITEM_FORMAT}"]
         if self.compress:
             cmd.append("-z")
         if dry_run:
@@ -142,9 +164,7 @@ class RsyncBackend(SyncBackend):
         if rc != 0:
             return SyncResult(success=False, backend=self.name, direction="push", error=err)
 
-        transferred = len(
-            [line for line in stdout.splitlines() if line and not line.startswith("sending")]
-        )
+        transferred = len(_changed_files(stdout))
         logger.info("rsync push: %d files → %s", transferred, self.remote)
         return SyncResult(
             success=True,
@@ -168,9 +188,7 @@ class RsyncBackend(SyncBackend):
         if rc != 0:
             return SyncResult(success=False, backend=self.name, direction="pull", error=err)
 
-        transferred = len(
-            [line for line in stdout.splitlines() if line and not line.startswith("receiving")]
-        )
+        transferred = len(_changed_files(stdout))
         return SyncResult(
             success=True,
             backend=self.name,
@@ -193,11 +211,7 @@ class RsyncBackend(SyncBackend):
         if rc != 0:
             return SyncResult(success=False, backend=self.name, direction="status", error=err)
 
-        would_transfer = [
-            line
-            for line in stdout.splitlines()
-            if line and not line.startswith(("sending", "sent", "total"))
-        ]
+        would_transfer = _changed_files(stdout)
         return SyncResult(
             success=True,
             backend=self.name,

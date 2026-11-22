@@ -830,6 +830,8 @@ def apply_retention_vault(
     purge_index_paths(keyword, sem, srcs)
     if sem is not None:
         sem.save_index()
+    elif notes_del:
+        ao._changed_behind_semantic(sem, keyword, gov.vault_path)
     if kg is not None:
         if notes_del:
             with kg._conn() as conn:

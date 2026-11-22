@@ -27,14 +27,14 @@ from .keyword import KeywordIndex
 from .knowledge_graph import KnowledgeGraph
 from .palace import Palace
 from .provenance import cite
-from .semantic import SearchResult, SemanticIndex, scan_vault
+from .semantic import LEGACY_FILE, META_FILE, SearchResult, SemanticIndex, scan_vault
 from .temporal import (
     NoteDateCache,
     parse_reference_date,
     parse_relative_windows,
     rerank_by_time,
 )
-from .vault import Note, Vault, _safe_resolve
+from .vault import Note, Vault, _safe_resolve, is_excluded
 
 logger = logging.getLogger(__name__)
 
@@ -467,6 +467,9 @@ class Ompa:
 
     _UNSET: Any = object()
 
+    # Where write() files a note it was given no path for and cannot classify.
+    UNFILED_FOLDER = "brain/"
+
     def _auto_update_index(
         self,
         path: Path,
@@ -494,6 +497,7 @@ class Ompa:
                 logger.debug("Search index updated for %s", path.name)
         except Exception as e:
             logger.debug("Index auto-update failed for %s: %s", path, e)
+        self._changed_behind_semantic(semantic, keyword, root or self.vault_path)
 
     # -------------------------------------------------------------------------
     # Classification
@@ -745,6 +749,30 @@ class Ompa:
             except Exception as e:
                 logger.debug("Index refresh skipped: %s", e)
 
+    def _changed_behind_semantic(
+        self, semantic: SemanticIndex | None, keyword: KeywordIndex | None, root: Path
+    ) -> None:
+        """A note changed and the semantic index was not loaded to follow it.
+
+        Forget when this vault was last checked, so the next search checks it
+        before ranking.  Instances that share a refresh clock (the MCP server
+        builds one ``Ompa`` per call) would otherwise search inside the
+        interval with the note's old embedding, or none: found by keyword but
+        ranked without its meaning, and a deleted note still returned.  With
+        no semantic index on disk there is nothing to catch up, because the
+        keyword index was updated in place.  ``enable_semantic`` on this
+        instance does not decide it: the MCP write tool turns it off, and the
+        next search, with it on, loads the index this write left behind.
+        """
+        if semantic is not None:
+            return
+        index_dir = Path(root) / ".palace" / "semantic_index"
+        if not ((index_dir / META_FILE).exists() or (index_dir / LEGACY_FILE).exists()):
+            return
+        db = str(getattr(keyword, "db_path", ""))
+        for key in [k for k in self._last_refresh if k[1] == db]:
+            del self._last_refresh[key]
+
     def qsearch(self, query: str, limit: int = 5) -> list[SearchResult]:
         """QMD-style semantic search. Convenience method."""
         return self.search(query, limit, hybrid=True)
@@ -931,6 +959,14 @@ class Ompa:
             # Use classifier to determine folder
             classification = self.classifier.classify(content[:200])
             folder = classification.suggested_folder
+            # The classifier suggests thinking/ for whatever it cannot place,
+            # which is most plain statements ("Alice prefers morning
+            # meetings").  That folder is scratch space: search, the graph
+            # and note listings leave it out, so a note stored here without a
+            # path could never be found again.  A stored note goes to brain/.
+            root = target_vault.vault_path
+            if is_excluded(root / folder / "note.md", root):
+                folder = self.UNFILED_FOLDER
             # Sanitize content for filename
             words = re.sub(r"[^\w\s]", "", content[:40]).split()
             name = "-".join(words[:5]) if words else "note"
@@ -973,6 +1009,11 @@ class Ompa:
         )
         target_keyword = self.keyword if target == VaultTarget.SHARED else self.personal_keyword
         key = _index_key(target_vault.vault_path, full_path)
+        if is_excluded(key, target_vault.vault_path):
+            # A path the caller chose inside a folder search leaves out.  It
+            # used to be indexed here and dropped again at the next check of
+            # the vault, so it was found for a moment and then not.
+            target_keyword = target_semantic = None
         if target_keyword is not None:
             try:
                 target_keyword.update_file(key)
@@ -983,6 +1024,8 @@ class Ompa:
                 target_semantic.update_file(key, save=False)
             except Exception as e:
                 logger.debug("Index update after write failed for %s: %s", full_path, e)
+        if target_keyword is not None:
+            self._changed_behind_semantic(target_semantic, target_keyword, target_vault.vault_path)
 
         return {
             "vault": target.value,
@@ -1187,6 +1230,7 @@ class Ompa:
         purge_index_paths(keyword, sem, {target})
         if sem is not None:
             sem.save_index()
+        self._changed_behind_semantic(sem, keyword, root)
         return {"success": True, "path": str(full), "facts_deleted": n}
 
     def forget(

@@ -487,7 +487,10 @@ def mcp_vault(tmp_path, monkeypatch):
     vault = tmp_path / "vault"
     vault.mkdir()
     monkeypatch.setenv("OMPA_VAULT_PATH", str(vault))
-    monkeypatch.delenv("OMPA_INDEX_REFRESH_SECONDS", raising=False)
+    # An hour, so that only what a test does to the clock causes a walk.  With
+    # ompa[semantic] installed the first search loads the model, which can
+    # take longer than the default second.
+    monkeypatch.setenv("OMPA_INDEX_REFRESH_SECONDS", "3600")
     monkeypatch.delenv("OMPA_PRINCIPAL", raising=False)
     mcp_server._REFRESH_CLOCK.clear()
     (vault / "seed.md").write_text("The launch codename is heliotrope.", encoding="utf-8")
@@ -525,10 +528,12 @@ def test_mcp_search_sees_an_outside_edit_after_the_interval(mcp_vault):
     vault, _ = mcp_vault
     assert _search(vault, "heliotrope") == ["seed.md"]
     (vault / "outside.md").write_text("Edited in another editor: marmalade.", encoding="utf-8")
-    assert _search(vault, "marmalade") == []  # inside the interval: not looked for yet
+    # Membership, not equality: with ompa[semantic] installed a search also
+    # returns the nearest notes by meaning, so seed.md can appear for any query.
+    assert "outside.md" not in _search(vault, "marmalade")  # inside the interval
     key = next(iter(mcp_server._REFRESH_CLOCK))
-    mcp_server._REFRESH_CLOCK[key] -= 5  # five seconds pass
-    assert _search(vault, "marmalade") == ["outside.md"]
+    mcp_server._REFRESH_CLOCK[key] -= 7200  # two hours pass
+    assert _search(vault, "marmalade")[0] == "outside.md"
 
 
 @needs_fts5
@@ -540,8 +545,14 @@ def test_mcp_write_is_searchable_at_once(mcp_vault):
         {"vault_path": str(vault), "content": "Tangerine is the fallback codename."},
     )
     assert "error" not in written, written
-    assert len(_search(vault, "tangerine")) == 1
-    assert len(scans) == 1  # found through the write, not through a new walk
+    assert _search(vault, "tangerine")[0] == "Tangerine-is-the-fallback-codename.md"
+    # Keyword-only, the write itself put the note in the index: no new walk.
+    # With a semantic index on disk the write could not embed the note (the
+    # write tool does not load the model), so the search checks the vault.
+    embedded = (vault / ".palace" / "semantic_index" / "index_meta.json").exists()
+    assert len(scans) == (2 if embedded else 1)
+    assert _search(vault, "tangerine")[0] == "Tangerine-is-the-fallback-codename.md"
+    assert len(scans) == (2 if embedded else 1)  # and only once
 
 
 @needs_fts5
@@ -591,3 +602,125 @@ def test_library_instances_keep_their_own_clock(tmp_path, monkeypatch):
     second = Ompa(vault_path=vault, enable_semantic=False)
     assert [Path(r.path).name for r in second.search("marmalade")] == ["b.md"]
     assert len(scans) == 2  # a new instance checks on its first search, as before
+
+
+# ---------------------------------------------------------------------------
+# A shared clock must not hide what OMPA itself wrote from the semantic index
+# ---------------------------------------------------------------------------
+#
+# The MCP server builds one Ompa per call and its write tool does not load the
+# embedding model, so a write cannot update the semantic index in place.  Before
+# the shared clock every search checked the vault and caught up.  With it, a
+# search inside the interval would rank the new note by keyword alone, keep an
+# edited note's old embedding, and still return a deleted note.
+
+
+def _instance(vault, clock, semantic):
+    return Ompa(
+        vault_path=vault,
+        enable_semantic=semantic,
+        embedding_backend=_BagOfWords() if semantic else None,
+        refresh_clock=clock,
+        index_refresh_interval=3600,
+    )
+
+
+@pytest.fixture
+def embedded_vault(tmp_path):
+    vault = tmp_path / "vault"
+    (vault / "brain").mkdir(parents=True)
+    (vault / "brain" / "seed.md").write_text("The launch codename is heliotrope.", encoding="utf-8")
+    clock: dict = {}
+    _instance(vault, clock, semantic=True).search("heliotrope")  # builds both indexes
+    assert len(clock) == 1
+    return vault, clock
+
+
+def _indexed(vault, clock) -> set[str]:
+    searcher = _instance(vault, clock, semantic=True)
+    searcher.search("anything")
+    return {Path(p).name for p in searcher.semantic.file_mtimes}
+
+
+@needs_fts5
+def test_a_write_behind_the_semantic_index_is_embedded_by_the_next_search(embedded_vault):
+    vault, clock = embedded_vault
+    _instance(vault, clock, semantic=False).write(
+        "Tangerine is the fallback codename.", file_path="brain/tangerine.md"
+    )
+    assert clock == {}  # the next search will check this vault
+    searcher = _instance(vault, clock, semantic=True)
+    results = searcher.search("tangerine fallback codename")
+    assert Path(results[0].path).name == "tangerine.md"
+    assert {Path(p).name for p in searcher.semantic.file_mtimes} == {"seed.md", "tangerine.md"}
+    assert len(clock) == 1  # checked, and the clock runs again
+
+
+@needs_fts5
+def test_an_edit_behind_the_semantic_index_replaces_the_old_excerpt(embedded_vault):
+    vault, clock = embedded_vault
+    _instance(vault, clock, semantic=False).write(
+        "The launch codename is now marigold.", file_path="brain/seed.md"
+    )
+    assert clock == {}
+    searcher = _instance(vault, clock, semantic=True)
+    searcher.search("codename")
+    excerpts = [c["text"] for c in searcher.semantic.chunks]
+    assert any("marigold" in text for text in excerpts)
+    assert not any("heliotrope" in text for text in excerpts)
+
+
+@needs_fts5
+def test_a_delete_behind_the_semantic_index_is_not_returned(embedded_vault):
+    vault, clock = embedded_vault
+    writer = _instance(vault, clock, semantic=False)
+    writer.write("Tangerine is the fallback codename.", file_path="brain/tangerine.md")
+    assert _indexed(vault, clock) == {"seed.md", "tangerine.md"}
+    assert len(clock) == 1
+
+    assert _instance(vault, clock, semantic=False).delete_note("brain/tangerine.md")["success"]
+    assert clock == {}
+    searcher = _instance(vault, clock, semantic=True)
+    assert [Path(r.path).name for r in searcher.search("tangerine fallback codename")] == [
+        "seed.md"
+    ]
+    assert {Path(p).name for p in searcher.semantic.file_mtimes} == {"seed.md"}
+
+
+@needs_fts5
+def test_a_loaded_semantic_index_follows_the_write_without_a_walk(embedded_vault):
+    vault, clock = embedded_vault
+    resident = _instance(vault, clock, semantic=True)
+    resident.search("heliotrope")
+    before = dict(clock)
+    resident.write("Tangerine is the fallback codename.", file_path="brain/tangerine.md")
+    assert clock == before  # updated in place: nothing to catch up
+    assert Path(resident.search("tangerine fallback codename")[0].path).name == "tangerine.md"
+
+
+@needs_fts5
+def test_a_keyword_only_vault_needs_no_walk_after_a_write(tmp_path):
+    vault = tmp_path / "vault"
+    (vault / "brain").mkdir(parents=True)
+    (vault / "brain" / "seed.md").write_text("The launch codename is heliotrope.", encoding="utf-8")
+    clock: dict = {}
+    _instance(vault, clock, semantic=False).search("heliotrope")
+    before = dict(clock)
+    writer = _instance(vault, clock, semantic=False)
+    writer.write("Tangerine is the fallback codename.", file_path="brain/tangerine.md")
+    writer.delete_note("brain/seed.md")
+    assert clock == before  # no semantic index on disk: the keyword index was updated in place
+    found = _instance(vault, clock, semantic=False).search("codename")
+    assert [Path(r.path).name for r in found] == ["tangerine.md"]
+
+
+@needs_fts5
+def test_only_the_written_vault_is_checked_again(embedded_vault, tmp_path):
+    vault, clock = embedded_vault
+    other = tmp_path / "other"
+    other.mkdir()
+    (other / "n.md").write_text("A second vault.", encoding="utf-8")
+    _instance(other, clock, semantic=True).search("second")
+    assert len(clock) == 2
+    _instance(vault, clock, semantic=False).write("Tangerine.", file_path="brain/t.md")
+    assert [Path(key[1]).parent.parent.name for key in clock] == ["other"]

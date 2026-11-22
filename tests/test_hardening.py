@@ -617,3 +617,175 @@ def test_rsync_does_not_send_derived_indexes(local_and_remote):
     assert (remote / "keep.md").exists()
     assert not (remote / "keyword_index.sqlite3").exists()
     assert not (remote / "keyword_index.sqlite3-wal").exists()
+
+
+@needs_rsync
+def test_rsync_counts_files_not_its_own_summary_lines(local_and_remote):
+    """`files_changed` used to count rsync's header and summary lines, so an
+    empty sync reported changes and every count was a few too high."""
+    from ompa.sync import RsyncBackend
+
+    local, remote = local_and_remote
+    _aged_note(local / "one.md", "first", seconds_ago=60)
+    _aged_note(local / "work" / "two.md", "second", seconds_ago=60)
+    backend = RsyncBackend(remote=str(remote))
+
+    status = backend.status(local)
+    assert status.files_changed == 2
+    assert sorted(status.details["would_transfer"]) == ["one.md", "work/two.md"]
+    assert backend.push(local).files_changed == 2  # two notes; the new folder is not a file
+
+    # nothing left to send, in either direction
+    assert backend.status(local).files_changed == 0
+    assert backend.push(local).files_changed == 0
+    assert backend.pull(local).files_changed == 0
+
+    _aged_note(remote / "three.md", "from the other side", seconds_ago=30)
+    assert backend.pull(local).files_changed == 1
+
+
+@needs_rsync
+def test_rsync_status_lists_notes_named_like_summary_lines(local_and_remote):
+    """status() dropped lines starting with "sent", "total" or "sending"."""
+    from ompa.sync import RsyncBackend
+
+    local, remote = local_and_remote
+    names = ["sent invoices.md", "total cost.md", "sending plan.md", "receiving dock.md"]
+    for name in names:
+        _aged_note(local / name, "a note", seconds_ago=60)
+    backend = RsyncBackend(remote=str(remote))
+
+    status = backend.status(local)
+    assert sorted(status.details["would_transfer"]) == sorted(names)
+    assert status.files_changed == 4
+    assert backend.push(local).files_changed == 4
+    assert sorted(p.name for p in remote.iterdir()) == sorted(names)
+
+
+@needs_rsync
+def test_rsync_counts_deletions_when_mirroring(local_and_remote):
+    from ompa.sync import RsyncBackend
+
+    local, remote = local_and_remote
+    _aged_note(local / "kept.md", "a note", seconds_ago=60)
+    _aged_note(remote / "kept.md", "a note", seconds_ago=3600)
+    _aged_note(remote / "removed locally.md", "old", seconds_ago=3600)
+    backend = RsyncBackend(remote=str(remote), delete=True)
+
+    status = backend.status(local)
+    assert sorted(status.details["would_transfer"]) == ["kept.md", "removed locally.md"]
+    assert backend.push(local).files_changed == 2
+    assert not (remote / "removed locally.md").exists()
+
+
+def test_rsync_change_lines_are_read_by_their_code():
+    from ompa.sync.rsync import _changed_files
+
+    output = "\n".join(
+        [
+            "*deleting   gone.md",
+            "cL+++++++++ link.md",
+            "cd+++++++++ newdir/",
+            ">f+++++++++ newdir/n3.md",
+            ">f.s....... sub/n2.md",
+            "<f.st...... received.md",
+            ".d..t...... ./",
+            "",
+        ]
+    )
+    assert _changed_files(output) == ["gone.md", "newdir/n3.md", "sub/n2.md", "received.md"]
+    assert _changed_files("") == []
+
+
+# ---------------------------------------------------------------------------
+# A note stored without a path can be found again
+# ---------------------------------------------------------------------------
+#
+# write() asks the classifier where a note belongs.  For anything the
+# classifier cannot place it answers thinking/, the scratch folder that search,
+# the graph and note listings leave out.  Most plain statements are like that,
+# so a memory stored through `ao_write` without a file_path was never returned
+# by `ao_search`.
+
+UNPLACED = [
+    "Alice prefers morning meetings",
+    "Remember that the deploy key rotates monthly",
+    "The user's favourite colour is teal",
+    "Tangerine is the fallback codename.",
+]
+
+
+@pytest.mark.parametrize("statement", UNPLACED)
+def test_the_classifier_still_suggests_thinking_for_these(statement):
+    """The hint for routing a conversation is unchanged; write() no longer files by it."""
+    from ompa.classifier import MessageClassifier
+
+    assert MessageClassifier().classify(statement).suggested_folder == "thinking/"
+
+
+@pytest.mark.parametrize("statement", UNPLACED)
+def test_write_without_a_path_stores_where_search_looks(tmp_path, statement):
+    ao = Ompa(vault_path=tmp_path, enable_semantic=False)
+    written = Path(ao.write(statement)["path"])
+
+    assert written.parent == tmp_path / "brain"
+    assert not is_excluded(written, tmp_path)
+    word = max(statement.rstrip(".").split(), key=len)
+    assert [Path(r.path) for r in ao.search(word)] == [written]
+    # still there after the vault is checked again, and for a new instance
+    ao._last_refresh.clear()
+    assert [Path(r.path) for r in ao.search(word)] == [written]
+    assert [
+        Path(r.path) for r in Ompa(vault_path=tmp_path, enable_semantic=False).search(word)
+    ] == [written]
+    assert written in [n.path for n in ao.vault.list_notes()]
+
+
+def test_mcp_write_without_a_path_is_found_by_later_searches(pinned):
+    """The loop an agent runs: store a memory, search for it in a later call."""
+
+    def search(query):
+        result = mcp_server.handle_call_tool(
+            "ao_search", {"vault_path": str(pinned), "query": query}
+        )
+        return [Path(r["path"]).name for r in result["results"]]
+
+    mcp_server._REFRESH_CLOCK.clear()
+    for statement in UNPLACED:
+        written = mcp_server.handle_call_tool(
+            "ao_write", {"vault_path": str(pinned), "content": statement}
+        )
+        assert "error" not in written, written
+        assert Path(written["path"]).parent.name == "brain"
+    for query in ("morning meetings", "deploy key", "favourite colour", "fallback codename"):
+        assert len(search(query)) >= 1, query
+    mcp_server._REFRESH_CLOCK.clear()  # the vault is checked again
+    assert "Alice-prefers-morning-meetings.md" in search("morning meetings")
+    assert "Remember-that-the-deploy-key.md" in search("deploy key")
+    assert "The-users-favourite-colour-is.md" in search("favourite colour")
+    assert "Tangerine-is-the-fallback-codename.md" in search("fallback codename")
+
+
+def test_classified_notes_still_go_to_their_folder(tmp_path):
+    ao = Ompa(vault_path=tmp_path, enable_semantic=False)
+    decision = Path(ao.write("We decided to go with Postgres for the ledger")["path"])
+    incident = Path(ao.write("Fixed the login bug by clearing the cache")["path"])
+    assert decision.parent == tmp_path / "work" / "active"
+    assert incident.parent == tmp_path / "work" / "incidents"
+
+
+def test_a_path_inside_thinking_is_written_and_stays_out_of_search(tmp_path):
+    """A caller who names thinking/ gets it, and it is never searchable. It
+    used to be indexed by the write and dropped at the next check of the
+    vault: found for a moment, then not."""
+    ao = Ompa(vault_path=tmp_path, enable_semantic=False, index_refresh_interval=3600)
+    ao.write("A kept note about zeppelins.", file_path="brain/kept.md")
+    assert [Path(r.path).name for r in ao.search("zeppelins")] == ["kept.md"]
+    # The vault has just been checked, so the next search will not check it
+    # again: whatever the write puts in the index is what the search returns.
+    draft = Path(ao.write("A draft about zeppelins.", file_path="thinking/draft.md")["path"])
+
+    assert draft.read_text(encoding="utf-8").strip().endswith("A draft about zeppelins.")
+    assert [Path(r.path).name for r in ao.search("zeppelins")] == ["kept.md"]
+    ao._last_refresh.clear()
+    assert [Path(r.path).name for r in ao.search("zeppelins")] == ["kept.md"]
