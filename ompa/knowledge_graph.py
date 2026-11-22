@@ -800,16 +800,13 @@ class KnowledgeGraph:
         Returns:
             Total number of triples added.
         """
-        from .vault import DEFAULT_EXCLUDE_PATTERNS, is_excluded
+        from .vault import walk_notes
 
-        exclude_patterns = exclude_patterns or DEFAULT_EXCLUDE_PATTERNS
         total = 0
         vault_path = Path(vault_path)
 
-        for md_file in vault_path.rglob("*.md"):
-            if is_excluded(md_file, vault_path, exclude_patterns):
-                continue
-            added = self.populate_from_note(md_file, vault_path)
+        for path_str, _ in walk_notes(vault_path, exclude_patterns or None):
+            added = self.populate_from_note(Path(path_str), vault_path)
             total += added
 
         logger.info("KG populated: %d triples from vault %s", total, vault_path)

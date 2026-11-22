@@ -99,8 +99,18 @@ class Ompa:
         # Date-aware ranking (opt-in; see ompa/temporal.py)
         temporal_ranking: bool = False,
         temporal_depth: int = 100,
+        refresh_clock: dict | None = None,
     ):
         """
+        Index freshness args:
+            index_refresh_interval: seconds between checks of the vault for
+                notes edited outside OMPA (0 = check on every search).
+            refresh_clock: a dict to share between instances over the same vault
+                in one process, so that check runs once per interval for the
+                process and not once per instance.  The MCP server builds an
+                instance per tool call and passes one; without it, every search
+                walked the whole vault first.
+
         Audit-memory args:
             principal: user/agent/team id this instance acts as (ACL checks,
                 audit actor, fact provenance).  Default: $OMPA_PRINCIPAL, else
@@ -126,7 +136,9 @@ class Ompa:
         # search (0 = check on every search).  Writes through Ompa.write() are
         # indexed immediately regardless; this catches edits made outside OMPA.
         self.index_refresh_interval = index_refresh_interval
-        self._last_refresh: dict[tuple[int, int], float] = {}
+        self._last_refresh: dict[tuple[str, str], float] = (
+            refresh_clock if refresh_clock is not None else {}
+        )
         self._embedding_backend = embedding_backend  # optional custom backend
         self._session_started = False
         self._last_classification: Classification | None = None
@@ -708,7 +720,12 @@ class Ompa:
         One directory walk is shared by the semantic and keyword indexes.
         """
         now = time.monotonic()
-        key = (id(semantic), id(keyword))
+        # Keyed by where the indexes live, so instances that share a clock and a
+        # vault share the check.  A refresh is saved, so the next instance loads it.
+        key = (
+            str(getattr(semantic, "index_path", id(semantic))) if semantic is not None else "",
+            str(getattr(keyword, "db_path", id(keyword))) if keyword is not None else "",
+        )
         last = self._last_refresh.get(key)
         if last is not None and now - last < self.index_refresh_interval:
             return

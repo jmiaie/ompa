@@ -35,9 +35,27 @@ _PRINCIPAL: contextvars.ContextVar[str | None] = contextvars.ContextVar(
 )
 
 
+# When each vault was last checked for notes edited outside OMPA.  Every tool
+# call builds its own Ompa, so without a clock that outlives the call each
+# search began with a walk of the whole vault, which made the call four times as
+# long as the search at 10,000 notes.  Only the time of the check is shared;
+# nothing about a principal is.
+_REFRESH_CLOCK: dict = {}
+
+
+def _refresh_interval() -> float:
+    """Seconds between those checks: $OMPA_INDEX_REFRESH_SECONDS, default 1."""
+    try:
+        return max(0.0, float(os.environ.get("OMPA_INDEX_REFRESH_SECONDS", "1")))
+    except ValueError:
+        return 1.0
+
+
 def Ompa(*args, **kwargs) -> _Ompa:  # noqa: N802 - drop-in for the class inside tools
     """Construct :class:`ompa.Ompa` acting as the current call's principal."""
     kwargs.setdefault("principal", _PRINCIPAL.get())
+    kwargs.setdefault("refresh_clock", _REFRESH_CLOCK)
+    kwargs.setdefault("index_refresh_interval", _refresh_interval())
     return _Ompa(*args, **kwargs)
 
 
@@ -48,6 +66,8 @@ def _make_ompa(arguments: dict, enable_semantic: bool = False) -> _Ompa:
         personal_vault_path=arguments.get("personal_vault_path"),
         enable_semantic=enable_semantic,
         principal=_PRINCIPAL.get(),
+        refresh_clock=_REFRESH_CLOCK,
+        index_refresh_interval=_refresh_interval(),
     )
 
 
@@ -294,10 +314,10 @@ def ao_status(vault_path: str = ".") -> dict:
 def ao_orphans(vault_path: str = ".") -> dict:
     """Find orphan notes."""
     ao = Ompa(vault_path=vault_path, enable_semantic=False)
-    orphans = ao.find_orphans()
+    orphans = ao.vault.orphan_paths()
     return {
         "orphan_count": len(orphans),
-        "orphans": [str(o.path) for o in orphans[:20]],
+        "orphans": [str(path) for path in orphans[:20]],
     }
 
 

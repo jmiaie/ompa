@@ -3,14 +3,17 @@ Vault management for OMPA.
 Handles note organization, templates, wikilinks, and frontmatter validation.
 """
 
+import heapq
 import logging
 import os
 import re
 import shutil
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
 
 import frontmatter
+from frontmatter.default_handlers import YAMLHandler
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +46,76 @@ def is_excluded(path: Path | str, root: Path | str, patterns: list[str] | None =
         if n and any(parts[i : i + n] == want for i in range(len(parts) - n + 1)):
             return True
     return False
+
+
+def _exclusion_sets(patterns: list[str] | None) -> tuple[frozenset[str], list[tuple[str, ...]]]:
+    """Split exclude patterns into folder names and multi-component folder paths."""
+    patterns = DEFAULT_EXCLUDE_PATTERNS if patterns is None else patterns
+    names: set[str] = set()
+    paths: list[tuple[str, ...]] = []
+    for pattern in patterns:
+        want = tuple(p for p in str(pattern).replace("\\", "/").split("/") if p)
+        if len(want) == 1:
+            names.add(want[0])
+        elif want:
+            paths.append(want)
+    return frozenset(names), paths
+
+
+# ``*.md`` as pathlib's glob matches it: case-sensitive except on Windows.
+if os.path.normcase("A") == "A":
+
+    def _is_note_name(name: str) -> bool:
+        return name.endswith(".md")
+else:  # pragma: no cover - Windows
+
+    def _is_note_name(name: str) -> bool:
+        return name.lower().endswith(".md")
+
+
+def walk_notes(
+    root: Path | str, patterns: list[str] | None = None
+) -> Iterator[tuple[str, os.DirEntry]]:
+    """Every note below *root* that :func:`is_excluded` would keep, in one walk.
+
+    Yields ``(path, entry)``: the path spelled as ``str(Path(root) / relative)``
+    and the directory entry, whose ``stat()`` is cheaper than a fresh one.
+
+    This returns what ``Path(root).rglob("*.md")`` filtered through
+    :func:`is_excluded` returns, in the same order (a folder's notes, then its
+    subfolders).  It is about three times faster, because an excluded folder
+    is never entered and no ``Path`` object is built per file.  Like ``rglob``,
+    it does not follow symlinks to directories.
+    """
+    names, paths = _exclusion_sets(patterns)
+    base = str(Path(root))
+    prefix = "" if base == "." else (base if base.endswith(os.sep) else base + os.sep)
+    stack: list[tuple[str, tuple[str, ...]]] = [("", ())]
+    while stack:
+        rel, parts = stack.pop()
+        try:
+            with os.scandir(prefix + rel or ".") as it:
+                entries = list(it)
+        except OSError:
+            continue
+        subdirs: list[str] = []
+        for entry in entries:
+            name = entry.name
+            if name in names:
+                continue
+            if paths:
+                here = parts + (name,)
+                if any(here[-len(want) :] == want for want in paths):
+                    continue
+            if _is_note_name(name):
+                yield prefix + rel + name, entry
+            try:
+                if entry.is_dir() and not entry.is_symlink():
+                    subdirs.append(name)
+            except OSError:
+                continue
+        for name in reversed(subdirs):
+            stack.append((rel + name + os.sep, parts + (name,)))
 
 
 def _safe_resolve(base: Path, untrusted: str) -> Path:
@@ -199,27 +272,66 @@ class Vault:
             folder_path = self.vault_path / folder
             folder_path.mkdir(parents=True, exist_ok=True)
 
+    def note_paths(self, exclude_patterns: list[str] | None = None) -> list[Path]:
+        """Paths of all markdown notes in the vault, without reading any of them."""
+        return [Path(p) for p, _ in walk_notes(self.vault_path, exclude_patterns or None)]
+
     def list_notes(self, exclude_patterns: list[str] = None) -> list[Note]:
         """List all markdown notes in the vault."""
-        exclude_patterns = exclude_patterns or DEFAULT_EXCLUDE_PATTERNS
-        notes = []
+        return [Note.from_file(path) for path in self.note_paths(exclude_patterns)]
 
-        for path in self.vault_path.rglob("*.md"):
-            if is_excluded(path, self.vault_path, exclude_patterns):
-                continue
-            notes.append(Note.from_file(path))
+    @staticmethod
+    def _links_and_wing(path: Path) -> tuple[list[str], str]:
+        """A note's wikilinks and ``wing``, as :meth:`Note.from_file` reports them.
 
-        return notes
+        Vault statistics need only these two things from every note, and parsing
+        each note's YAML took most of the time.  The YAML is only parsed here when
+        it can change the answer: when the frontmatter mentions ``wing``, or holds
+        a ``[[`` (which :meth:`Note.from_file` counts as a link if the YAML turns
+        out to be malformed).  Everything else is decided from the text.
+        """
+        try:
+            text = path.read_text(encoding="utf-8").strip()
+        except (OSError, UnicodeDecodeError):
+            return [], ""
+        if text.startswith(("{", "+++")):  # JSON or TOML frontmatter: rare, take no chances
+            note = Note.from_file(path)
+            return note.links, str(note.frontmatter.get("wing", ""))
+        body = text
+        if YAMLHandler.FM_BOUNDARY.match(text):
+            pieces = YAMLHandler.FM_BOUNDARY.split(text, 2)
+            if len(pieces) == 3:
+                if "wing" in pieces[1] or "[[" in pieces[1]:
+                    note = Note.from_file(path)
+                    return note.links, str(note.frontmatter.get("wing", ""))
+                body = pieces[2]
+        return Note._extract_wikilinks(body.strip()), ""
 
-    def _build_filename_index(self, notes: list[Note]) -> dict[str, Path]:
+    def _link_view(self) -> list[tuple[Path, list[str], str]]:
+        """``(path, wikilinks, wing)`` for every note, one read per note."""
+        return [(path, *self._links_and_wing(path)) for path in self.note_paths()]
+
+    def _linked_paths(self, view: list[tuple[Path, list[str], str]]) -> set[Path]:
+        """Every note that some note's wikilink resolves to."""
+        filename_index = self._build_filename_index([path for path, _, _ in view])
+        linked: set[Path] = set()
+        for _, links, _ in view:
+            for link in links:
+                resolved = self._resolve_wikilink(link, filename_index)
+                if resolved:
+                    linked.add(resolved)
+        return linked
+
+    def _build_filename_index(self, notes: "list[Note] | list[Path]") -> dict[str, Path]:
         """Build a case-insensitive filename → path index for wikilink resolution."""
         index = {}
         for note in notes:
+            path = note.path if isinstance(note, Note) else note
             # Index by stem (without .md) — case-insensitive
-            key = note.path.stem.lower()
-            index[key] = note.path
+            key = path.stem.lower()
+            index[key] = path
             # Also index by full filename
-            index[note.path.name.lower()] = note.path
+            index[path.name.lower()] = path
         return index
 
     def _resolve_wikilink(self, link: str, filename_index: dict[str, Path]) -> Path | None:
@@ -246,28 +358,35 @@ class Vault:
 
         return None
 
+    def orphan_paths(self) -> list[Path]:
+        """Paths of notes with no incoming links from other notes.
+
+        Use this when the paths are all that is needed: :meth:`find_orphans`
+        also loads every orphan's frontmatter and content.
+        """
+        view = self._link_view()
+        linked = self._linked_paths(view)
+        return [
+            path
+            for path, _, _ in view
+            if path not in linked and path.name not in ["Home.md", "README.md"]
+        ]
+
     def find_orphans(self) -> list[Note]:
         """Find notes with no incoming links from other notes."""
-        all_notes = self.list_notes()
-        filename_index = self._build_filename_index(all_notes)
-        linked_files = set()
+        return [Note.from_file(path) for path in self.orphan_paths()]
 
-        for note in all_notes:
-            for link in note.links:
-                resolved = self._resolve_wikilink(link, filename_index)
-                if resolved:
-                    linked_files.add(resolved)
-
-        return [
-            n
-            for n in all_notes
-            if n.path not in linked_files and n.path.name not in ["Home.md", "README.md"]
-        ]
+    def first_note_paths(self, n: int) -> tuple[list[Path], int]:
+        """The first *n* note paths in sorted order, and how many notes there are."""
+        paths = self.note_paths()
+        return heapq.nsmallest(n, paths), len(paths)
 
     def search_by_name(self, query: str) -> list[Note]:
         """Search notes by filename."""
         query_lower = query.lower()
-        return [n for n in self.list_notes() if query_lower in n.path.stem.lower()]
+        return [
+            Note.from_file(path) for path in self.note_paths() if query_lower in path.stem.lower()
+        ]
 
     def get_brain_note(self, name: str) -> Note | None:
         """Get a brain note by name. Name is sanitized to prevent path traversal."""
@@ -331,34 +450,24 @@ class Vault:
 
     def get_stats(self) -> dict:
         """Get vault statistics."""
-        notes = self.list_notes()
-        filename_index = self._build_filename_index(notes)
-
-        # Build linked set using smart wikilink resolution
-        linked_files = set()
-        for note in notes:
-            for link in note.links:
-                resolved = self._resolve_wikilink(link, filename_index)
-                if resolved:
-                    linked_files.add(resolved)
+        # One read per note, and no YAML parse unless it can change the numbers.
+        notes = self._link_view()
+        linked_files = self._linked_paths(notes)
 
         orphan_count = sum(
             1
-            for n in notes
-            if n.path not in linked_files and n.path.name not in ["Home.md", "README.md"]
+            for path, _, _ in notes
+            if path not in linked_files and path.name not in ["Home.md", "README.md"]
         )
 
         folder_counts: dict[str, int] = {}
         brain_count = 0
-        for note in notes:
-            folder = note.path.parent.name or "root"
+        for path, _, wing in notes:
+            folder = path.parent.name or "root"
             folder_counts[folder] = folder_counts.get(folder, 0) + 1
 
             # Count brain notes: in brain/ folder OR wing=brain in frontmatter
-            if (
-                "brain" in note.path.parts
-                or str(note.frontmatter.get("wing", "")).lower() == "brain"
-            ):
+            if "brain" in path.parts or wing.lower() == "brain":
                 brain_count += 1
 
         # Also count brain folder files not yet in notes list (e.g., empty ones)

@@ -138,17 +138,13 @@ def orphans(
 ):
     """Find orphan notes (no wikilinks)."""
     ao = Ompa(vault_path, enable_semantic=False)
-    orphan_notes = ao.find_orphans()
+    orphan_notes = ao.vault.orphan_paths()
     if not orphan_notes:
         console.print("[green]No orphan notes found![/green]")
     else:
         console.print(f"[yellow]Found {len(orphan_notes)} orphan notes:[/yellow]")
-        for note in orphan_notes:
-            rel = (
-                note.path.relative_to(vault_path)
-                if note.path.is_relative_to(vault_path)
-                else note.path
-            )
+        for path in orphan_notes:
+            rel = path.relative_to(vault_path) if path.is_relative_to(vault_path) else path
             console.print(f"  - {rel}")
 
 
@@ -524,7 +520,7 @@ def doctor(
 
     # Orphans
     try:
-        orphan_list = ao.find_orphans()
+        orphan_list = ao.vault.orphan_paths()
         if not orphan_list:
             checks.append(("OK", "Orphan notes", "None"))
         else:

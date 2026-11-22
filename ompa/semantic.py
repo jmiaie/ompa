@@ -17,7 +17,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Protocol, runtime_checkable
 
-from .vault import DEFAULT_EXCLUDE_PATTERNS, is_excluded
+from .vault import DEFAULT_EXCLUDE_PATTERNS, walk_notes  # noqa: F401 - re-exported
 
 logger = logging.getLogger(__name__)
 
@@ -107,17 +107,13 @@ def scan_vault(vault_path: Path, exclude_patterns: list | None = None) -> dict[s
     Pass the result as ``snapshot=`` to :meth:`SemanticIndex.refresh` and
     :meth:`ompa.keyword.KeywordIndex.refresh` so both share a single walk.
     """
-    exclude_patterns = exclude_patterns or DEFAULT_EXCLUDE_PATTERNS
     out: dict[str, list[int]] = {}
-    vault_path = Path(vault_path)
-    for path in vault_path.rglob("*.md"):
-        path_str = str(path)
-        if is_excluded(path, vault_path, exclude_patterns):
-            continue
+    for path_str, entry in walk_notes(vault_path, exclude_patterns or None):
         try:
-            out[path_str] = _file_signature(path)
+            st = entry.stat()
         except OSError:
             continue
+        out[path_str] = [st.st_mtime_ns, st.st_size]
     return out
 
 
@@ -692,11 +688,15 @@ class SemanticIndex:
             if not (hybrid and self.keyword_index is not None):
                 return self._semantic_ranked(query, limit)
             depth = max(limit, 20)
-            return fuse_rrf(
+            # Rank ``depth`` notes on both sides, but build keyword excerpts only
+            # for the fused results that have none (the keyword-only hits).
+            fused = fuse_rrf(
                 self._semantic_ranked(query, depth),
-                self.keyword_index.search(query, depth),
+                self.keyword_index.search(query, depth, excerpts=False),
                 limit,
             )
+            self.keyword_index.fill_excerpts(query, fused)
+            return fused
         except Exception as e:
             logger.warning("Search error: %s", e)
             return self._keyword_search(query, limit)
@@ -712,9 +712,8 @@ class SemanticIndex:
         # Fallback: scan the vault directory
         vault_path = self.index_path.parent.parent  # .palace/semantic_index -> vault
         if vault_path.exists():
-            for md_file in vault_path.rglob("*.md"):
-                if is_excluded(md_file, vault_path):
-                    continue
+            for path_str, _ in walk_notes(vault_path):
+                md_file = Path(path_str)
                 try:
                     content = md_file.read_text(encoding="utf-8")
                     for line_content in content.split("\n"):
