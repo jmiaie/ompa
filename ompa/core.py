@@ -100,6 +100,7 @@ class Ompa:
         temporal_ranking: bool = False,
         temporal_depth: int = 100,
         refresh_clock: dict | None = None,
+        semantic_cache: dict | None = None,
     ):
         """
         Index freshness args:
@@ -110,6 +111,12 @@ class Ompa:
                 process and not once per instance.  The MCP server builds an
                 instance per tool call and passes one; without it, every search
                 walked the whole vault first.
+            semantic_cache: a dict to share between instances in one process,
+                in which the loaded semantic index of each vault is kept.  An
+                instance reuses the index found there if it still matches the
+                files on disk, and otherwise loads it as usual.  The MCP
+                server passes one; without it, every search by a new instance
+                reads and parses the whole index first (32 ms at 10,000 notes).
 
         Audit-memory args:
             principal: user/agent/team id this instance acts as (ACL checks,
@@ -139,6 +146,7 @@ class Ompa:
         self._last_refresh: dict[tuple[str, str], float] = (
             refresh_clock if refresh_clock is not None else {}
         )
+        self._semantic_cache: dict[str, SemanticIndex] | None = semantic_cache
         self._embedding_backend = embedding_backend  # optional custom backend
         self._session_started = False
         self._last_classification: Classification | None = None
@@ -269,19 +277,56 @@ class Ompa:
             )
         return self._personal_keyword
 
+    # Vaults whose loaded semantic index a shared ``semantic_cache`` holds.
+    SEMANTIC_CACHE_VAULTS = 4
+
+    def _open_semantic(self, root: Path, keyword: KeywordIndex) -> SemanticIndex:
+        """The semantic index of the vault at ``root``: loaded, or built if absent.
+
+        With a ``semantic_cache``, an index another instance in this process
+        left there is reused when it is the same embedding backend and still
+        holds exactly what the files on disk hold.  Anything else written to
+        those files since (another process, ``forget()``) fails that check and
+        the index is loaded again.
+        """
+        index_path = root / ".palace" / "semantic_index"
+        cache = self._semantic_cache
+        key = str(index_path)
+        if cache is not None:
+            held = cache.get(key)
+            if (
+                held is not None
+                and held._model_given is self._embedding_backend
+                and held.in_step_with_disk()
+            ):
+                held.keyword_index = keyword
+                return held
+            cache.pop(key, None)
+        index = SemanticIndex(
+            index_path=index_path,
+            embedding_backend=self._embedding_backend,
+            keyword_index=keyword,
+        )
+        if not index.load_index():
+            count = index.index_vault(root)
+            if count > 0:
+                index.save_index()
+        if cache is not None:
+            while len(cache) >= self.SEMANTIC_CACHE_VAULTS:
+                del cache[next(iter(cache))]  # the vault used longest ago
+            cache[key] = index
+        return index
+
+    def _forget_cached_semantic(self, root: Path) -> None:
+        """Drop a vault's index from the shared cache (after erasure or deletion)."""
+        if self._semantic_cache is not None:
+            self._semantic_cache.pop(str(Path(root) / ".palace" / "semantic_index"), None)
+
     @property
     def semantic(self) -> SemanticIndex | None:
         """Lazy-load semantic index on first access."""
         if self._semantic is None and self._enable_semantic:
-            self._semantic = SemanticIndex(
-                index_path=self.vault_path / ".palace" / "semantic_index",
-                embedding_backend=self._embedding_backend,
-                keyword_index=self.keyword,
-            )
-            if not self._semantic.load_index():
-                count = self._semantic.index_vault(self.vault_path)
-                if count > 0:
-                    self._semantic.save_index()
+            self._semantic = self._open_semantic(self.vault_path, self.keyword)
         return self._semantic
 
     @property
@@ -292,15 +337,9 @@ class Ompa:
             and self._enable_semantic
             and self.dual_config.personal_path
         ):
-            self._personal_semantic = SemanticIndex(
-                index_path=self.dual_config.personal_path / ".palace" / "semantic_index",
-                embedding_backend=self._embedding_backend,
-                keyword_index=self.personal_keyword,
+            self._personal_semantic = self._open_semantic(
+                self.dual_config.personal_path, self.personal_keyword
             )
-            if not self._personal_semantic.load_index():
-                count = self._personal_semantic.index_vault(self.dual_config.personal_path)
-                if count > 0:
-                    self._personal_semantic.save_index()
         return self._personal_semantic
 
     # -------------------------------------------------------------------------
@@ -1231,6 +1270,8 @@ class Ompa:
         if sem is not None:
             sem.save_index()
         self._changed_behind_semantic(sem, keyword, root)
+        if sem is None:
+            self._forget_cached_semantic(root)  # it still holds the deleted note
         return {"success": True, "path": str(full), "facts_deleted": n}
 
     def forget(
@@ -1252,8 +1293,13 @@ class Ompa:
         """
         out = []
         for name in self._govs(vaults):
-            gov, kg, keyword, sem_attr, _root = self._ctx(name)
+            gov, kg, keyword, sem_attr, root = self._ctx(name)
             out.append(forget_vault(self, gov, kg, keyword, sem_attr, subject, dry_run))
+            if not dry_run:
+                # An index kept from an earlier call still holds the erased
+                # excerpts in memory.  It would be reloaded before its next
+                # use anyway; drop it now so nothing holds them.
+                self._forget_cached_semantic(root)
         return out
 
     def apply_retention(
@@ -1262,8 +1308,10 @@ class Ompa:
         """Delete notes/facts older than their retention rule (skipping legal holds)."""
         out = []
         for name in self._govs(vaults):
-            gov, kg, keyword, sem_attr, _root = self._ctx(name)
+            gov, kg, keyword, sem_attr, root = self._ctx(name)
             out.append(apply_retention_vault(self, gov, kg, keyword, sem_attr, now, dry_run))
+            if not dry_run:
+                self._forget_cached_semantic(root)
         return out
 
     def _policy_change(self, gov: VaultGovernance, op: str, item: dict) -> None:

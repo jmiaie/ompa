@@ -42,6 +42,13 @@ _PRINCIPAL: contextvars.ContextVar[str | None] = contextvars.ContextVar(
 # nothing about a principal is.
 _REFRESH_CLOCK: dict = {}
 
+# The loaded semantic index of each vault this server has searched (at most
+# Ompa.SEMANTIC_CACHE_VAULTS of them).  Without it every search read and parsed
+# the whole index again, which at 10,000 notes took as long as the search.  A
+# call reuses an index only while it still matches the files on disk, and each
+# call's own Ompa still decides what its principal may read.
+_SEMANTIC_CACHE: dict = {}
+
 
 def _refresh_interval() -> float:
     """Seconds between those checks: $OMPA_INDEX_REFRESH_SECONDS, default 1."""
@@ -55,6 +62,7 @@ def Ompa(*args, **kwargs) -> _Ompa:  # noqa: N802 - drop-in for the class inside
     """Construct :class:`ompa.Ompa` acting as the current call's principal."""
     kwargs.setdefault("principal", _PRINCIPAL.get())
     kwargs.setdefault("refresh_clock", _REFRESH_CLOCK)
+    kwargs.setdefault("semantic_cache", _SEMANTIC_CACHE)
     kwargs.setdefault("index_refresh_interval", _refresh_interval())
     return _Ompa(*args, **kwargs)
 
@@ -67,6 +75,7 @@ def _make_ompa(arguments: dict, enable_semantic: bool = False) -> _Ompa:
         enable_semantic=enable_semantic,
         principal=_PRINCIPAL.get(),
         refresh_clock=_REFRESH_CLOCK,
+        semantic_cache=_SEMANTIC_CACHE,
         index_refresh_interval=_refresh_interval(),
     )
 

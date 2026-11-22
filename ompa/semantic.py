@@ -295,7 +295,11 @@ class SemanticIndex:
         self._dirty = False
         self._initialized = False
         self._lock = threading.RLock()
+        # [mtime_ns, size] of the two index files as this object last loaded or
+        # saved them; None until then.  See in_step_with_disk().
+        self._disk_state: list[list[int]] | None = None
         # Accept a pre-built backend (e.g. NIMEmbeddingBackend) or load lazily
+        self._model_given: EmbeddingBackend | None = embedding_backend
         self._model: EmbeddingBackend | None = embedding_backend
         if embedding_backend is not None:
             self._initialized = True
@@ -511,6 +515,24 @@ class SemanticIndex:
 
     # ------------------------------------------------------------- persistence
 
+    def _files_on_disk(self) -> list[list[int]] | None:
+        try:
+            return [_file_signature(self.index_path / name) for name in (META_FILE, VECTORS_FILE)]
+        except OSError:
+            return None
+
+    def in_step_with_disk(self) -> bool:
+        """True if this object holds exactly what the index files hold.
+
+        False once it has unsaved changes, or once anything else has written
+        the files: another process, or another ``SemanticIndex`` over the same
+        folder (``forget()`` uses one).  A caller that keeps an index between
+        uses checks this before using it again, and reloads when it is False.
+        """
+        if self._dirty or self._disk_state is None:
+            return False
+        return self._disk_state == self._files_on_disk()
+
     def flush(self) -> None:
         """Persist the index if there are unsaved incremental updates."""
         if self._dirty:
@@ -535,6 +557,7 @@ class SemanticIndex:
                 json.dumps(meta, separators=(",", ":")).encode("utf-8"),
             )
             self._dirty = False
+            self._disk_state = self._files_on_disk()
         legacy = self.index_path / LEGACY_FILE
         if legacy.exists():
             try:
@@ -547,6 +570,10 @@ class SemanticIndex:
         meta_file = self.index_path / META_FILE
         if meta_file.exists():
             try:
+                # Taken before reading: if the files are replaced while they
+                # are read, what was loaded no longer matches this state and
+                # in_step_with_disk() says so.
+                state = self._files_on_disk()
                 meta = json.loads(meta_file.read_text(encoding="utf-8"))
                 raw = (self.index_path / VECTORS_FILE).read_bytes()
                 with self._lock:
@@ -555,12 +582,14 @@ class SemanticIndex:
                         str(k): [int(x) for x in v] for k, v in meta.get("files", {}).items()
                     }
                     self._dirty = False
+                    self._disk_state = state
                 return True
             except Exception as e:
                 logger.warning("Error loading index (will rebuild): %s", e)
                 with self._lock:
                     self._store.clear()
                     self.file_mtimes = {}
+                    self._disk_state = None
                 return False
         return self._load_legacy()
 
@@ -740,6 +769,7 @@ class SemanticIndex:
             self._store.clear()
             self.file_mtimes = {}
             self._dirty = False
+            self._disk_state = None
         for name in (META_FILE, VECTORS_FILE, LEGACY_FILE):
             f = self.index_path / name
             if f.exists():

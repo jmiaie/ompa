@@ -7,6 +7,7 @@ the code it replaced, written out below as the reference.
 
 import os
 import sqlite3
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -724,3 +725,586 @@ def test_only_the_written_vault_is_checked_again(embedded_vault, tmp_path):
     assert len(clock) == 2
     _instance(vault, clock, semantic=False).write("Tangerine.", file_path="brain/t.md")
     assert [Path(key[1]).parent.parent.name for key in clock] == ["other"]
+
+
+# ---------------------------------------------------------------------------
+# A loaded semantic index kept between instances is only reused while it is right
+# ---------------------------------------------------------------------------
+
+
+def _cached(vault, cache, clock=None, backend=None):
+    return Ompa(
+        vault_path=vault,
+        enable_semantic=True,
+        embedding_backend=backend if backend is not None else _SHARED_BACKEND,
+        refresh_clock=clock if clock is not None else {},
+        semantic_cache=cache,
+        index_refresh_interval=3600,
+    )
+
+
+_SHARED_BACKEND = _BagOfWords()
+
+
+@pytest.fixture
+def cached_vault(tmp_path):
+    vault = tmp_path / "vault"
+    (vault / "brain").mkdir(parents=True)
+    for name, text in [
+        ("seed", "The launch codename is heliotrope."),
+        ("ada", "Ada Lovelace reviewed the analytical engine notes."),
+        ("plan", "The migration plan moves the ledger to Postgres."),
+    ]:
+        (vault / "brain" / f"{name}.md").write_text(text, encoding="utf-8")
+    cache: dict = {}
+    first = _cached(vault, cache)
+    first.search("heliotrope")
+    return vault, cache, first.semantic
+
+
+def _names(results):
+    return [Path(r.path).name for r in results]
+
+
+@needs_fts5
+def test_the_next_instance_reuses_the_loaded_index(cached_vault, monkeypatch):
+    vault, cache, loaded = cached_vault
+    assert list(cache.values()) == [loaded]
+    monkeypatch.setattr(
+        SemanticIndex, "load_index", lambda self: pytest.fail("the index was read again")
+    )
+    second = _cached(vault, cache)
+    assert second.semantic is loaded
+    assert loaded.keyword_index is second.keyword  # searches use this instance's connection
+    assert _names(second.search("heliotrope codename"))[0] == "seed.md"
+
+
+@needs_fts5
+def test_an_instance_without_a_cache_loads_its_own(cached_vault):
+    vault, cache, loaded = cached_vault
+    alone = Ompa(vault_path=vault, enable_semantic=True, embedding_backend=_SHARED_BACKEND)
+    assert alone.semantic is not loaded
+    assert list(cache.values()) == [loaded]
+
+
+@needs_fts5
+def test_an_index_written_by_someone_else_is_loaded_again(cached_vault):
+    """Another process, or another SemanticIndex over the same folder."""
+    vault, cache, loaded = cached_vault
+    other = SemanticIndex(vault / ".palace" / "semantic_index", embedding_backend=_SHARED_BACKEND)
+    assert other.load_index()
+    (vault / "brain" / "new.md").write_text("Marmalade is the new codename.", encoding="utf-8")
+    other.refresh(vault)  # indexes new.md and saves
+    assert not loaded.in_step_with_disk()
+
+    second = _cached(vault, cache)
+    assert second.semantic is not loaded
+    assert {Path(p).name for p in second.semantic.file_mtimes} == {
+        "seed.md",
+        "ada.md",
+        "plan.md",
+        "new.md",
+    }
+    assert list(cache.values()) == [second.semantic]
+
+
+@needs_fts5
+def test_an_index_with_unsaved_changes_is_not_reused(cached_vault):
+    vault, cache, loaded = cached_vault
+    (vault / "brain" / "draft.md").write_text("Unsaved marmalade.", encoding="utf-8")
+    loaded.update_file(vault / "brain" / "draft.md", save=False)
+    assert not loaded.in_step_with_disk()
+    second = _cached(vault, cache)
+    assert second.semantic is not loaded
+    # what it loaded is what was on disk; the next check of the vault adds the note
+    assert "draft.md" not in {Path(p).name for p in second.semantic.file_mtimes}
+    assert "draft.md" in _names(second.search("unsaved marmalade"))
+
+
+@needs_fts5
+def test_a_different_embedding_backend_does_not_reuse_the_index(cached_vault):
+    vault, cache, loaded = cached_vault
+    second = _cached(vault, cache, backend=_BagOfWords())
+    assert second.semantic is not loaded
+
+
+@needs_fts5
+def test_in_step_with_disk(tmp_path):
+    index = SemanticIndex(tmp_path / "idx", embedding_backend=_SHARED_BACKEND)
+    assert not index.in_step_with_disk()  # nothing loaded or saved yet
+    note = tmp_path / "a.md"
+    note.write_text("Alpha heliotrope.", encoding="utf-8")
+    index.update_file(note, save=False)
+    assert not index.in_step_with_disk()  # unsaved
+    index.save_index()
+    assert index.in_step_with_disk()
+    reader = SemanticIndex(tmp_path / "idx", embedding_backend=_SHARED_BACKEND)
+    assert reader.load_index() and reader.in_step_with_disk()
+    (tmp_path / "idx" / "index_vectors.f16").unlink()
+    assert not reader.in_step_with_disk()  # a file is gone
+    index.save_index()
+    index.clear()
+    assert not index.in_step_with_disk()
+
+
+@needs_fts5
+def test_forget_leaves_no_copy_of_the_subject_in_the_cache(cached_vault):
+    vault, cache, loaded = cached_vault
+    assert any("Lovelace" in chunk["text"] for chunk in loaded.chunks)
+    # The MCP forget tool runs without the embedding model loaded.
+    eraser = Ompa(vault_path=vault, enable_semantic=False, semantic_cache=cache, refresh_clock={})
+    eraser.forget("Ada Lovelace")
+    assert cache == {}
+
+    second = _cached(vault, cache)
+    assert second.semantic is not loaded
+    assert not any("Lovelace" in chunk["text"] for chunk in second.semantic.chunks)
+    assert not any("Lovelace" in r.content_excerpt for r in second.search("Lovelace engine"))
+
+
+@needs_fts5
+def test_forget_dry_run_keeps_the_cache(cached_vault):
+    vault, cache, loaded = cached_vault
+    Ompa(vault_path=vault, enable_semantic=False, semantic_cache=cache).forget(
+        "Ada Lovelace", dry_run=True
+    )
+    assert list(cache.values()) == [loaded]
+
+
+@needs_fts5
+def test_delete_and_retention_drop_the_cached_index(cached_vault):
+    vault, cache, loaded = cached_vault
+    writer = Ompa(vault_path=vault, enable_semantic=False, semantic_cache=cache, refresh_clock={})
+    assert writer.delete_note("brain/plan.md")["success"]
+    assert cache == {}
+    second = _cached(vault, cache)
+    assert "plan.md" not in _names(second.search("migration plan ledger"))
+    assert len(cache) == 1
+
+    admin = Ompa(
+        vault_path=vault,
+        enable_semantic=False,
+        semantic_cache=cache,
+        refresh_clock={},
+        audit=True,
+    )
+    admin.add_retention_rule(30, all=True)
+    later = datetime.now(timezone.utc) + timedelta(days=31)
+    assert admin.apply_retention(dry_run=True, now=later)[0]["notes"]
+    assert len(cache) == 1  # a dry run changes nothing
+    admin.apply_retention(now=later)
+    assert cache == {}
+    assert _names(_cached(vault, cache).search("heliotrope codename")) == []
+
+
+@needs_fts5
+def test_the_cache_holds_a_bounded_number_of_vaults(tmp_path):
+    cache: dict = {}
+    limit = Ompa.SEMANTIC_CACHE_VAULTS
+    vaults = []
+    for i in range(limit + 2):
+        vault = tmp_path / f"v{i}"
+        vault.mkdir()
+        (vault / "n.md").write_text(f"Vault number {i} heliotrope.", encoding="utf-8")
+        _cached(vault, cache).search("heliotrope")
+        vaults.append(vault)
+    assert len(cache) == limit
+    kept = [Path(key).parent.parent.name for key in cache]
+    assert kept == [v.name for v in vaults[-limit:]]  # the earliest two were dropped
+
+
+@needs_fts5
+def test_cached_and_uncached_instances_return_the_same_results(tmp_path):
+    """The same sequence of writes, edits, outside edits and deletes, searched
+    after each step by a new instance, with and without the shared cache."""
+
+    def run(vault, cache):
+        vault.mkdir()
+        (vault / "brain").mkdir()
+        clock: dict = {}
+        seen = []
+
+        def step(action=None):
+            if action is not None:
+                action()
+                clock.clear()  # the next search checks the vault
+            ao = Ompa(
+                vault_path=vault,
+                enable_semantic=True,
+                embedding_backend=_SHARED_BACKEND,
+                refresh_clock=clock,
+                semantic_cache=cache,
+                index_refresh_interval=3600,
+            )
+            for query in ("heliotrope codename", "ledger migration", "marmalade"):
+                seen.append(
+                    [(Path(r.path).name, r.score, r.content_excerpt) for r in ao.search(query)]
+                )
+
+        writer = lambda: Ompa(  # noqa: E731
+            vault_path=vault, enable_semantic=False, refresh_clock=clock, semantic_cache=cache
+        )
+        step(lambda: writer().write("The launch codename is heliotrope.", file_path="brain/a.md"))
+        step(lambda: writer().write("The ledger migration is planned.", file_path="brain/b.md"))
+        step()  # nothing changed: the cached index is reused as it is
+        step(lambda: writer().write("The codename is now marmalade.", file_path="brain/a.md"))
+        step(lambda: (vault / "brain" / "c.md").write_text("Outside edit: marmalade ledger."))
+        step(lambda: writer().delete_note("brain/b.md"))
+        step(lambda: (vault / "brain" / "c.md").unlink())
+        return seen
+
+    assert run(tmp_path / "with", {}) == run(tmp_path / "without", None)
+
+
+# ---------------------------------------------------------------------------
+# Ranking by the rare words first returns what ranking every match did
+# ---------------------------------------------------------------------------
+#
+# On an index of 2,000 notes or more, a query with words found in most notes is
+# ranked by its rarer words, and only the rows that could still reach the
+# results are scored by the whole query.  The reference is the statement that
+# scores every match, reached by raising the size from which the shortcut is
+# used.  Paths, scores and excerpts must be equal, not close.
+
+import random  # noqa: E402
+
+import ompa.keyword as keyword_module  # noqa: E402
+
+COMMON_WORDS = "the of and to a in is it that for on with as was at by".split()  # noqa: SIM905
+
+
+def _prose_index(root, notes, seed, same_length):
+    """Notes that are about half words found in most notes, like prose."""
+    rng = random.Random(seed)
+    root.mkdir(parents=True)
+    for i in range(notes):
+        length = 40 if same_length else rng.randint(4, 120)
+        words = []
+        for _ in range(length):
+            if rng.random() < 0.55:
+                words.append(rng.choice(COMMON_WORDS))
+            else:
+                words.append(f"term{min(int(rng.paretovariate(1.1)), 300)}")
+        (root / f"n{i:04d}.md").write_text(" ".join(words) + f" only{i}", encoding="utf-8")
+    index = KeywordIndex(root / ".palace" / "keyword_index.sqlite3")
+    index.refresh(root)
+    return index
+
+
+# term1..term4 are in most notes, term5 in about half, term50 in about one in 200.
+TERM_NUMBERS = [1, 3, 5, 6, 7, 8, 9, 10, 12, 15, 20, 30, 50, 100, 250]
+
+
+def _random_query(rng, notes):
+    words = rng.sample(COMMON_WORDS, rng.randint(0, 6))
+    words += [f"term{rng.choice(TERM_NUMBERS)}" for _ in range(rng.randint(0, 4))]
+    if rng.random() < 0.4:
+        words.append(f"only{rng.randrange(notes)}")
+    if rng.random() < 0.2:
+        words.append("absentword")
+    rng.shuffle(words)
+    return " ".join(words) or "the term1"
+
+
+def _as_tuples(results):
+    return [(r.path, r.score, r.content_excerpt, r.match_type) for r in results]
+
+
+@pytest.fixture
+def shortcut(monkeypatch):
+    """Switch between the shortcut (from any size) and scoring every match, and
+    count the searches the shortcut answered."""
+    taken = []
+    real = KeywordIndex._ranked_by_rare_words
+
+    def counted(self, conn, words, fts_q, limit):
+        ranked = real(self, conn, words, fts_q, limit)
+        if ranked is not None:
+            taken.append(fts_q)
+        return ranked
+
+    monkeypatch.setattr(KeywordIndex, "_ranked_by_rare_words", counted)
+
+    class Switch:
+        answered = taken
+
+        @staticmethod
+        def on():
+            monkeypatch.setattr(keyword_module, "_PRUNE_MIN_NOTES", 0)
+
+        @staticmethod
+        def off():
+            monkeypatch.setattr(keyword_module, "_PRUNE_MIN_NOTES", 10**12)
+
+    Switch.on()
+    return Switch
+
+
+def _both_ways(index, shortcut, query, limit, excerpts=True):
+    shortcut.on()
+    fast = _as_tuples(index.search(query, limit, excerpts=excerpts))
+    shortcut.off()
+    slow = _as_tuples(index.search(query, limit, excerpts=excerpts))
+    shortcut.on()
+    return fast, slow
+
+
+@needs_fts5
+@pytest.mark.parametrize("same_length", [False, True], ids=["varied lengths", "equal lengths"])
+@pytest.mark.parametrize("seed", [1, 2, 3])
+def test_rare_words_first_equals_scoring_every_match(tmp_path, shortcut, seed, same_length):
+    """Equal lengths make many rows tie on the rare words, so the common words
+    decide their order: the case the shortcut has to get exactly right."""
+    notes = 400
+    index = _prose_index(tmp_path / "v", notes, seed, same_length)
+    rng = random.Random(seed * 100)
+    checked = 0
+    for _ in range(60):
+        query = _random_query(rng, notes)
+        for limit in (1, 5, 20, 100):
+            fast, slow = _both_ways(index, shortcut, query, limit, excerpts=limit != 20)
+            assert fast == slow, (query, limit)
+            checked += 1
+    # the comparison means something only if the shortcut answered a good share
+    assert len(shortcut.answered) > checked // 4
+    index.close()
+
+
+@needs_fts5
+@pytest.mark.parametrize("notes", [200, 201])
+def test_a_word_in_exactly_half_the_notes(tmp_path, shortcut, notes):
+    """bm25() floors the IDF of a word in at least half the rows.  Half of an
+    odd count rounds up."""
+    root = tmp_path / "v"
+    root.mkdir()
+    half = (notes + 1) // 2
+    for i in range(notes):
+        words = ["the"] * 3 + [f"filler{i % 7}"] * (i % 5 + 1)
+        words += ["exactly"] * (i < half) + ["under"] * (i < half - 1) + ["over"] * (i <= half)
+        words += ["rare"] * (i % 11 == 0) + [f"only{i}"]
+        (root / f"n{i:03d}.md").write_text(" ".join(words), encoding="utf-8")
+    index = KeywordIndex(root / ".palace" / "keyword_index.sqlite3")
+    index.refresh(root)
+    conn = index._conn
+    assert index._common_words(conn, ["the", "exactly", "over", "under", "rare"], half) == {
+        "the",
+        "exactly",
+        "over",
+    }
+    for query in ("exactly rare", "over rare", "under rare", "exactly over under rare the"):
+        before = len(shortcut.answered)
+        for limit in (1, 5, 20):
+            fast, slow = _both_ways(index, shortcut, query, limit)
+            assert fast == slow, (query, limit)
+        if query != "under rare":  # no common word in that one
+            assert len(shortcut.answered) > before, query
+    # what a search itself decided, with its own count of the rows
+    assert index._common == {
+        "the": True,
+        "exactly": True,
+        "over": True,
+        "under": False,
+        "rare": False,
+    }
+    index.close()
+
+
+@needs_fts5
+def test_the_shortcut_stands_aside_when_it_cannot_be_exact(tmp_path, shortcut, monkeypatch):
+    index = _prose_index(tmp_path / "v", 300, seed=7, same_length=True)
+    query = "the of term8 term10 term12 and"
+
+    def answered(limit=5):
+        before = len(shortcut.answered)
+        fast, slow = _both_ways(index, shortcut, query, limit)
+        assert fast == slow
+        return len(shortcut.answered) > before
+
+    assert answered()
+    # more rows left to score than it scores
+    monkeypatch.setattr(keyword_module, "_PRUNE_MAX_CANDIDATES", 2)
+    assert not answered()
+    monkeypatch.setattr(keyword_module, "_PRUNE_MAX_CANDIDATES", 900)
+    # scores that do not keep the bound it relies on
+    monkeypatch.setattr(keyword_module, "_COMMON_WORD_BOUND", 1e-13)
+    assert not answered()
+    # common words that could outweigh the rare ones: rows matching only
+    # common words might then reach the results
+    monkeypatch.setattr(keyword_module, "_COMMON_WORD_BOUND", 10.0)
+    assert not answered()
+    monkeypatch.setattr(keyword_module, "_COMMON_WORD_BOUND", 1e-6 * 2.2)
+    assert answered()
+    # fewer rows match a rare word than were asked for
+    before = len(shortcut.answered)
+    fast, slow = _both_ways(index, shortcut, "the of only5 and", 5)
+    assert fast == slow and len(fast) == 5 and len(shortcut.answered) == before
+    # nothing but common words, nothing but rare ones, a single word
+    for other in ("the of and", "term10 term12", "the"):
+        before = len(shortcut.answered)
+        fast, slow = _both_ways(index, shortcut, other, 5)
+        assert fast == slow and len(shortcut.answered) == before, other
+    index.close()
+
+
+@needs_fts5
+def test_a_small_index_scores_every_match(tmp_path, shortcut, monkeypatch):
+    index = _prose_index(tmp_path / "v", 300, seed=4, same_length=False)
+    query = "the of term8 term10 term12 and"
+    assert index.search(query, 5)
+    assert len(shortcut.answered) == 1  # it would answer this one, size permitting
+    monkeypatch.setattr(keyword_module, "_PRUNE_MIN_NOTES", 2000)  # the shipped value
+    assert index.search(query, 5)
+    assert len(shortcut.answered) == 1
+    index.close()
+
+
+@needs_fts5
+def test_which_words_are_common_is_asked_once_per_state_of_the_index(tmp_path, shortcut):
+    """It is remembered while the index is unchanged, and asked again after a
+    write by this index object or by another one."""
+    root = tmp_path / "v"
+    root.mkdir()
+    for i in range(100):
+        body = (
+            "the " * 3 + ("pivot " if i < 60 else "") + ("rare " if i % 9 == 0 else "") + f"only{i}"
+        )
+        (root / f"n{i:03d}.md").write_text(body, encoding="utf-8")
+    index = KeywordIndex(root / ".palace" / "keyword_index.sqlite3")
+    index.refresh(root)
+
+    counts = []
+    conn = index._conn
+    real_execute = conn.execute
+
+    class Counting:
+        def __getattr__(self, name):
+            return getattr(conn, name)
+
+        def execute(self, sql, *args):
+            if sql is keyword_module._AT_LEAST_SQL:
+                counts.append(args[0][0])
+            return real_execute(sql, *args)
+
+    index._conn = Counting()
+    query = "the pivot rare"
+    fast, slow = _both_ways(index, shortcut, query, 5)
+    assert fast == slow
+    assert sorted(counts) == ['"pivot"', '"rare"', '"the"']
+    for _ in range(3):
+        index.search(query, 5)
+    assert len(counts) == 3  # remembered
+
+    # "pivot" was in 60 of 100 notes.  Remove 30 of those: now 30 of 70, rare.
+    for i in range(30):
+        (root / f"n{i:03d}.md").unlink()
+    index.refresh(root)
+    fast, slow = _both_ways(index, shortcut, query, 5)
+    assert fast == slow
+    assert len(counts) == 6  # asked again after this object's own write
+    assert index._common == {"the": True, "pivot": False, "rare": False}
+
+    # Another index object over the same file adds notes: 30 + 45 of 115, common.
+    other = KeywordIndex(root / ".palace" / "keyword_index.sqlite3")
+    for i in range(100, 145):
+        (root / f"n{i:03d}.md").write_text("the the pivot " + f"only{i}", encoding="utf-8")
+    other.refresh(root)
+    other.close()
+    fast, slow = _both_ways(index, shortcut, query, 5)
+    assert fast == slow
+    assert len(counts) == 9
+    assert index._common == {"the": True, "pivot": True, "rare": False}
+    index._conn = conn
+    index.close()
+
+
+@needs_fts5
+def test_hybrid_search_is_unchanged_by_the_shortcut(tmp_path, shortcut):
+    root = tmp_path / "v"
+    keyword = _prose_index(root, 300, seed=9, same_length=True)
+    index = SemanticIndex(
+        root / ".palace" / "semantic_index", embedding_backend=_BagOfWords(), keyword_index=keyword
+    )
+    index.index_vault(root)
+    rng = random.Random(90)
+    queries = ["the of term8 term9 term10 and", "what is the term7 for term12"]
+    queries += [_random_query(rng, 300) for _ in range(25)]
+    for query in queries:
+        for limit in (3, 10):
+            shortcut.on()
+            fast = _as_tuples(index.search(query, limit))
+            shortcut.off()
+            slow = _as_tuples(index.search(query, limit))
+            assert fast == slow, (query, limit)
+    assert shortcut.answered
+    keyword.close()
+
+
+TEN_COMMON = COMMON_WORDS[:10]
+
+
+def _index_where_common_words_decide(root, favoured):
+    """Thirty short notes that make ten words common, then the notes given.
+
+    ``favoured`` maps a file name to (occurrences of "zebra", occurrences of
+    each common word).  Every such note is padded to the same length, so only
+    those two numbers separate their scores.
+    """
+    root.mkdir(parents=True)
+    for i in range(30):
+        (root / f"a{i:02d}.md").write_text(" ".join(TEN_COMMON) + f" only{i}", encoding="utf-8")
+    length = max(z + 10 * c for z, c in favoured.values()) + 50
+    for name, (zebras, commons) in favoured.items():
+        words = ["zebra"] * zebras + TEN_COMMON * commons
+        words += ["pad"] * (length - len(words))
+        (root / name).write_text(" ".join(words), encoding="utf-8")
+    index = KeywordIndex(root / ".palace" / "keyword_index.sqlite3")
+    index.refresh(root)
+    return index
+
+
+@needs_fts5
+def test_a_row_just_behind_on_rare_words_can_win_on_common_ones(tmp_path, shortcut):
+    """The reason rows within the bound of the cut are scored in full.
+
+    One more "zebra" among 5,000 puts b1 ahead on the rare word by a few
+    millionths.  b2 has the common words and b1 has none, which is worth more
+    than that.  Ranking every match puts b2 first, so the shortcut must too.
+    """
+    index = _index_where_common_words_decide(
+        tmp_path / "v", {"b1.md": (5001, 0), "b2.md": (5000, 50)}
+    )
+    query = "zebra " + " ".join(TEN_COMMON)
+    by_rare = index.search("zebra", 2)
+    assert [Path(r.path).name for r in by_rare] == ["b1.md", "b2.md"]
+    gap = by_rare[0].score - by_rare[1].score
+    assert 0 < gap < keyword_module._COMMON_WORD_BOUND * 10
+
+    fast, slow = _both_ways(index, shortcut, query, 1)
+    assert Path(slow[0][0]).name == "b2.md"
+    assert fast == slow
+    assert len(shortcut.answered) == 1
+    fast, slow = _both_ways(index, shortcut, query, 2)
+    assert fast == slow and [Path(r[0]).name for r in fast] == ["b2.md", "b1.md"]
+    index.close()
+
+
+@needs_fts5
+def test_a_ranking_cut_off_among_ties_is_not_used(tmp_path, shortcut, monkeypatch):
+    """Ten notes tie on the rare word and the last has the common words, so it
+    ranks first.  With room for two rows, the ranking by rare words stops at
+    the first three, all still in the running, and the last note is not among
+    them: the shortcut has to stand aside."""
+    notes = {f"c{i}.md": (20, 0) for i in range(9)}
+    notes["c9.md"] = (20, 5)
+    index = _index_where_common_words_decide(tmp_path / "v", notes)
+    query = "zebra " + " ".join(TEN_COMMON)
+
+    fast, slow = _both_ways(index, shortcut, query, 1)
+    assert Path(slow[0][0]).name == "c9.md" and fast == slow
+    assert len(shortcut.answered) == 1  # ten rows in the running: all scored
+
+    monkeypatch.setattr(keyword_module, "_PRUNE_MAX_CANDIDATES", 2)
+    fast, slow = _both_ways(index, shortcut, query, 1)
+    assert Path(fast[0][0]).name == "c9.md" and fast == slow
+    assert len(shortcut.answered) == 1  # not this time
+    index.close()

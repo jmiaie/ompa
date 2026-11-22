@@ -72,8 +72,23 @@ edit in another program are picked up by a check that walks the vault and
 re-indexes what changed. The server runs that check before a search if it has
 not run in the last `OMPA_INDEX_REFRESH_SECONDS` (default 1), so an outside edit
 can take up to that long to appear. Before 1.2.1 the check ran before every
-search, which on a 10,000-note vault made the call about four times as long as
-the search itself. Set the variable to `0` to get that behaviour back.
+search, which on a 10,000-note vault made the call more than five times as long
+as the search itself. Set the variable to `0` to get that behaviour back.
+
+With `ompa[semantic]`, a write, edit or delete through OMPA makes the next
+search run that check first, whatever the interval, because the write tool does
+not load the embedding model and cannot update the semantic index itself. The
+server also keeps the loaded semantic index of up to four vaults between calls
+and reuses it only while it still matches the files on disk, so a change made
+by another process, or by `ao_forget`, is always loaded before it is searched.
+
+### Where `ao_write` puts a note
+
+With a `file_path`, there. Without one, in the folder the classifier picks from
+the text (a decision goes to `work/active/`, an incident to `work/incidents/`),
+and in `brain/` when the classifier cannot place it. `thinking/` is scratch
+space that search leaves out, so `ao_write` never chooses it; before 1.2.1 it
+did, for most plain statements, and those notes could not be found again.
 
 ## Available tools
 
