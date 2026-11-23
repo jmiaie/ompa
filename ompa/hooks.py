@@ -151,14 +151,15 @@ class SessionStartHook(Hook):
 
             # File listing (truncated)
             lines.append("### Vault Files")
-            all_notes = vault.list_notes()
-            for vault_note in sorted(all_notes, key=lambda n: n.path)[:30]:
+            # Only the paths are shown, so no note is read for this listing.
+            first_paths, note_count = vault.first_note_paths(30)
+            for note_path in first_paths:
                 try:
-                    lines.append(f"- {vault_note.path.relative_to(context.vault_path)}")
+                    lines.append(f"- {note_path.relative_to(context.vault_path)}")
                 except ValueError:
-                    lines.append(f"- {vault_note.path.name}")
-            if len(all_notes) > 30:
-                lines.append(f"... and {len(all_notes) - 30} more")
+                    lines.append(f"- {note_path.name}")
+            if note_count > 30:
+                lines.append(f"... and {note_count - 30} more")
 
             output = "\n".join(lines)
             return HookResult(
@@ -339,17 +340,18 @@ class StopHook(Hook):
             lines.append("")
 
             # Check for orphans
-            orphans = vault.find_orphans()
+            orphans = vault.orphan_paths()
             lines.append(f"**Orphan notes:** {len(orphans)}")
             if orphans:
                 for orphan in orphans[:5]:
-                    lines.append(f"  - {orphan.path.name}")
+                    lines.append(f"  - {orphan.name}")
             lines.append("")
 
             # Brain notes count
-            all_notes = vault.list_notes()
             brain_index = [
-                n.path.relative_to(context.vault_path) for n in all_notes if "brain" in str(n.path)
+                path.relative_to(context.vault_path)
+                for path in vault.note_paths()
+                if "brain" in str(path)
             ]
             lines.append(f"**Brain notes:** {len(brain_index)}")
 

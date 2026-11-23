@@ -11,6 +11,7 @@ Recall numbers are deterministic and unaffected by load.
 | `longmemeval_s.py` | Retrieval on the full LongMemEval-S, n=470, per search mode, bootstrap 95% CIs |
 | `search_latency.py` | Search p50/p95, index size, build time and cold load at 1k / 10k / 50k notes |
 | `temporal_mc.py` | Temporal knowledge-graph point-in-time correctness, 20-seed Monte Carlo |
+| `mcp_latency.py` | What an agent waits for: whole MCP tool calls (search, session start, status ...) on 1k / 10k notes |
 | `smoke_sample.py` | **Smoke test only:** 20 hand-written items. This is *not* LongMemEval, and its score means nothing beyond "search works" |
 
 ## 1. LongMemEval-S (session-level retrieval)
@@ -153,12 +154,94 @@ Single `AuditLog.append` (own transaction + head update): p50 101 µs, 8131 appe
 | unsigned_rehash | 20261021, 7, 1337 | 1,500 | 1,500 | 0 | 0.0000 | 0/300 |
 | unsigned_rehash + external anchor | 20261021, 7, 1337 | 1,500 | 1,500 | 1,500 | 1.0000 | — |
 
+## 5. MCP tool calls (`mcp_latency.py`)
+
+The MCP server builds a fresh `Ompa` for every tool call, so sections 1–2 (a resident index) are not
+what an agent waits for. This script times `handle_call_tool`, the function the stdio loop calls.
+Notes are ~250 words with frontmatter, tags and two wikilinks; one word in six is a common English
+word and the query is a question, so it matches most notes, as a real one does.
+
+Measured 2026-11-22 on a 4-vCPU cloud sandbox, Python 3.11, 21 calls per cell (7 for the four
+vault-wide tools), p50 in ms. 1.1.1 is `main` before this release. The two versions were run one
+after the other in the same session; numbers from different sessions on this sandbox differ by up
+to 20%, so compare within a table, not with earlier ones.
+
+**Keyword-only** (`ompa[semantic]` not installed, so no model). Each version was run twice,
+alternating, and a cell is the mean of its two runs, which were within 10% of each other.
+
+| Tool call | 1,000 notes: 1.1.1 → 1.2.1 | 10,000 notes: 1.1.1 → 1.2.1 |
+|---|---|---|
+| `ao_session_start` | 169 → **33** (5.2×) | 1,769 → **308** (5.7×) |
+| `ao_wrap_up` | 167 → **28** (6.0×) | 1,704 → **269** (6.3×) |
+| `ao_status` | 85 → **24** (3.5×) | 906 → **268** (3.4×) |
+| `ao_orphans` | 82 → **22** (3.7×) | 837 → **218** (3.8×) |
+| `ao_search`, searches within a second of each other | 15 → **5.0** (3.1×) | 128 → **14** (9.5×) |
+| `ao_search`, no search in the last second | 15 → **12** (1.2×) | 132 → **53** (2.5×) |
+| the same search on a resident `Ompa` | 3.7 → 3.5 | 23 → **7.8** (3.0×) |
+| `ao_write` | 2.7 → 4.0 | 3.0 → 3.1 |
+| `ao_kg_query` / `ao_kg_stats` / `ao_classify` | 0.5–0.9 → 0.7–1.0 | 0.9–4.8 → 0.7–3.8 |
+
+On a vault shaped like one LongMemEval-S haystack (50 notes of ~1,700 words): `ao_search` 6.5 →
+**5.1** (7.3 → **3.9** in a burst), `ao_session_start` 19 → **5.1**, the resident search 5.2 → **2.3**.
+
+**With `ompa[semantic]`** (`all-MiniLM-L6-v2` loaded before timing; hybrid search; one run each):
+
+| Tool call | 1,000 notes: 1.1.1 → 1.2.1 | 10,000 notes: 1.1.1 → 1.2.1 |
+|---|---|---|
+| `ao_search`, searches within a second of each other | 30 → **13** (2.3×) | 253 → **26** (9.9×) |
+| `ao_search`, no search in the last second | 30 → **18** (1.7×) | 174 → **67** (2.6×) |
+| the same search on a resident `Ompa` | 13 → 12 | 40 → **22** (1.9×) |
+
+On the 50-session vault: `ao_search` 23 → **13**, the resident search 20 → **14**. The vault-wide
+calls do not search and measure as in the keyword-only table. 1.1.1 has no refresh interval, so
+its two `ao_search` rows are the same code path and differ only by noise. On the 50-session vault
+neither version returns the note the query names in its top 5 in hybrid mode: these notes are
+random words, so the semantic half of the fusion is noise there. Section 1 is the measure of
+ranking quality.
+
+What changed, and what did not:
+
+- **Vault-wide calls** parsed every note's YAML, twice for session start and wrap-up. They now
+  read each note once and parse YAML only where it can change the answer.
+- **`ao_search`** walked the whole vault before every search to look for notes edited outside
+  OMPA. The walk is about 3× faster, and the server runs it at most once per
+  `OMPA_INDEX_REFRESH_SECONDS` (default 1). The first search row is a burst of searches; the
+  second is a search that pays for the walk.
+- **Keyword ranking** scored every note a question's common words matched, which at 10,000 notes
+  is every note. From 2,000 notes up it ranks by the rarer words first and scores in full only
+  the notes that could still reach the results: 21.6 → 7.3 ms for the ranking alone, with the
+  same notes, scores and excerpts. Below 2,000 notes nothing changes, which is why the resident
+  search at 1,000 notes is as it was.
+- **The semantic index** was read and parsed again by every call: 32 ms at 10,000 notes. The
+  server keeps it between calls and reuses it while it still matches the files on disk.
+- **With long notes, keyword ranking no longer builds excerpts for notes it does not return.** In
+  hybrid mode the keyword half is ranked without excerpts at all. On 50 notes of 1,700 words,
+  ranking 20 notes takes 0.4 ms where ranking with excerpts took 7 ms. On the first 40
+  LongMemEval-S histories with the model loaded, hybrid search went from 22.1 to 10.3 ms with
+  the same top 10 for every question.
+- **Small calls are not faster.** Every call now checks the vault path against the configured
+  vaults (about 0.1 ms), and a write is saved atomically and checks that an automatically chosen
+  name is free. `ao_write` varied from 2.5 to 4.5 ms across runs of 1.2.1 and from 2.6 to 3.1 on
+  1.1.1.
+- **What is left** of a search at 10,000 notes with no search in the last second is the walk of
+  the vault (about 28 ms) and comparing its result with both indexes.
+
+```bash
+pip install numpy
+python benchmarks/mcp_latency.py            # 1k and 10k notes, then the 50-session vault
+```
 
 ## Notes and limits
 
 - LongMemEval-S tests haystacks of about 50 sessions per question. That is retrieval over small
   vaults, not a 50k-note vault. The synthetic latency benchmark covers scale but not relevance.
 - Chunks are 512 words, but MiniLM reads only the first 256 tokens of each, so semantic recall on
-  long notes relies on the BM25 half of hybrid search.
+  long notes relies on the BM25 half of hybrid search. Chunks of 180 words were tried on
+  2026-11-22 with a script that is not in this repository, and the default was left alone: on
+  LongMemEval-S (n=470) hybrid R@5 stays 0.981 and R@10 goes from 0.996 to 0.989, both within
+  noise, while indexing takes 2.5× as long (179 → 464 chunks per history). Semantic-only search
+  does gain there (all answer sessions in the top 5: 0.847 → 0.872). On book-length sections (the
+  public SearchTome set, 6,005 questions) hybrid R@1 goes from 64.9 to 69.7, so smaller chunks
+  would suit vaults of long documents.
 - The ≤ 1.0.8 LongMemEval baseline was measured on 2026-10-20 from the same harness. Its search
   code is unchanged in #16, and a fresh 40-question re-run gave identical top-5 lists.

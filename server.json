@@ -8,19 +8,19 @@
     "source": "github"
   },
   "websiteUrl": "https://jmiaie.github.io/ompa",
-  "version": "1.1.1",
+  "version": "1.2.1",
   "packages": [
     {
       "registryType": "pypi",
       "registryBaseUrl": "https://pypi.org",
       "identifier": "ompa",
-      "version": "1.1.1",
+      "version": "1.2.1",
       "runtimeHint": "uvx",
       "runtimeArguments": [
         {
           "type": "named",
           "name": "--from",
-          "value": "ompa==1.1.1"
+          "value": "ompa==1.2.1"
         },
         {
           "type": "positional",

@@ -33,7 +33,7 @@ Each item lists deliverables, an exit criterion and dependencies. "This PR" mean
 |---|---|---|---|
 | L1 | kg-schema v2: vault-relative POSIX `source_file`; migration step in `ompa/migration.py` | v2 doc, migration with `--dry-run`, readers accept v1 and v2 before OMPA writes v2 | X1, X5 |
 | L2 | Decide the registry launch command (`uvx --from ompa ao-mcp` vs an `ompa` console script) | `server.json` updated; registry listing verified with a real client | PRD Q3 |
-| L3 | Latency targets for MCP calls on a reference vault | Targets in PRD with a script that measures them | X4 tooling |
+| L3 | Latency targets for MCP calls on a reference vault | Targets in PRD with a script that measures them. *Script and first numbers done in 1.2.1 (`benchmarks/mcp_latency.py`); the targets are still the owner's to set.* | X4 tooling |
 
 ## Not planned
 

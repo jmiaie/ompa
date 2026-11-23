@@ -29,7 +29,9 @@ jobs:
         run: pip install -e ".[dev]"
 
       - name: Run tests
-        run: pytest tests/ -v --tb=short
+        # Coverage is measured on one version: the upload below used to find no
+        # report, because nothing produced one.
+        run: pytest tests/ -v --tb=short ${{ matrix.python-version == '3.12' && '--cov=ompa --cov-report=xml --cov-report=term --cov-fail-under=65' || '' }}
 
       - name: Upload coverage
         if: matrix.python-version == '3.12'
@@ -101,6 +103,37 @@ jobs:
         continue-on-error: true  # advisory — findings reported but don't block CI
         run: pip-audit --skip-editable
 
+  types:
+    name: Types (mypy ratchet)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install
+        run: pip install -e ".[dev]"
+
+      - name: Count mypy errors against the baseline
+        # 114 errors existed when this gate was added. The count may only go
+        # down: lower MYPY_BASELINE in the same commit that fixes errors.
+        env:
+          MYPY_BASELINE: "114"
+        run: |
+          out=$(mypy ompa || true)
+          echo "$out" | tail -n 5
+          n=$(echo "$out" | sed -n 's/^Found \([0-9]*\) errors.*/\1/p')
+          n=${n:-0}
+          echo "mypy errors: $n (baseline $MYPY_BASELINE)"
+          if [ "$n" -gt "$MYPY_BASELINE" ]; then
+            echo "New type errors were added."; exit 1
+          fi
+
   verify-version:
     name: Verify Tag Matches Package Version
     runs-on: ubuntu-latest
@@ -121,7 +154,7 @@ jobs:
 
   publish:
     name: Publish to PyPI
-    needs: [test, lint, format, verify-version]
+    needs: [test, lint, format, security, types, verify-version]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
     environment:

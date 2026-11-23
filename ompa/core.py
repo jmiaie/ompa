@@ -27,14 +27,14 @@ from .keyword import KeywordIndex
 from .knowledge_graph import KnowledgeGraph
 from .palace import Palace
 from .provenance import cite
-from .semantic import SearchResult, SemanticIndex, scan_vault
+from .semantic import LEGACY_FILE, META_FILE, SearchResult, SemanticIndex, scan_vault
 from .temporal import (
     NoteDateCache,
     parse_reference_date,
     parse_relative_windows,
     rerank_by_time,
 )
-from .vault import Note, Vault, _safe_resolve
+from .vault import Note, Vault, _safe_resolve, is_excluded
 
 logger = logging.getLogger(__name__)
 
@@ -99,8 +99,25 @@ class Ompa:
         # Date-aware ranking (opt-in; see ompa/temporal.py)
         temporal_ranking: bool = False,
         temporal_depth: int = 100,
+        refresh_clock: dict | None = None,
+        semantic_cache: dict | None = None,
     ):
         """
+        Index freshness args:
+            index_refresh_interval: seconds between checks of the vault for
+                notes edited outside OMPA (0 = check on every search).
+            refresh_clock: a dict to share between instances over the same vault
+                in one process, so that check runs once per interval for the
+                process and not once per instance.  The MCP server builds an
+                instance per tool call and passes one; without it, every search
+                walked the whole vault first.
+            semantic_cache: a dict to share between instances in one process,
+                in which the loaded semantic index of each vault is kept.  An
+                instance reuses the index found there if it still matches the
+                files on disk, and otherwise loads it as usual.  The MCP
+                server passes one; without it, every search by a new instance
+                reads and parses the whole index first (32 ms at 10,000 notes).
+
         Audit-memory args:
             principal: user/agent/team id this instance acts as (ACL checks,
                 audit actor, fact provenance).  Default: $OMPA_PRINCIPAL, else
@@ -126,7 +143,10 @@ class Ompa:
         # search (0 = check on every search).  Writes through Ompa.write() are
         # indexed immediately regardless; this catches edits made outside OMPA.
         self.index_refresh_interval = index_refresh_interval
-        self._last_refresh: dict[tuple[int, int], float] = {}
+        self._last_refresh: dict[tuple[str, str], float] = (
+            refresh_clock if refresh_clock is not None else {}
+        )
+        self._semantic_cache: dict[str, SemanticIndex] | None = semantic_cache
         self._embedding_backend = embedding_backend  # optional custom backend
         self._session_started = False
         self._last_classification: Classification | None = None
@@ -257,19 +277,56 @@ class Ompa:
             )
         return self._personal_keyword
 
+    # Vaults whose loaded semantic index a shared ``semantic_cache`` holds.
+    SEMANTIC_CACHE_VAULTS = 4
+
+    def _open_semantic(self, root: Path, keyword: KeywordIndex) -> SemanticIndex:
+        """The semantic index of the vault at ``root``: loaded, or built if absent.
+
+        With a ``semantic_cache``, an index another instance in this process
+        left there is reused when it is the same embedding backend and still
+        holds exactly what the files on disk hold.  Anything else written to
+        those files since (another process, ``forget()``) fails that check and
+        the index is loaded again.
+        """
+        index_path = root / ".palace" / "semantic_index"
+        cache = self._semantic_cache
+        key = str(index_path)
+        if cache is not None:
+            held = cache.get(key)
+            if (
+                held is not None
+                and held._model_given is self._embedding_backend
+                and held.in_step_with_disk()
+            ):
+                held.keyword_index = keyword
+                return held
+            cache.pop(key, None)
+        index = SemanticIndex(
+            index_path=index_path,
+            embedding_backend=self._embedding_backend,
+            keyword_index=keyword,
+        )
+        if not index.load_index():
+            count = index.index_vault(root)
+            if count > 0:
+                index.save_index()
+        if cache is not None:
+            while len(cache) >= self.SEMANTIC_CACHE_VAULTS:
+                del cache[next(iter(cache))]  # the vault used longest ago
+            cache[key] = index
+        return index
+
+    def _forget_cached_semantic(self, root: Path) -> None:
+        """Drop a vault's index from the shared cache (after erasure or deletion)."""
+        if self._semantic_cache is not None:
+            self._semantic_cache.pop(str(Path(root) / ".palace" / "semantic_index"), None)
+
     @property
     def semantic(self) -> SemanticIndex | None:
         """Lazy-load semantic index on first access."""
         if self._semantic is None and self._enable_semantic:
-            self._semantic = SemanticIndex(
-                index_path=self.vault_path / ".palace" / "semantic_index",
-                embedding_backend=self._embedding_backend,
-                keyword_index=self.keyword,
-            )
-            if not self._semantic.load_index():
-                count = self._semantic.index_vault(self.vault_path)
-                if count > 0:
-                    self._semantic.save_index()
+            self._semantic = self._open_semantic(self.vault_path, self.keyword)
         return self._semantic
 
     @property
@@ -280,15 +337,9 @@ class Ompa:
             and self._enable_semantic
             and self.dual_config.personal_path
         ):
-            self._personal_semantic = SemanticIndex(
-                index_path=self.dual_config.personal_path / ".palace" / "semantic_index",
-                embedding_backend=self._embedding_backend,
-                keyword_index=self.personal_keyword,
+            self._personal_semantic = self._open_semantic(
+                self.dual_config.personal_path, self.personal_keyword
             )
-            if not self._personal_semantic.load_index():
-                count = self._personal_semantic.index_vault(self.dual_config.personal_path)
-                if count > 0:
-                    self._personal_semantic.save_index()
         return self._personal_semantic
 
     # -------------------------------------------------------------------------
@@ -342,18 +393,47 @@ class Ompa:
         # Auto-update on file writes
         if tool_name in ("write", "edit", "create_file"):
             file_path = tool_input.get("file_path") or tool_input.get("path")
-            if file_path:
-                path = Path(file_path)
-                # Raises AccessDeniedError (logged) if this principal may not write here
-                self.gov.require("write", "post_tool:" + tool_name, path)
-                self._auto_add_to_palace(file_path)
-                with self.gov.txn():
-                    self._auto_update_kg(path)
-                    if self.gov.audit is not None and path.suffix == ".md" and path.exists():
-                        self.gov.log_note("note.observed", path, {"tool": tool_name})
-                self._auto_update_index(path)
+            located = self._locate_in_vaults(file_path) if file_path else None
+            if located is None:
+                if file_path:
+                    # The agent edits files all over the disk.  Only notes that
+                    # live in a vault belong in its graph and search index.
+                    logger.debug("post_tool: %s is outside the vault(s); not indexed", file_path)
+                return result
+            vault, path = located
+            gov, kg, keyword, sem_attr, root = self._ctx(vault)
+            # Raises AccessDeniedError (logged) if this principal may not write here
+            gov.require("write", "post_tool:" + tool_name, path)
+            palace = self.palace if vault == "shared" else self.personal_palace
+            self._auto_add_to_palace(str(path), palace)
+            with gov.txn():
+                self._auto_update_kg(path, kg, root)
+                if gov.audit is not None and path.suffix == ".md" and path.exists():
+                    gov.log_note("note.observed", path, {"tool": tool_name})
+            self._auto_update_index(path, keyword, getattr(self, sem_attr), root)
 
         return result
+
+    def _locate_in_vaults(self, file_path: str | Path) -> tuple[str, Path] | None:
+        """``(vault name, path)`` if ``file_path`` is inside one of this instance's vaults.
+
+        A relative path is tried as given (relative to the working directory)
+        and then relative to each vault root.
+        """
+        raw = Path(file_path)
+        roots = [("shared", self.vault.vault_path)]
+        if self.personal_vault is not None:
+            roots.append(("personal", self.personal_vault.vault_path))
+        candidates = [raw] if raw.is_absolute() else [raw, *(root / raw for _, root in roots)]
+        for candidate in candidates:
+            try:
+                resolved = candidate.resolve()
+            except OSError:
+                continue
+            for name, root in roots:
+                if resolved != root and root in resolved.parents:
+                    return name, resolved
+        return None
 
     def pre_compact(self, transcript: str) -> HookResult:
         """Run pre-compact hook before context compaction."""
@@ -383,9 +463,10 @@ class Ompa:
     # Auto palace population
     # -------------------------------------------------------------------------
 
-    def _auto_add_to_palace(self, file_path: str) -> None:
+    def _auto_add_to_palace(self, file_path: str, palace: Palace | None = None) -> None:
         """Auto-add a written file to the palace metadata layer."""
         path = Path(file_path)
+        palace = self.palace if palace is None else palace
         if path.suffix != ".md":
             return
 
@@ -404,38 +485,58 @@ class Ompa:
             else:
                 return
 
-            self.palace.create_room(wing, room)
-            self.palace.link_drawer(wing, room, str(path))
+            palace.create_room(wing, room)
+            palace.link_drawer(wing, room, str(path))
         except Exception as e:
             logger.debug("Palace auto-add failed for %s: %s", file_path, e)
 
-    def _auto_update_kg(self, path: Path) -> None:
+    def _auto_update_kg(
+        self, path: Path, kg: KnowledgeGraph | None = None, root: Path | None = None
+    ) -> None:
         """Auto-update knowledge graph when a note is written/edited."""
         if path.suffix != ".md":
             return
         try:
-            added = self.kg.populate_from_note(path, self.vault_path)
+            kg = self.kg if kg is None else kg
+            added = kg.populate_from_note(path, root or self.vault_path)
             if added > 0:
                 logger.debug("KG updated: %d triples from %s", added, path.name)
         except Exception as e:
             logger.debug("KG auto-update failed for %s: %s", path, e)
 
-    def _auto_update_index(self, path: Path) -> None:
+    _UNSET: Any = object()
+
+    # Where write() files a note it was given no path for and cannot classify.
+    UNFILED_FOLDER = "brain/"
+
+    def _auto_update_index(
+        self,
+        path: Path,
+        keyword: KeywordIndex | None = None,
+        semantic: SemanticIndex | None = _UNSET,
+        root: Path | None = None,
+    ) -> None:
         """Incrementally update the search indexes when a note is written/edited."""
         if path.suffix != ".md":
             return
+        # an empty KeywordIndex is falsy (it defines __len__): compare with None
+        keyword = self.keyword if keyword is None else keyword
+        if semantic is self._UNSET:
+            semantic = self._semantic
+        key = _index_key(root or self.vault_path, path)
         try:
-            self.keyword.update_file(_index_key(self.vault_path, path))
+            keyword.update_file(key)
         except Exception as e:
             logger.debug("Keyword index update failed for %s: %s", path, e)
         if not self._enable_semantic:
             return
         try:
-            if self._semantic is not None:
-                self._semantic.update_file(path)
+            if semantic is not None:
+                semantic.update_file(key)
                 logger.debug("Search index updated for %s", path.name)
         except Exception as e:
             logger.debug("Index auto-update failed for %s: %s", path, e)
+        self._changed_behind_semantic(semantic, keyword, root or self.vault_path)
 
     # -------------------------------------------------------------------------
     # Classification
@@ -611,11 +712,13 @@ class Ompa:
         as a last resort (e.g. SQLite without FTS5, or no keyword hit).
         """
         self._maybe_refresh(semantic, vault.vault_path, keyword)
+        # A filter is applied after ranking, so look further down the ranking.
+        fetch = min(max(limit * 10, 50), 100) if (wing or room) else limit
         results: list[SearchResult] = []
         if semantic is not None and semantic.available and semantic.chunks:
-            results = semantic.search(query, limit, hybrid)
+            results = semantic.search(query, fetch, hybrid)
         elif keyword is not None and keyword.available:
-            results = keyword.search(query, limit)
+            results = keyword.search(query, fetch)
 
         if not results:
             notes = vault.search_by_name(query)
@@ -626,18 +729,26 @@ class Ompa:
                     score=1.0,
                     match_type="name",
                 )
-                for n in notes[:limit]
+                for n in notes[:fetch]
             ]
 
         if wing or room:
-            filtered = []
-            for r in results:
-                if wing and wing not in r.path:
-                    continue
-                if room and room not in r.path:
-                    continue
-                filtered.append(r)
-            results = filtered or results[:limit]
+            # Match against the path inside the vault.  The absolute path was
+            # used before, so a vault stored under ".../Orion/..." matched every
+            # note for wing="Orion"; and when nothing matched, the unfiltered
+            # results were returned as if they were in that wing.
+            def inside(r: SearchResult) -> str:
+                try:
+                    return Path(r.path).resolve().relative_to(vault.vault_path).as_posix().lower()
+                except (ValueError, OSError):
+                    return r.path.lower()
+
+            results = [
+                r
+                for r in results
+                if (not wing or wing.lower() in inside(r))
+                and (not room or room.lower() in inside(r))
+            ][:limit]
 
         return results
 
@@ -652,7 +763,12 @@ class Ompa:
         One directory walk is shared by the semantic and keyword indexes.
         """
         now = time.monotonic()
-        key = (id(semantic), id(keyword))
+        # Keyed by where the indexes live, so instances that share a clock and a
+        # vault share the check.  A refresh is saved, so the next instance loads it.
+        key = (
+            str(getattr(semantic, "index_path", id(semantic))) if semantic is not None else "",
+            str(getattr(keyword, "db_path", id(keyword))) if keyword is not None else "",
+        )
         last = self._last_refresh.get(key)
         if last is not None and now - last < self.index_refresh_interval:
             return
@@ -671,6 +787,30 @@ class Ompa:
                     logger.debug("%s refreshed: %s", type(index).__name__, changes)
             except Exception as e:
                 logger.debug("Index refresh skipped: %s", e)
+
+    def _changed_behind_semantic(
+        self, semantic: SemanticIndex | None, keyword: KeywordIndex | None, root: Path
+    ) -> None:
+        """A note changed and the semantic index was not loaded to follow it.
+
+        Forget when this vault was last checked, so the next search checks it
+        before ranking.  Instances that share a refresh clock (the MCP server
+        builds one ``Ompa`` per call) would otherwise search inside the
+        interval with the note's old embedding, or none: found by keyword but
+        ranked without its meaning, and a deleted note still returned.  With
+        no semantic index on disk there is nothing to catch up, because the
+        keyword index was updated in place.  ``enable_semantic`` on this
+        instance does not decide it: the MCP write tool turns it off, and the
+        next search, with it on, loads the index this write left behind.
+        """
+        if semantic is not None:
+            return
+        index_dir = Path(root) / ".palace" / "semantic_index"
+        if not ((index_dir / META_FILE).exists() or (index_dir / LEGACY_FILE).exists()):
+            return
+        db = str(getattr(keyword, "db_path", ""))
+        for key in [k for k in self._last_refresh if k[1] == db]:
+            del self._last_refresh[key]
 
     def qsearch(self, query: str, limit: int = 5) -> list[SearchResult]:
         """QMD-style semantic search. Convenience method."""
@@ -858,19 +998,21 @@ class Ompa:
             # Use classifier to determine folder
             classification = self.classifier.classify(content[:200])
             folder = classification.suggested_folder
+            # The classifier suggests thinking/ for whatever it cannot place,
+            # which is most plain statements ("Alice prefers morning
+            # meetings").  That folder is scratch space: search, the graph
+            # and note listings leave it out, so a note stored here without a
+            # path could never be found again.  A stored note goes to brain/.
+            root = target_vault.vault_path
+            if is_excluded(root / folder / "note.md", root):
+                folder = self.UNFILED_FOLDER
             # Sanitize content for filename
             words = re.sub(r"[^\w\s]", "", content[:40]).split()
             name = "-".join(words[:5]) if words else "note"
-            file_path = f"{folder}{name}.md"
+            file_path = self._unused_note_path(target_vault.vault_path, folder, name, content)
 
         # Write the note
         from datetime import datetime
-
-        frontmatter: dict[str, Any] = {
-            "date": date or datetime.now().strftime("%Y-%m-%d"),
-            "tags": tags,
-            "vault": target.value,
-        }
 
         full_path = _safe_resolve(target_vault.vault_path, file_path)
         gov = self.gov if target == VaultTarget.SHARED else self.personal_gov
@@ -879,6 +1021,16 @@ class Ompa:
         existed = full_path.exists()
         if existed:
             gov.check_hold_note(full_path, "overwrite")
+
+        # Rewriting a note replaces its content, not its metadata: fields this
+        # call does not set (description, status, owner, the original date...)
+        # are kept.  They used to be dropped.
+        frontmatter: dict[str, Any] = dict(Note.from_file(full_path).frontmatter) if existed else {}
+        if date or "date" not in frontmatter:
+            frontmatter["date"] = date or datetime.now().strftime("%Y-%m-%d")
+        if tags or "tags" not in frontmatter:
+            frontmatter["tags"] = tags
+        frontmatter["vault"] = target.value
         note = Note(path=full_path, frontmatter=frontmatter, content=content)
         target_kg = self.kg if target == VaultTarget.SHARED else self.personal_kg
         # One audit transaction: the note write and every fact derived from it
@@ -896,6 +1048,11 @@ class Ompa:
         )
         target_keyword = self.keyword if target == VaultTarget.SHARED else self.personal_keyword
         key = _index_key(target_vault.vault_path, full_path)
+        if is_excluded(key, target_vault.vault_path):
+            # A path the caller chose inside a folder search leaves out.  It
+            # used to be indexed here and dropped again at the next check of
+            # the vault, so it was found for a moment and then not.
+            target_keyword = target_semantic = None
         if target_keyword is not None:
             try:
                 target_keyword.update_file(key)
@@ -906,12 +1063,34 @@ class Ompa:
                 target_semantic.update_file(key, save=False)
             except Exception as e:
                 logger.debug("Index update after write failed for %s: %s", full_path, e)
+        if target_keyword is not None:
+            self._changed_behind_semantic(target_semantic, target_keyword, target_vault.vault_path)
 
         return {
             "vault": target.value,
             "path": str(full_path),
             "classified_as": target.value,
         }
+
+    @staticmethod
+    def _unused_note_path(vault_root: Path, folder: str, name: str, content: str) -> str:
+        """Vault-relative path for an auto-named note that will not clobber another.
+
+        The name comes from the note's first words, so different notes that
+        open the same way ("Summary of the conversation with ...") used to
+        land on one file and silently replace each other.  A name already
+        taken by a note with different content gets a numeric suffix.  The
+        same content reuses the file, so a retried write stays idempotent.
+        """
+        n = 1
+        while True:
+            rel = f"{folder}{name}.md" if n == 1 else f"{folder}{name}-{n}.md"
+            existing = vault_root / rel
+            if not existing.exists():
+                return rel
+            if Note.from_file(existing).content.strip() == content.strip():
+                return rel
+            n += 1
 
     def export_to_shared(
         self,
@@ -940,6 +1119,10 @@ class Ompa:
         except ValueError:
             return {"success": False, "error": f"Invalid note_path: {note_path}"}
 
+        # The preview below returns note text, so it needs the same read
+        # permission as the export itself (it used to be checked only later).
+        self.personal_gov.require("read", "export_to_shared", note_path)
+
         if self.dual_config.isolation_mode == IsolationMode.STRICT and confirm:
             # In strict mode, first call returns preview for confirmation
             if not source.exists():
@@ -963,7 +1146,6 @@ class Ompa:
         # Perform the export
         if not source.exists():
             return {"success": False, "error": f"Note not found: {note_path}"}
-        self.personal_gov.require("read", "export_to_shared", note_path)
         self.gov.require("write", "export_to_shared", note_path)
         if target.exists():
             self.gov.check_hold_note(target, "overwrite")
@@ -971,6 +1153,7 @@ class Ompa:
         note = Note.from_file(source)
         if sanitize:
             note.content = self._sanitize_content(note.content)
+            note.frontmatter = self._sanitize_frontmatter(note.frontmatter)
 
         # Update frontmatter for shared vault
         note.frontmatter["vault"] = "shared"
@@ -1086,6 +1269,9 @@ class Ompa:
         purge_index_paths(keyword, sem, {target})
         if sem is not None:
             sem.save_index()
+        self._changed_behind_semantic(sem, keyword, root)
+        if sem is None:
+            self._forget_cached_semantic(root)  # it still holds the deleted note
         return {"success": True, "path": str(full), "facts_deleted": n}
 
     def forget(
@@ -1107,8 +1293,13 @@ class Ompa:
         """
         out = []
         for name in self._govs(vaults):
-            gov, kg, keyword, sem_attr, _root = self._ctx(name)
+            gov, kg, keyword, sem_attr, root = self._ctx(name)
             out.append(forget_vault(self, gov, kg, keyword, sem_attr, subject, dry_run))
+            if not dry_run:
+                # An index kept from an earlier call still holds the erased
+                # excerpts in memory.  It would be reloaded before its next
+                # use anyway; drop it now so nothing holds them.
+                self._forget_cached_semantic(root)
         return out
 
     def apply_retention(
@@ -1117,8 +1308,10 @@ class Ompa:
         """Delete notes/facts older than their retention rule (skipping legal holds)."""
         out = []
         for name in self._govs(vaults):
-            gov, kg, keyword, sem_attr, _root = self._ctx(name)
+            gov, kg, keyword, sem_attr, root = self._ctx(name)
             out.append(apply_retention_vault(self, gov, kg, keyword, sem_attr, now, dry_run))
+            if not dry_run:
+                self._forget_cached_semantic(root)
         return out
 
     def _policy_change(self, gov: VaultGovernance, op: str, item: dict) -> None:
@@ -1231,23 +1424,60 @@ class Ompa:
             raise RuntimeError("as_of() needs the audit log (Ompa(audit=True))")
         return PointInTimeView(gov.audit, t)
 
+    # Names that mark a key/value pair as a credential ("aws_secret_access_key = ...").
+    _SECRET_NAME = r"[\w.\-]*(?:token|passw(?:or)?d|secret|api[_\-]?key|access[_\-]?key|private[_\-]?key)[\w.\-]*"
+    _SECRET_PATTERNS = [
+        # PEM private keys, whole block
+        (
+            re.compile(
+                r"-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----.*?-----END [A-Z0-9 ]*PRIVATE KEY-----", re.S
+            ),
+            "[REDACTED]",
+        ),
+        # Provider key formats: OpenAI / Anthropic (sk-, sk-proj-, sk-ant-...), GitHub,
+        # Slack, AWS key ids, Google API keys
+        (re.compile(r"\bsk-[A-Za-z0-9_\-]{20,}"), "[REDACTED]"),
+        (
+            re.compile(r"\b(?:gh[pousr]_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{22,})"),
+            "[REDACTED]",
+        ),
+        (re.compile(r"\bxox[abeoprs]-[A-Za-z0-9\-]{10,}"), "[REDACTED]"),
+        (re.compile(r"\b(?:AKIA|ASIA)[A-Z0-9]{16}\b"), "[REDACTED]"),
+        (re.compile(r"\bAIza[0-9A-Za-z_\-]{35}\b"), "[REDACTED]"),
+        # JSON Web Tokens and bearer credentials
+        (
+            re.compile(r"\beyJ[A-Za-z0-9_\-]{8,}\.[A-Za-z0-9_\-]{8,}\.[A-Za-z0-9_\-]{8,}"),
+            "[REDACTED]",
+        ),
+        (re.compile(r"(?i)\b(Bearer)\s+[A-Za-z0-9._~+/=\-]{16,}"), r"\1 [REDACTED]"),
+        # name: value / name = value
+        (re.compile(rf"(?i)({_SECRET_NAME})\s*[:=]\s*\S+"), r"\1: [REDACTED]"),
+    ]
+
     def _sanitize_content(self, content: str) -> str:
-        """Remove sensitive markers and credentials from content."""
-        # Remove personal tags
+        """Remove personal markers and redact credential-shaped text.
+
+        Best effort: it recognises common key formats and ``name: value``
+        pairs whose name says "token", "password", "secret" or "key".  It is
+        not a substitute for reading a note before sharing it.
+        """
         content = re.sub(r"@private\b", "", content)
         content = re.sub(r"#personal\b", "", content)
-
-        # Redact credential-like patterns
-        content = re.sub(r"(sk-[a-zA-Z0-9]{20,})", "[REDACTED]", content)
-        content = re.sub(r"(AKIA[A-Z0-9]{16})", "[REDACTED]", content)
-        content = re.sub(
-            r"(token|password|secret|api_key|api-key)\s*[:=]\s*\S+",
-            r"\1: [REDACTED]",
-            content,
-            flags=re.IGNORECASE,
-        )
-
+        for pattern, replacement in self._SECRET_PATTERNS:
+            content = pattern.sub(replacement, content)
         return content
+
+    def _sanitize_frontmatter(self, value: Any, key: str = "") -> Any:
+        """Apply the same redaction to frontmatter, which is exported with the note."""
+        if isinstance(value, dict):
+            return {k: self._sanitize_frontmatter(v, str(k)) for k, v in value.items()}
+        if isinstance(value, list):
+            return [self._sanitize_frontmatter(v, key) for v in value]
+        if isinstance(value, str):
+            if key and re.fullmatch(self._SECRET_NAME, key, re.I):
+                return "[REDACTED]"
+            return self._sanitize_content(value)
+        return value
 
     def migrate_to_dual_vault(
         self,

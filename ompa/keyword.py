@@ -24,6 +24,40 @@ logger = logging.getLogger(__name__)
 _TOKEN_RE = re.compile(r"\w+", re.UNICODE)
 _MAX_QUERY_TOKENS = 64
 
+# Rank and excerpt in one statement: the right choice while notes are short.
+_ONE_QUERY_SQL = """SELECT path, bm25(notes_fts) AS s, snippet(notes_fts, 1, '', '', '...', 48)
+                    FROM notes_fts WHERE notes_fts MATCH ?
+                    ORDER BY s, rowid LIMIT ?"""
+_RANK_SQL = """SELECT rowid, bm25(notes_fts) AS s
+               FROM notes_fts WHERE notes_fts MATCH ?
+               ORDER BY s, rowid LIMIT ?"""
+# How many rows match a query, counted no further than the number given.
+_AT_LEAST_SQL = """SELECT count(*) FROM
+                   (SELECT 1 FROM notes_fts WHERE notes_fts MATCH ? LIMIT ?)"""
+# Ranking by the rarer words alone (KeywordIndex._ranked_by_rare_words) is used
+# from this many notes up; below it, scoring every match is already quick.
+_PRUNE_MIN_NOTES = 2000
+# Rows scored exactly at most.  Under 999, the oldest default limit on values
+# bound to one statement.
+_PRUNE_MAX_CANDIDATES = 900
+# FTS5's bm25(): k1, and the IDF it gives a word found in at least half the rows.
+_BM25_K1 = 1.2
+_COMMON_IDF = 1e-6
+# The most such a word can add to one row's score.
+_COMMON_WORD_BOUND = _COMMON_IDF * (_BM25_K1 + 1.0)
+_SCORE_SLACK = 1e-9  # rounding room, far below any difference between two scores
+_COMMON_MEMO_WORDS = 4096  # words whose "common or not" one index object remembers
+# The snippet of one matching note, reached by a seek to its rowid.
+_EXCERPT_SQL = """SELECT path, snippet(notes_fts, 1, '', '', '...', 48)
+                  FROM notes_fts WHERE notes_fts MATCH ? AND rowid = ?"""
+# Index bytes per note from which notes count as long (about 300 words a note).
+# See KeywordIndex.search for what changes.
+_LONG_NOTE_BYTES = 4096
+# Excerpts are fetched by seeking while there are at most this many of them, or
+# one per this many notes in the index if that is more (see KeywordIndex._excerpts).
+_SEEK_AT_MOST = 5
+_NOTES_PER_SEEK = 1500
+
 
 def fts5_available() -> bool:
     """True if this Python's sqlite3 was built with the FTS5 extension."""
@@ -38,6 +72,21 @@ def fts5_available() -> bool:
         return False
 
 
+def _query_words(query: str) -> list[str]:
+    """The distinct words of ``query``, in order, at most ``_MAX_QUERY_TOKENS``."""
+    seen: list[str] = []
+    for tok in _TOKEN_RE.findall(query.lower()):
+        if tok not in seen:
+            seen.append(tok)
+        if len(seen) >= _MAX_QUERY_TOKENS:
+            break
+    return seen
+
+
+def _any_of(words: list[str]) -> str:
+    return " OR ".join(f'"{t}"' for t in words)
+
+
 def _fts_query(query: str) -> str:
     """Turn free text into a safe FTS5 query: every word quoted, OR-ed together.
 
@@ -45,13 +94,7 @@ def _fts_query(query: str) -> str:
     unbalanced quotes ...), so arbitrary user text can never raise a syntax error.
     BM25 then ranks documents matching more (and rarer) words higher.
     """
-    seen: list[str] = []
-    for tok in _TOKEN_RE.findall(query.lower()):
-        if tok not in seen:
-            seen.append(tok)
-        if len(seen) >= _MAX_QUERY_TOKENS:
-            break
-    return " OR ".join(f'"{t}"' for t in seen)
+    return _any_of(_query_words(query))
 
 
 class KeywordIndex:
@@ -63,6 +106,10 @@ class KeywordIndex:
         self._lock = threading.RLock()
         self.available = fts5_available()
         self._conn: sqlite3.Connection | None = None
+        # Which query words are in at least half the rows, and the state of
+        # the index those answers are for (see _common_words).
+        self._common: dict[str, bool] = {}
+        self._common_stamp: tuple | None = None
         if self.available:
             self._conn = sqlite3.connect(str(self.db_path), check_same_thread=False, timeout=30)
             self._conn.execute("PRAGMA journal_mode=WAL")
@@ -204,27 +251,50 @@ class KeywordIndex:
 
     # ------------------------------------------------------------------ reads
 
-    def search(self, query: str, limit: int = 5):
+    def search(self, query: str, limit: int = 5, excerpts: bool = True):
         """BM25-ranked notes matching any word of ``query`` (best first).
 
         Returns :class:`ompa.semantic.SearchResult` objects with
         ``match_type="keyword"`` and ``score`` = -bm25 (higher is better).
+
+        A snippet re-reads its whole note, and a statement that ranks and
+        excerpts at once builds one for every note that is in the top ``limit``
+        at any point of the scan, not only for the final results.  With short
+        notes that is cheap.  With long ones it was most of the search: 4 ms of a
+        4.8 ms search for 5 of 50 notes of 1,700 words.  So when the index holds
+        long notes, they are ranked first and excerpts are built afterwards for
+        the results only.  The ranking is the same either way.
+
+        Pass ``excerpts=False`` to get the ranking alone (``content_excerpt`` is
+        then empty) and call :meth:`fill_excerpts` for the results that are kept.
         """
         from .semantic import SearchResult
 
         limit = max(0, min(int(limit), 100))
-        fts_q = _fts_query(query)
+        words = _query_words(query)
+        fts_q = _any_of(words)
         if self._conn is None or not fts_q or limit == 0:
             return []
         with self._lock:
+            conn = self._conn
             try:
-                rows = self._conn.execute(
-                    """SELECT path, bm25(notes_fts) AS s,
-                              snippet(notes_fts, 1, '', '', '...', 48)
-                       FROM notes_fts WHERE notes_fts MATCH ?
-                       ORDER BY s LIMIT ?""",
-                    (fts_q, limit),
-                ).fetchall()
+                ranked = self._ranked_by_rare_words(conn, words, fts_q, limit)
+                if ranked is None and excerpts and not self._long_notes(conn):
+                    rows = conn.execute(_ONE_QUERY_SQL, (fts_q, limit)).fetchall()
+                else:
+                    if ranked is None:
+                        ranked = conn.execute(_RANK_SQL, (fts_q, limit)).fetchall()
+                    rowids = [rowid for rowid, _ in ranked]
+                    found = (
+                        self._excerpts(conn, fts_q, rowids)
+                        if excerpts
+                        else self._paths(conn, rowids)
+                    )
+                    rows = [
+                        (found[rowid][0], s, found[rowid][1])
+                        for rowid, s in ranked
+                        if rowid in found
+                    ]
             except sqlite3.Error as e:
                 logger.warning("Keyword search failed: %s", e)
                 return []
@@ -232,3 +302,166 @@ class KeywordIndex:
             SearchResult(path=p, content_excerpt=snip, score=-float(s), match_type="keyword")
             for p, s, snip in rows
         ]
+
+    def _common_words(self, conn: sqlite3.Connection, words: list[str], half: int) -> set[str]:
+        """The ``words`` found in at least ``half`` of the rows.
+
+        Counting is most of what is left of a search once it no longer scores
+        every match, and which words are common changes only when the index
+        does.  So the answers are kept while nothing has been written to the
+        index, by this connection (``total_changes``) or any other
+        (``data_version``).
+        """
+        stamp = (conn.execute("PRAGMA data_version").fetchone()[0], conn.total_changes, half)
+        if self._common_stamp != stamp or len(self._common) > _COMMON_MEMO_WORDS:
+            self._common_stamp = stamp
+            self._common = {}
+        known = self._common
+        for word in words:
+            if word not in known:
+                found = conn.execute(_AT_LEAST_SQL, (f'"{word}"', half)).fetchone()[0]
+                known[word] = found >= half
+        return {word for word in words if known[word]}
+
+    def _ranked_by_rare_words(
+        self, conn: sqlite3.Connection, words: list[str], fts_q: str, limit: int
+    ) -> list[tuple[int, float]] | None:
+        """``(rowid, bm25)`` of the best ``limit`` rows, without scoring every match.
+
+        A question is mostly words found in most notes ("what", "did", "the").
+        Every note then matches the query, and scoring them all was nearly the
+        whole search: 19 of 21.6 ms at 10,000 notes.  Those words hardly
+        count.  bm25() gives a word found in at least half the rows an IDF of
+        one millionth, so each can add less than ``_COMMON_WORD_BOUND`` to a
+        row's score, and all of them together less than ``bound`` below.
+
+        So the rows are ranked by the rarer words alone, which few rows match.
+        If the row in place ``limit`` of that ranking scores ``floor``, then at
+        least ``limit`` rows score ``floor`` or more in full, and a row whose
+        rare-word score is under ``floor - bound`` scores under ``floor`` in
+        full: it cannot be among the best ``limit``.  Neither can a row that
+        matches only common words, as long as ``floor`` is above ``bound``.
+        The rows that remain are scored by the whole query, by SQLite as
+        before, and sorted.  The result is the same rows with the same scores
+        in the same order as ranking every match.
+
+        Returns None when this does not apply (a small index, no common word,
+        no rare one, too few rows matching a rare word, too many rows left) or
+        when the scores do not behave as described, and the caller ranks every
+        match.
+        """
+        if len(words) < 2:
+            return None
+        total = conn.execute("SELECT count(*) FROM notes_fts_docsize").fetchone()[0]
+        if total < _PRUNE_MIN_NOTES:
+            return None
+        half = (total + 1) // 2  # "at least half the rows"
+        is_common = self._common_words(conn, words, half)
+        common = [word for word in words if word in is_common]
+        rare = [word for word in words if word not in is_common]
+        if not common or not rare:
+            return None
+        bound = _COMMON_WORD_BOUND * len(common)
+
+        by_rare = conn.execute(_RANK_SQL, (_any_of(rare), _PRUNE_MAX_CANDIDATES + 1)).fetchall()
+        if len(by_rare) < limit:
+            return None  # the last places go to rows that match only common words
+        floor = -by_rare[limit - 1][1]
+        if floor <= bound + _SCORE_SLACK:
+            return None
+        cut = floor - bound - _SCORE_SLACK
+        rare_score = {rowid: -s for rowid, s in by_rare if -s >= cut}
+        if len(rare_score) > _PRUNE_MAX_CANDIDATES:
+            return None  # the ranking was cut off before the rows that are out
+
+        marks = ",".join("?" * len(rare_score))
+        scored = conn.execute(
+            # "+rowid" keeps this one pass over the match instead of a seek per row
+            f"""SELECT rowid, bm25(notes_fts) FROM notes_fts
+                WHERE notes_fts MATCH ? AND +rowid IN ({marks})""",  # nosec B608 - constant placeholders
+            (fts_q, *rare_score),
+        ).fetchall()
+        if len(scored) != len(rare_score):
+            return None
+        for rowid, s in scored:
+            # What the common words added.  Outside these limits this is not
+            # the scoring the reasoning above relies on.
+            added = -s - rare_score[rowid]
+            if not -_SCORE_SLACK <= added <= bound + _SCORE_SLACK:
+                return None
+        scored.sort(key=lambda row: (row[1], row[0]))  # ORDER BY s, rowid
+        return scored[:limit]
+
+    @staticmethod
+    def _long_notes(conn: sqlite3.Connection) -> bool:
+        """True if the index averages more than ``_LONG_NOTE_BYTES`` per note."""
+        notes = conn.execute("SELECT MAX(id) FROM notes_fts_docsize").fetchone()[0] or 0
+        if not notes:
+            return False
+        pages = conn.execute("PRAGMA page_count").fetchone()[0]
+        page_size = conn.execute("PRAGMA page_size").fetchone()[0]
+        return pages * page_size >= notes * _LONG_NOTE_BYTES
+
+    def fill_excerpts(self, query: str, results: list) -> None:
+        """Set ``content_excerpt`` on the *results* that :meth:`search` left without one."""
+        fts_q = _fts_query(query)
+        wanted = [r for r in results if not r.content_excerpt]
+        if self._conn is None or not fts_q or not wanted:
+            return
+        with self._lock:
+            try:
+                by_rowid = {}
+                for result in wanted:
+                    row = self._conn.execute(
+                        "SELECT fts_rowid FROM files WHERE path = ?", (result.path,)
+                    ).fetchone()
+                    if row is not None:
+                        by_rowid[row[0]] = result
+                found = self._excerpts(self._conn, fts_q, list(by_rowid))
+            except sqlite3.Error as e:
+                logger.debug("Keyword excerpts failed: %s", e)
+                return
+        for rowid, (_, excerpt) in found.items():
+            by_rowid[rowid].content_excerpt = excerpt
+
+    @staticmethod
+    def _paths(conn: sqlite3.Connection, rowids: list[int]) -> dict[int, tuple[str, str]]:
+        """``{rowid: (path, "")}``: a direct read by rowid, no full-text match."""
+        out = {}
+        for rowid in rowids:
+            row = conn.execute("SELECT path FROM notes_fts WHERE rowid = ?", (rowid,)).fetchone()
+            if row is not None:
+                out[rowid] = (row[0], "")
+        return out
+
+    @staticmethod
+    def _excerpts(
+        conn: sqlite3.Connection, fts_q: str, rowids: list[int]
+    ) -> dict[int, tuple[str, str]]:
+        """``{rowid: (path, snippet)}`` for the given rows of a match.
+
+        Two ways to reach those rows, and which is cheaper depends on how many
+        there are.  A seek per row re-opens the query each time (about 0.1 ms on
+        1,000 notes, 0.35 ms on 10,000 and up).  One pass over every matching
+        row, building a snippet only for the wanted ones, costs about 0.2 ms per
+        1,000 notes however many are wanted.
+        """
+        if not rowids:
+            return {}
+        # The newest rowid stands in for the number of notes; it is never smaller.
+        newest = conn.execute("SELECT MAX(id) FROM notes_fts_docsize").fetchone()[0] or 0
+        if len(rowids) <= max(_SEEK_AT_MOST, newest // _NOTES_PER_SEEK):
+            rows = [
+                (rowid, *hit)
+                for rowid in rowids
+                for hit in conn.execute(_EXCERPT_SQL, (fts_q, rowid))
+            ]
+        else:
+            marks = ",".join("?" * len(rowids))
+            rows = conn.execute(
+                # "+rowid" keeps this one pass over the match instead of a seek per row
+                f"""SELECT rowid, path, snippet(notes_fts, 1, '', '', '...', 48)
+                    FROM notes_fts WHERE notes_fts MATCH ? AND +rowid IN ({marks})""",  # nosec B608 - constant placeholders
+                (fts_q, *rowids),
+            ).fetchall()
+        return {rowid: (path, snip) for rowid, path, snip in rows}

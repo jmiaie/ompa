@@ -51,8 +51,44 @@ Add to `.cursor/mcp.json` in your project root:
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `OMPA_VAULT_PATH` | `.` (current directory) | Path to the vault |
+| `OMPA_VAULT_ROOTS` | unset | Extra directories under which a tool call may name a vault, separated by `:` (`;` on Windows). Needed for dual-vault calls and for serving several vaults |
+| `OMPA_INDEX_REFRESH_SECONDS` | `1` | How often, at most, a search checks the vault for notes edited outside OMPA. `0` checks on every search |
 | `OMPA_ENABLE_SEMANTIC` | `false` | Enable semantic search |
 | `OMPA_AGENT_NAME` | `agent` | Agent name for session hooks |
+
+### Which directories the server will open
+
+Tool arguments come from the model, so the server does not let a tool call choose
+an arbitrary directory. It opens its default vault (`OMPA_VAULT_PATH`, or the
+working directory when unset) and any directory under `OMPA_VAULT_ROOTS`. A
+`vault_path`, `shared_vault_path` or `personal_vault_path` outside those returns
+`{"error": "Invalid vault_path"}` and creates nothing. Paths are compared after
+resolving symlinks, and a filesystem root is never accepted.
+
+### How fresh search results are
+
+Notes written through OMPA (`ao_write`, hooks) are searchable at once. Notes you
+edit in another program are picked up by a check that walks the vault and
+re-indexes what changed. The server runs that check before a search if it has
+not run in the last `OMPA_INDEX_REFRESH_SECONDS` (default 1), so an outside edit
+can take up to that long to appear. Before 1.2.1 the check ran before every
+search, which on a 10,000-note vault made the call more than five times as long
+as the search itself. Set the variable to `0` to get that behaviour back.
+
+With `ompa[semantic]`, a write, edit or delete through OMPA makes the next
+search run that check first, whatever the interval, because the write tool does
+not load the embedding model and cannot update the semantic index itself. The
+server also keeps the loaded semantic index of up to four vaults between calls
+and reuses it only while it still matches the files on disk, so a change made
+by another process, or by `ao_forget`, is always loaded before it is searched.
+
+### Where `ao_write` puts a note
+
+With a `file_path`, there. Without one, in the folder the classifier picks from
+the text (a decision goes to `work/active/`, an incident to `work/incidents/`),
+and in `brain/` when the classifier cannot place it. `thinking/` is scratch
+space that search leaves out, so `ao_write` never chooses it; before 1.2.1 it
+did, for most plain statements, and those notes could not be found again.
 
 ## Available tools
 

@@ -197,7 +197,8 @@ class Policies:
     Retention rule: ``{"id", "ttl_days", "scope": {...}}`` where scope is one of
     ``{"tag": t}``, ``{"folder": "work/"}``, ``{"predicate": p}`` (KG facts,
     by recorded time) or ``{"all": true}`` (every note).  Notes are aged by
-    frontmatter ``date`` if present, else file mtime.
+    when they were last written (file mtime, or the audited write if that is
+    earlier), never by a date stored in the note itself.
 
     Legal hold: ``{"id", "kind": "subject"|"path"|"tag", "value", "reason"}``.
     A held note cannot be deleted, overwritten, expired or erased.
@@ -309,12 +310,26 @@ def _note_tags(text: str) -> list[str]:
     return [str(t) for t in tags if t] if isinstance(tags, list) else []
 
 
-def _note_date(text: str, path: Path) -> datetime:
-    m = re.search(r"^date:\s*['\"]?(\d{4}-\d{2}-\d{2})", text[:2000], re.MULTILINE)
-    if m:
-        with contextlib.suppress(ValueError):
-            return datetime.strptime(m.group(1), "%Y-%m-%d").replace(tzinfo=timezone.utc)
-    return datetime.fromtimestamp(path.stat().st_mtime, timezone.utc)
+def _note_recorded(gov: VaultGovernance, rel: str, path: Path) -> datetime:
+    """When a note was last written, for retention: never a date taken from the note.
+
+    Retention used to age a note by its frontmatter ``date``.  That field is
+    part of the note, so whoever wrote the note decided when it expired: a
+    future date kept it for ever, and a past date (which ``write(date=...)``
+    sets on purpose, to record when a conversation happened) deleted it on the
+    next run.  Age is now transaction time, as it already was for facts: the
+    file's modification time, or the last write recorded in the audit log
+    when that is earlier (so re-touching a file does not restart its clock).
+    """
+    recorded = datetime.fromtimestamp(path.stat().st_mtime, timezone.utc)
+    if gov.audit is not None:
+        entry = gov.audit.index_get("note", rel)
+        if entry and entry.get("ts"):
+            with contextlib.suppress(ValueError):
+                recorded = min(
+                    recorded, datetime.fromisoformat(parse_time(entry["ts"])[:-1] + "+00:00")
+                )
+    return recorded
 
 
 # ---------------------------------------------------------------------------
@@ -530,6 +545,15 @@ def _redact_path(rel: str, rx: re.Pattern) -> str:
     return "/".join(rx.sub("REDACTED", part) for part in rel.split("/"))
 
 
+def _free_path(path: Path) -> Path:
+    """``path``, or ``name-2.ext``, ``name-3.ext``, ... if something is already there."""
+    candidate, n = path, 2
+    while candidate.exists():
+        candidate = path.with_name(f"{path.stem}-{n}{path.suffix}")
+        n += 1
+    return candidate
+
+
 def plan_forget(gov: VaultGovernance, subject: str) -> dict:
     """What forget() would touch in one vault (no changes)."""
     rx = subject_regex(subject)
@@ -610,7 +634,9 @@ def forget_vault(
         if p in plan["redact"]:
             reindex.append(key(p))
     for p in plan["rename"]:
-        new = vault / _redact_path(gov.rel(p), rx)
+        # Two notes can redact to one name ("ada-lovelace review.md" and
+        # "Ada Lovelace review.md"); the second must not replace the first.
+        new = _free_path(vault / _redact_path(gov.rel(p), rx))
         new.parent.mkdir(parents=True, exist_ok=True)
         text = rx.sub(REDACTION, p.read_text(encoding="utf-8"))
         removed.append(key(p))
@@ -781,7 +807,7 @@ def apply_retention_vault(
                 continue
             if "folder" in scope and not rel.startswith(scope["folder"].rstrip("/") + "/"):
                 continue
-            if _note_date(text, p) >= cutoff:
+            if _note_recorded(gov, rel, p) >= cutoff:
                 continue
             if gov.policies.hold_for(rel, tags, text) is not None:
                 held.append(rel)
@@ -804,6 +830,8 @@ def apply_retention_vault(
     purge_index_paths(keyword, sem, srcs)
     if sem is not None:
         sem.save_index()
+    elif notes_del:
+        ao._changed_behind_semantic(sem, keyword, gov.vault_path)
     if kg is not None:
         if notes_del:
             with kg._conn() as conn:
